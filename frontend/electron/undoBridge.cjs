@@ -41,6 +41,8 @@ exports.registerUndoIPC = function(ipcMain, journalInstance) {
       return { ok: false, error: e.message }
     }
   })
+}
+
 exports.createJournalStore = function(storeDir) {
   var journalCore = require('./journalCore.cjs')
   return journalCore.createJournal({ storeDir: storeDir })

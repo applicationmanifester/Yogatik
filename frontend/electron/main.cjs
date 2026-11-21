@@ -1081,8 +1081,4 @@ if (!gotLock) {
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin' && app.isQuitting) app.quit()
   })
-}eps running when all windows close.
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin' && app.isQuitting) app.quit()
-  })
 }
