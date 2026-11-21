@@ -32,6 +32,8 @@ import {
   listTorrents,
   pauseTorrent,
   resumeTorrent,
+  boostTorrent,
+  setTorrentStrategy,
   removeTorrent,
   openTorrentFolder,
   getDefaultDownloadPath,
@@ -56,6 +58,8 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
   }
   const [magnetInput, setMagnetInput] = useState('')
   const [targetPath, setTargetPath] = useState('')
+  const [downloadStrategy, setDownloadStrategy] = useState('rarest')
+  const [boostingMap, setBoostingMap] = useState({})
   const [loading, setLoading] = useState(false)
   const [isAvailable, setIsAvailable] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState({})
@@ -296,10 +300,11 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
     try {
       const res = await addTorrent({
         uri: uriToAdd,
-        downloadPath: targetPath
+        downloadPath: targetPath,
+        strategy: downloadStrategy
       })
       if (res.success) {
-        showToast?.('Torrent added to swarm engine')
+        showToast?.(downloadStrategy === 'rarest' ? '⚡ Torrent added with Turbo P2P acceleration' : 'Torrent added with sequential order')
         if (!uriOverride) setMagnetInput('')
         fetchTorrents()
       } else {
@@ -309,6 +314,37 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
       showToast?.(`Error: ${err.message}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleBoost = async (infoHash) => {
+    setBoostingMap(prev => ({ ...prev, [infoHash]: true }))
+    try {
+      const res = await boostTorrent(infoHash)
+      if (res.success) {
+        showToast?.(`⚡ Swarm boosted! ${res.numPeers || 0} peers active, ${res.recycledPeers || 0} stalled peers recycled`)
+      } else {
+        showToast?.(res.error || 'Swarm boost unavailable')
+      }
+    } catch (err) {
+      showToast?.(`Boost error: ${err.message}`)
+    } finally {
+      setTimeout(() => {
+        setBoostingMap(prev => ({ ...prev, [infoHash]: false }))
+      }, 1200)
+    }
+  }
+
+  const handleToggleStrategy = async (infoHash, currentStrategy) => {
+    const next = currentStrategy === 'sequential' ? 'rarest' : 'sequential'
+    try {
+      const res = await setTorrentStrategy(infoHash, next)
+      if (res.success) {
+        setTorrents(prev => prev.map(t => t.infoHash === infoHash ? { ...t, strategy: next } : t))
+        showToast?.(next === 'rarest' ? '⚡ Turbo Mode active (Rarest-First piece distribution)' : 'Sequential Mode active (Media streaming order)')
+      }
+    } catch (err) {
+      showToast?.(`Strategy update error: ${err.message}`)
     }
   }
 
@@ -706,10 +742,18 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
                     background: isAvailable ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
                     color: isAvailable ? '#4ade80' : '#f87171',
                     border: `1px solid ${isAvailable ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                    fontWeight: 500
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
                   }}
                 >
-                  {isAvailable ? 'Native Desktop Engine Active' : 'Web Version (Desktop Only)'}
+                  {isAvailable ? (
+                    <>
+                      <Zap size={11} style={{ color: '#fbbf24' }} />
+                      <span>Turbo P2P Engine Active (300 Conns • 512 Cache)</span>
+                    </>
+                  ) : 'Web Version (Desktop Only)'}
                 </span>
               </div>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary, #9ca3af)', marginTop: '2px' }}>
@@ -837,40 +881,83 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
                   </button>
                 </div>
 
-                {/* Target folder setting */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', color: '#9ca3af' }}>
-                  <HardDrive size={14} />
-                  <span>Download To:</span>
-                  <span
-                    style={{
-                      padding: '3px 8px',
-                      background: 'rgba(255,255,255,0.05)',
-                      borderRadius: '4px',
-                      color: '#e5e7eb',
-                      fontFamily: 'monospace',
-                      maxWidth: '450px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                    title={typeof targetPath === 'string' ? targetPath : ''}
-                  >
-                    {typeof targetPath === 'string' && targetPath ? targetPath : 'Default Downloads folder'}
-                  </span>
-                  <button
-                    onClick={handlePickFolder}
-                    style={{
-                      background: 'transparent',
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      color: '#cbd5e1',
-                      borderRadius: '4px',
-                      padding: '2px 8px',
-                      cursor: 'pointer',
-                      fontSize: '11px'
-                    }}
-                  >
-                    Change...
-                  </button>
+                {/* Target folder & mode settings */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', fontSize: '12px', color: '#9ca3af' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <HardDrive size={14} />
+                    <span>Download To:</span>
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        background: 'rgba(255,255,255,0.05)',
+                        borderRadius: '4px',
+                        color: '#e5e7eb',
+                        fontFamily: 'monospace',
+                        maxWidth: '340px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title={typeof targetPath === 'string' ? targetPath : ''}
+                    >
+                      {typeof targetPath === 'string' && targetPath ? targetPath : 'Default Downloads folder'}
+                    </span>
+                    <button
+                      onClick={handlePickFolder}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: '#cbd5e1',
+                        borderRadius: '4px',
+                        padding: '2px 8px',
+                        cursor: 'pointer',
+                        fontSize: '11px'
+                      }}
+                    >
+                      Change...
+                    </button>
+                  </div>
+
+                  {/* Mode selector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#9ca3af', fontSize: '11px' }}>Mode:</span>
+                    <button
+                      onClick={() => setDownloadStrategy('rarest')}
+                      style={{
+                        background: downloadStrategy === 'rarest' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                        color: downloadStrategy === 'rarest' ? '#c7d2fe' : '#9ca3af',
+                        border: `1px solid ${downloadStrategy === 'rarest' ? '#6366f1' : 'rgba(255,255,255,0.1)'}`,
+                        borderRadius: '6px',
+                        padding: '3px 9px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Rarest-First piece distribution maximizes concurrent swarm throughput across all peers"
+                    >
+                      <Zap size={12} style={{ color: '#fbbf24' }} />
+                      Turbo P2P (Fastest)
+                    </button>
+                    <button
+                      onClick={() => setDownloadStrategy('sequential')}
+                      style={{
+                        background: downloadStrategy === 'sequential' ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                        color: downloadStrategy === 'sequential' ? '#c7d2fe' : '#9ca3af',
+                        border: `1px solid ${downloadStrategy === 'sequential' ? '#6366f1' : 'rgba(255,255,255,0.1)'}`,
+                        borderRadius: '6px',
+                        padding: '3px 9px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 500
+                      }}
+                      title="Sequential downloads pieces in order from start to end (for media streaming)"
+                    >
+                      Sequential
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -975,6 +1062,26 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
                                   >
                                     {copiedHash === t.infoHash ? <Check size={12} /> : <Copy size={12} />}
                                   </button>
+                                  <button
+                                    onClick={() => handleToggleStrategy(t.infoHash, t.strategy || 'rarest')}
+                                    style={{
+                                      background: (t.strategy || 'rarest') === 'rarest' ? 'rgba(99, 102, 241, 0.18)' : 'rgba(255, 255, 255, 0.06)',
+                                      color: (t.strategy || 'rarest') === 'rarest' ? '#c7d2fe' : '#9ca3af',
+                                      border: `1px solid ${(t.strategy || 'rarest') === 'rarest' ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.1)'}`,
+                                      borderRadius: '4px',
+                                      padding: '1px 6px',
+                                      fontSize: '10px',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      marginLeft: '4px'
+                                    }}
+                                    title="Click to toggle between Turbo (Rarest-First) and Sequential piece selection"
+                                  >
+                                    <Zap size={10} style={{ color: (t.strategy || 'rarest') === 'rarest' ? '#fbbf24' : '#9ca3af' }} />
+                                    {(t.strategy || 'rarest') === 'rarest' ? 'Turbo P2P' : 'Sequential'}
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -1016,14 +1123,34 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
                                   <Play size={14} />
                                 </button>
                               ) : (
-                                <button
-                                  className="icon-btn"
-                                  onClick={() => handlePause(t.infoHash)}
-                                  title="Pause Download"
-                                  style={{ padding: '6px', background: 'rgba(234, 179, 8, 0.1)', color: '#facc15', borderRadius: '6px', cursor: 'pointer' }}
-                                >
-                                  <Pause size={14} />
-                                </button>
+                                <>
+                                  <button
+                                    className="icon-btn"
+                                    onClick={() => handleBoost(t.infoHash)}
+                                    disabled={boostingMap[t.infoHash]}
+                                    title="⚡ Boost Swarm (Re-announce to Tier-1 Trackers & DHT, Recycle Stalled Connections)"
+                                    style={{
+                                      padding: '6px',
+                                      background: 'rgba(245, 158, 11, 0.12)',
+                                      color: '#fbbf24',
+                                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                                      borderRadius: '6px',
+                                      cursor: boostingMap[t.infoHash] ? 'wait' : 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center'
+                                    }}
+                                  >
+                                    <Zap size={14} className={boostingMap[t.infoHash] ? 'spinning' : ''} />
+                                  </button>
+                                  <button
+                                    className="icon-btn"
+                                    onClick={() => handlePause(t.infoHash)}
+                                    title="Pause Download"
+                                    style={{ padding: '6px', background: 'rgba(234, 179, 8, 0.1)', color: '#facc15', borderRadius: '6px', cursor: 'pointer' }}
+                                  >
+                                    <Pause size={14} />
+                                  </button>
+                                </>
                               )}
 
                               <button
@@ -1068,9 +1195,14 @@ export default function TorrentManagerModal({ isOpen, onClose, showToast, isStan
                             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                               <span style={{ fontWeight: 600, color: '#e5e7eb' }}>{pct}%</span>
                               <span>{formatBytes(t.downloaded)} / {formatBytes(t.length)}</span>
-                              <span>↓ {formatSpeed(t.downloadSpeed)}</span>
+                              <span style={{ color: t.downloadSpeed > 0 ? '#4ade80' : '#9ca3af', fontWeight: 500 }}>↓ {formatSpeed(t.downloadSpeed)}</span>
                               <span>↑ {formatSpeed(t.uploadSpeed)}</span>
-                              <span>{t.numPeers || 0} peers</span>
+                              <span>{t.numPeers || 0} peers{t.wiresCount ? ` (${t.wiresCount} active)` : ''}</span>
+                              {(t.strategy || 'rarest') === 'rarest' && (
+                                <span style={{ color: '#818cf8', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  <Zap size={10} style={{ color: '#fbbf24' }} /> Turbo Active
+                                </span>
+                              )}
                             </div>
                             <div>
                               <span>ETA: {isComplete ? 'Done' : formatEta(t.timeRemaining / 1000)}</span>

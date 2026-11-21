@@ -85,6 +85,28 @@ const CONFIG = {
     afterMs: 5 * 60 * 1000, // 5 minutes
     saveScrollPosition: true,
     restoreOnActivate: true,
+    // NEW (Phase A): abort pending network loads before destroying the view,
+    // and capture form/scroll state with await (executeJavaScript is async).
+    abortPendingLoads: true,
+    captureFormState: true,
+  },
+
+  // Fingerprint protection (Phase D)
+  fingerprint: {
+    enabled: true,
+    // Deterministic per-session seed so the fingerprint is stable within a
+    // session but different across sessions (random-per-navigation is itself
+    // a detectable signal).
+    perSessionSeed: true,
+    restoreOnDisable: true,
+  },
+
+  // Ref-system snapshot cache (Phase E)
+  refCache: {
+    enabled: true,
+    ttlMs: 100, // matches performance.snapshotCacheTTL
+    invalidateOnNavigation: true,
+    maxAgeMs: 30_000, // hard ceiling even if tab is active
   },
 
   // Logging

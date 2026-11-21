@@ -25,6 +25,7 @@ const {
 } = require('./browserTree.cjs')
 const { injectAdShield, getAdShieldStats, isAdShieldEnabled, setAdShieldEnabled } = require('./adBlocker.cjs')
 const CONFIG = require('./browserConfig.cjs')
+const { applyRestoreState } = require('./browserRestoreState.cjs')
 
 const NEW_TAB_URL = pathToFileURL(path.join(__dirname, 'newtab.html')).href
 
@@ -47,7 +48,7 @@ let tabSeq = 0
 
 // ===== TAB HIBERNATION & SESSION CLEANUP =====
 // Tracks last active time per tab for hibernation
-tabLastActive = new Map() // tabId -> timestamp
+const tabLastActive = new Map() // tabId -> Date.now() of last activity
 let hibernationTimer = null
 let cleanupTimer = null
 
@@ -124,13 +125,17 @@ function markTabActive(tabId) {
   tabLastActive.set(tabId, Date.now())
 }
 
-function hibernateTab(s, tabId) {
+async function hibernateTab(s, tabId) {
   const tab = s.tabs.get(tabId)
   if (!tab || tab.hibernated) return
-  
+
   try {
-    // Save scroll position and form state before hibernating
-    const state = tab.view.webContents.executeJavaScript(`(() => ({
+    // Save scroll position and form state before hibernating.
+    // executeJavaScript returns a Promise — it must be awaited, otherwise
+    // `state.url` is always undefined and the guard below bails out, so the
+    // tab never actually hibernates.  userGesture=true avoids permission
+    // prompts in newer Electron.
+    const state = await tab.view.webContents.executeJavaScript(`(() => ({
       scrollX: window.scrollX,
       scrollY: window.scrollY,
       url: location.href,
@@ -139,17 +144,18 @@ function hibernateTab(s, tabId) {
         id: f.id,
         data: Object.fromEntries(new FormData(f).entries())
       }))
-    }))()`, false)
-    
+    }))()`, true)
+
     // Never hibernate an unreadable/blank page — we would lose it entirely.
     if (!state || !state.url || state.url === 'about:blank') return
 
-    tab.hibernationState = state
+    tab.hibernationState = { ...state, hibernatedAt: Date.now() }
     tab.hibernated = true
-    
-    // Clear the view content to free memory
+
+    // Abort any pending load, then clear the view content to free memory.
+    try { tab.view.webContents.stop() } catch { /* ignore */ }
     tab.view.webContents.executeJavaScript('document.body.innerHTML = ""').catch(() => {})
-    
+
     console.log(`[Hibernation] Tab ${tabId} hibernated`)
   } catch (e) {
     console.warn('[Hibernation] Failed to hibernate tab:', e.message)
@@ -159,11 +165,18 @@ function hibernateTab(s, tabId) {
 function restoreTab(s, tabId) {
   const tab = s.tabs.get(tabId)
   if (!tab || !tab.hibernated) return
-  
+
   try {
+    // Read the saved URL *before* clearing the state.
+    const savedUrl = tab.hibernationState?.url
+    const savedState = tab.hibernationState
     // Restore the page by navigating back
-    if (tab.hibernationState?.url) {
-      navigate(s, tabId, tab.hibernationState.url)
+    if (savedUrl) {
+      navigate(s, tabId, savedUrl)
+      // Queue scroll + form restoration for when the page finishes loading.
+      if (savedState && (savedState.scrollX || savedState.scrollY || (savedState.forms && savedState.forms.length))) {
+        tab.restoreState = savedState
+      }
     }
     tab.hibernated = false
     tab.hibernationState = null
@@ -398,6 +411,7 @@ function showActive(s) {
   // Bring a hibernated tab back before layout (its view was blanked).
   const active = activeTab(s)
   if (active && active.hibernated) restoreTab(s, s.activeTabId)
+  if (s.activeTabId) markTabActive(s.activeTabId)
   const h = host(s)
   if (!h || h.isDestroyed()) return
   for (const [tabId, t] of s.tabs) {
@@ -597,6 +611,10 @@ function createTab(s, url, opts = {}) {
     if (tab.failed.length > 50) tab.failed.shift()
   })
   wc.on('page-title-updated', () => syncTabBar(s))
+  // Phase 2 — replay the hibernation snapshot (scroll + form fields) into the
+  // freshly loaded page. did-stop-loading fires for every load stop, including
+  // the one that follows restoreTab()'s navigation back to the saved URL.
+  wc.on('did-stop-loading', () => applyRestoreState(tab))
   wc.on('did-finish-load', () => {
     syncTabBar(s)
     // Automated Challenge / 2FA Detection for agent tabs (OpenBot pattern)
@@ -814,6 +832,13 @@ function navigate(s, tabId, url) {
   const targetUrl = isNewTabUrl(url) ? NEW_TAB_URL : url
   const t = tabFor(s, tabId)
   if (!t) return Promise.resolve({ success: false, error: 'No such tab' })
+  if (t.hibernated) {
+    // Navigating away: wake the view without first loading the stale URL.
+    t.hibernated = false
+    t.hibernationState = null
+    t.restoreState = null
+    console.log(`[Hibernation] Tab ${tabId} woken for navigation`)
+  }
   const wc = t.view.webContents
   return new Promise((resolve) => {
     let settled = false
@@ -1908,6 +1933,9 @@ function registerBrowserControl(getMainWindow) {
     const s = S(p)
     if (!s.tabs.has(p.tabId)) return { success: false, error: 'No such tab' }
     s.activeTabId = p.tabId
+    markTabActive(s.activeTabId)
+    // Clicking a sleeping tab must show its page again, not a blank view.
+    if (s.tabs.get(p.tabId).hibernated) restoreTab(s, p.tabId)
     showActive(s)
     return { success: true, tabs: listTabs(s) }
   })
@@ -2715,13 +2743,119 @@ async function handleBrowserAiQuery(s, payload) {
   }
 }
 
+// ── Cookies ──────────────────────────────────────────────────────────────
+ipcMain.handle('browser:get-cookies', async (_e, p = {}) => {
+  const s = getSession(p.conversationId || '__default__')
+  const t = tabFor(s, p.tabId)
+  if (!t) return { success: false, error: 'No such tab' }
+  try {
+    const cookies = await t.view.webContents.session.cookies.get({ url: p.url })
+    return { success: true, cookies }
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
+ipcMain.handle('browser:set-cookies', async (_e, p = {}) => {
+  const s = getSession(p.conversationId || '__default__')
+  const t = tabFor(s, p.tabId)
+  if (!t) return { success: false, error: 'No such tab' }
+  if (!Array.isArray(p.cookies)) return { success: false, error: 'cookies array required' }
+  try {
+    for (const cookie of p.cookies) {
+      await t.view.webContents.session.cookies.set(cookie)
+    }
+    return { success: true, set: p.cookies.length }
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
+// ── Storage ────────────────────────────────────────────────────────────────
+ipcMain.handle('browser:get-storage', async (_e, p = {}) => {
+  const s = getSession(p.conversationId || '__default__')
+  const t = tabFor(s, p.tabId)
+  if (!t) return { success: false, error: 'No such tab' }
+  if (!p.type || !['local', 'session'].includes(p.type)) {
+    return { success: false, error: 'type must be "local" or "session"' }
+  }
+  try {
+    const data = await t.view.webContents.executeJavaScript(`(() => {
+      const store = (() => {
+        try { return window.${p.type}Storage } catch { return null }
+      })()
+      if (!store) return null
+      const out = {}
+      for (let i = 0; i < store.length; i++) {
+        const key = store.key(i)
+        out[key] = store.getItem(key)
+      }
+      return out
+    })()`, false)
+    return { success: true, type: p.type, data }
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
+ipcMain.handle('browser:set-storage', async (_e, p = {}) => {
+  const s = getSession(p.conversationId || '__default__')
+  const t = tabFor(s, p.tabId)
+  if (!t) return { success: false, error: 'No such tab' }
+  if (!p.type || !['local', 'session'].includes(p.type)) {
+    return { success: false, error: 'type must be "local" or "session"' }
+  }
+  if (!p.key) return { success: false, error: 'key required' }
+  try {
+    await t.view.webContents.executeJavaScript(`(() => {
+      window.${p.type}Storage.setItem(${JSON.stringify(p.key)}, ${JSON.stringify(p.value)})
+    })()`, false)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
+// ── Downloads list & cancel ───────────────────────────────────────────────
+ipcMain.handle('browser:get-downloads', async (_e, p = {}) => {
+  const s = getSession(p.conversationId || '__default__')
+  const all = Array.from(downloadRegistry.values()).filter(d => !p.sessionKey || d.sessionKey === s.key)
+  return { success: true, downloads: all.sort((a, b) => b.startTime - a.startTime) }
+})
+
+ipcMain.handle('browser:cancel-download', async (_e, p = {}) => {
+  const dl = downloadRegistry.get(p.downloadId)
+  if (!dl) return { success: false, error: 'No such download' }
+  try {
+    dl.state = 'cancelled'
+    dl.endTime = Date.now()
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
+// ── Zoom ──────────────────────────────────────────────────────────────────
+ipcMain.handle('browser:set-zoom', async (_e, p = {}) => {
+  const s = getSession(p.conversationId || '__default__')
+  const t = tabFor(s, p.tabId)
+  if (!t) return { success: false, error: 'No such tab' }
+  if (typeof p.zoomFactor !== 'number') return { success: false, error: 'zoomFactor required' }
+  try {
+    t.view.webContents.setZoomLevel(Math.log2(p.zoomFactor))
+    t.zoomFactor = p.zoomFactor
+    return { success: true, zoomFactor: p.zoomFactor }
+  } catch (err) {
+    return { success: false, error: err?.message || String(err) }
+  }
+})
+
 module.exports = {
   sessions, getSession, ensureSession, listTabs, setMode, showActive, layout,
   createTab, navigate, closeTab, destroySession, destroyAllSessions,
   tabFor, activeTab, readPage, click, typeText, pressKey, scroll, screenshot,
   zoomTab, findInPage, stopFindInPage, listDownloads, navSnapshot,
   registerBrowserControl,
-  // New exports
   createTabGroup, moveTabToGroup, deleteTabGroup, listTabGroups,
   setTabOrientation, toggleTabOrientation,
   setAiPanelWidth, toggleAiPanel,

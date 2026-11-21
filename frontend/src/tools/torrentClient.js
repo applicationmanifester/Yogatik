@@ -1,20 +1,21 @@
 /**
  * Yogatik Native BitTorrent Client Tooling
  * Connects the renderer UI and autonomous AI agents to the Electron P2P BitTorrent engine.
+ * Optimized for high-throughput, blazing-fast P2P downloads.
  */
 
 export function isTorrentAvailable() {
   return typeof window !== 'undefined' && Boolean(window.__YOGATIK_TORRENT__)
 }
 
-export async function addTorrent({ uri, downloadPath }) {
+export async function addTorrent({ uri, downloadPath, strategy = 'rarest' }) {
   if (!isTorrentAvailable()) {
     return {
       success: false,
       error: 'BitTorrent engine is only available in Yogatik Desktop app.'
     }
   }
-  return window.__YOGATIK_TORRENT__.add({ uri, downloadPath })
+  return window.__YOGATIK_TORRENT__.add({ uri, downloadPath, strategy })
 }
 
 export async function listTorrents() {
@@ -32,6 +33,22 @@ export async function pauseTorrent(infoHash) {
 export async function resumeTorrent(infoHash) {
   if (!isTorrentAvailable()) return { success: false, error: 'Desktop only' }
   return window.__YOGATIK_TORRENT__.resume({ infoHash })
+}
+
+export async function boostTorrent(infoHash) {
+  if (!isTorrentAvailable()) return { success: false, error: 'Desktop only' }
+  if (typeof window.__YOGATIK_TORRENT__.boost === 'function') {
+    return window.__YOGATIK_TORRENT__.boost({ infoHash })
+  }
+  return { success: false, error: 'Boost is not supported by current desktop build' }
+}
+
+export async function setTorrentStrategy(infoHash, strategy) {
+  if (!isTorrentAvailable()) return { success: false, error: 'Desktop only' }
+  if (typeof window.__YOGATIK_TORRENT__.setStrategy === 'function') {
+    return window.__YOGATIK_TORRENT__.setStrategy({ infoHash, strategy })
+  }
+  return { success: false, error: 'Strategy switching is not supported by current desktop build' }
 }
 
 export async function removeTorrent(infoHash, deleteFiles = false) {

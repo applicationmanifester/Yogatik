@@ -97,6 +97,51 @@ const api = {
       invoke('browser:close', { sessionId }),
     list: () =>
       invoke('browser:list', {} as any),
+    back(sessionId:string){
+      return invoke('browser:back',{sessionId})
+    },
+    forward(sessionId:string){
+      return invoke('browser:forward',{sessionId})
+    },
+    refresh(sessionId:string){
+      return invoke('browser:refresh',{sessionId})
+    },
+    stop(sessionId:string){
+      return invoke('browser:stop',{sessionId})
+    },
+    newTab(sessionId:string,url?:string){
+      return invoke('browser:new-tab',{sessionId,url})
+    },
+    closeTab(sessionId:string,tabId:string){
+      return invoke('browser:close-tab',{sessionId,tabId})
+    },
+    switchTab(sessionId:string,tabId:string){
+      return invoke('browser:switch-tab',{sessionId,tabId})
+    },
+    duplicateTab(sessionId:string,tabId:string){
+      return invoke('browser:duplicate-tab',{sessionId,tabId})
+    },
+    setZoom(sessionId:string,zoomFactor:number){
+      return invoke('browser:set-zoom',{sessionId,zoomFactor})
+    },
+    getTabs(sessionId:string){
+      return invoke('browser:get-tabs',{sessionId})
+    },
+    getCookies(sessionId:string,url?:string){
+      return invoke('browser:get-cookies',{sessionId,url})
+    },
+    setCookies(sessionId:string,cookies:Array<{name:string,value:string,domain?:string,path?:string,url?:string}>){
+      return invoke('browser:set-cookies',{sessionId,cookies})
+    },
+    getStorage(sessionId:string,type:'local'|'session'){
+      return invoke('browser:get-storage',{sessionId,type})
+    },
+    setStorage(sessionId:string,type:'local'|'session',key:string,value:string){
+      return invoke('browser:set-storage',{sessionId,type,key,value})
+    },
+    cancelDownload(downloadId:string){
+      return invoke('browser:cancel-download',{downloadId})
+    },
     onConsole: createEventBridge({
       console: 'browser:console',
       navigation: 'browser:navigation',
@@ -153,129 +198,17 @@ const api = {
     write: (text: string) =>
       invoke('clipboard:write', { text } as any),
     watch: (enabled: boolean) =>
-      invoke('clipboard:watch', { enabled } as any),
-    onChange: createEventBridge({
-      change: 'clipboard:change',
-    }),
+      invoke('clipboard:watch', { enabled } as a) as any),
   },
 
-  // File Watcher
-  watcher: {
-    add: (path: string, recursive?: boolean) =>
-      invoke('watcher:add', { path, recursive } as any),
-    remove: (path: string) =>
-      invoke('watcher:remove', { path } as any),
-    list: () =>
-      invoke('watcher:list', {} as any),
-    onChange: createEventBridge({
-      change: 'watcher:change',
-    }),
-  },
-
-  // Power Management
-  power: {
-    assert: (type: 'prevent-sleep' | 'prevent-idle') =>
-      invoke('power:assert', { type } as any),
-    release: (type: 'prevent-sleep' | 'prevent-idle') =>
-      invoke('power:release', { type } as any),
-  },
-
-  // Dialogs
-  dialog: {
-    show: (options: Electron.OpenDialogOptions | Electron.SaveDialogOptions | Electron.MessageBoxOptions) =>
-      invoke('dialog:show', { options } as any),
-  },
-
-  // System Processes
-  processes: {
-    list: () =>
-      invoke('processes:list', {} as any),
-  },
-
-  // Git
-  git: {
-    status: (repoPath: string) =>
-      invoke('git:status', { repoPath } as any),
-    diff: (repoPath: string, staged?: boolean) =>
-      invoke('git:diff', { repoPath, staged } as any),
-    commit: (repoPath: string, message: string) =>
-      invoke('git:commit', { repoPath, message } as any),
-  },
-
-  // FS Watcher (granular)
-  fsWatcher: {
-    add: (path: string, events?: string[]) =>
-      invoke('fs:watcher:add', { path, events } as any),
-    remove: (path: string) =>
-      invoke('fs:watcher:remove', { path } as any),
-    onEvent: createEventBridge({
-      event: 'fs:watcher:event',
-    }),
-  },
-
-  // Companion Window
-  companion: {
-    show: (url: string, bounds?: { x: number; y: number; width: number; height: number }) =>
-      invoke('companion:show', { url, bounds } as any),
-    hide: () =>
-      invoke('companion:hide', {} as any),
-  },
-
-  // Scheduler
-  scheduler: {
-    add: (id: string, cron: string, payload: unknown) =>
-      invoke('scheduler:add', { id, cron, payload } as any),
-    remove: (id: string) =>
-      invoke('scheduler:remove', { id } as any),
-    list: () =>
-      invoke('scheduler:list', {} as any),
-    onTrigger: createEventBridge({
-      trigger: 'scheduler:trigger',
-    }),
-  },
-
-  // Desktop System APIs (new from refactor)
-  desktop: {
-    isAlwaysOnTop: () =>
-      invoke('desktop:isAlwaysOnTop', {} as any),
-    toggleAlwaysOnTop: (flag?: boolean) =>
-      invoke('desktop:toggleAlwaysOnTop', { flag } as any),
-    getSystemInfo: () =>
-      invoke('desktop:getSystemInfo', {} as any),
-    showItemInFolder: (path: string) =>
-      invoke('desktop:showItemInFolder', { path } as any),
-    openPath: (path: string) =>
-      invoke('desktop:openPath', { path } as any),
-    openExternal: (url: string) =>
-      invoke('desktop:openExternal', { url } as any),
-    evalJs: (code: string, timeoutMs?: number) =>
-      invoke('desktop:eval-js', { code, timeoutMs } as any),
-    localSearch: (query: string, options?: { count?: number; recency?: string; engines?: string; site?: string }) =>
-      invoke('local-search', { query, options } as any),
-    captureScreen: () =>
-      invoke('desktop:captureScreen', {} as any),
-    getActiveWindow: () =>
-      invoke('desktop:getActiveWindow', {} as any),
-    setCompanionMode: (enable?: boolean) =>
-      invoke('desktop:setCompanionMode', { enable } as any),
-    executeAction: (action: { type: string; text?: string; keys?: string; targetUrl?: string; targetApp?: string }) =>
-      invoke('desktop:executeAction', { action } as any),
-    getAiCapabilities: (force?: boolean) =>
-      invoke('desktop:getAiCapabilities', { force } as any),
-  },
-
-  // Auth APIs
-  auth: {
-    googleDesktop: () =>
-      invoke('auth:google-desktop', {} as any),
-  },
-} as const
-
-contextBridge.exposeInMainWorld('yogatik', api)
-
-// Type declaration for renderer
-declare global {
-  interface Window {
-    yogatik: typeof api
-  }
+  // Event subscriptions
+  on: createEventBridge({
+    'fs:change': 'fs:change',
+    'proc:output': 'proc:output',
+    'proc:exit': 'proc:exit',
+    'terminal:data': 'terminal:data',
+    'terminal:exit': 'terminal:exit',
+  }),
 }
+
+contextBridge.exposeInMainWorld('api', api)

@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '19.0.0'
+export const APP_VERSION = '20.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 19.0.0 — Unified Crash Resilience, Universal Vision Grounding & Cross-Platform Engine'
+export const APP_CODENAME = 'Yogatik 20.0.0 — Blazing-Fast Turbo P2P Swarm Engine & Synchronized Multi-Platform Suite'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,50 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "20.0.0",
+    "title": "Yogatik 20.0.0: Blazing-Fast Turbo P2P Swarm Engine & Synchronized Multi-Platform Suite",
+    "date": "November 21, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Blazing-Fast Turbo P2P Torrent Downloader: Overhauled swarm engine with 300 global connections, rarest-first piece scheduling, and 512-slot chunk RAM cache eliminating disk I/O bottlenecks",
+      "Tier-1 High-Speed Trackers & Low-Latency Sockets: Added 25+ curated global UDP, HTTP, and WebSocket trackers with Nagle algorithm disabled (setNoDelay) and TCP keepalive for instant piece pipelining",
+      "On-Demand Swarm Boost & Stalled Peer Recycling: One-click and automated swarm refresh that re-announces to all trackers/DHT and purges idle choked connections to connect fresh seeders",
+      "Multi-Platform 20.0.0 Synchronized Suite: Synchronized release binaries across Web, Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)"
+    ],
+    "sections": [
+      {
+        "category": "⚡ Blazing-Fast P2P Torrent Engine",
+        "items": [
+          {
+            "title": "Turbo P2P Swarm Architecture",
+            "description": "Expanded connection pooling to 300 concurrent peers with uTP, PEX, LSD, and UPnP/NAT-PMP port forwarding for maximum swarm saturation."
+          },
+          {
+            "title": "Rarest-First Distribution & 512-Slot RAM Buffer",
+            "description": "Switched to rarest-first piece scheduling to utilize all peers simultaneously, backed by a 512-slot chunk memory cache preventing disk write stalls."
+          },
+          {
+            "title": "Zero-Latency Socket Optimization & Swarm Boost",
+            "description": "TCP setNoDelay eliminates packet buffering delays on BitTorrent protocol messages, paired with active peer recycling and on-demand tracker re-announcements."
+          }
+        ]
+      },
+      {
+        "category": "📱 Multi-Platform Releases",
+        "items": [
+          {
+            "title": "Desktop & Mobile Synchronized Suite v20.0.0",
+            "description": "Synchronized release binaries for Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "19.0.0",
     "title": "Yogatik 19.0.0: Unified Crash Resilience, Universal Vision Grounding & Cross-Platform Engine",
     "date": "November 13, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Crash Resilience & Safe Error Boundaries: Implemented React error boundaries across all message nodes and panels with automatic crash recovery, zero-blank UI states, and graceful fallback rendering",
       "Universal Vision Grounding: Standardized 0–1000 coordinate grounding, Set-of-Mark (SoM) overlays, adaptive gamma shadow lifting, and universal context normalization across multimodal LLMs",

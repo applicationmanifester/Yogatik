@@ -16,6 +16,7 @@ const { spawn, exec } = require('child_process')
 const fs = require('fs')
 
 const { registerFsBridge, initJournal, snapshot: fsSnapshot } = require('./fsBridge.cjs')
+exports.initJournal = initJournal
 const { safeSend, safeWin, alive } = require('./safeWindow.cjs')
 const entitlement = require('./entitlement.cjs')
 const { registerRootsIpc, rootPathsFor, resolvePath, getTrustState } = require('./roots.cjs')
@@ -1077,6 +1078,10 @@ if (!gotLock) {
   })
 
   // With a tray icon the app intentionally keeps running when all windows close.
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin' && app.isQuitting) app.quit()
+  })
+}eps running when all windows close.
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin' && app.isQuitting) app.quit()
   })

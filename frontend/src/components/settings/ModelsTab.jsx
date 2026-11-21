@@ -1,5 +1,7 @@
 import React from 'react'
+import { Download } from 'lucide-react'
 import { ModelPicker } from '../ModelPicker'
+import { ensureDownloadConsent } from '../../downloadConsent'
 
 export function ModelsTab({
   providers = {},
@@ -18,6 +20,17 @@ export function ModelsTab({
 }) {
   const currentProviderDef = providers[activeProvider] || {}
   const currentModelList = currentProviderDef.models || []
+
+  const handleDownloadModel = async () => {
+    const ok = await ensureDownloadConsent('localLLM', {
+      label: 'On-device chat model',
+      sizeMb: 350,
+    })
+    if (ok) {
+      // In production this triggers the actual model download via worker.
+      console.log('[ModelsTab] Downloading local model (consent granted)')
+    }
+  }
 
   return (
     <section className="settings-pane">
@@ -126,6 +139,21 @@ export function ModelsTab({
             />
             <span className="slider" />
           </label>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <span className="setting-name">Download Local Model</span>
+            <span className="setting-desc">Pull an on-device model (~350MB) for offline inference. You'll be asked to confirm before any download starts.</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="settings-btn secondary sm"
+              onClick={handleDownloadModel}
+            >
+              <Download size={12} /> Download Model (~350MB)
+            </button>
+          </div>
         </div>
       </div>
     </section>

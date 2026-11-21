@@ -5,6 +5,8 @@ import {
   listTorrents,
   pauseTorrent,
   resumeTorrent,
+  boostTorrent,
+  setTorrentStrategy,
   removeTorrent,
   openTorrentFolder,
   getDefaultDownloadPath,
@@ -57,6 +59,12 @@ describe('torrentClient', () => {
     const r3 = await pauseTorrent('123')
     expect(r3.success).toBe(false)
 
+    const r4 = await boostTorrent('123')
+    expect(r4.success).toBe(false)
+
+    const r5 = await setTorrentStrategy('123', 'rarest')
+    expect(r5.success).toBe(false)
+
     const unsub = subscribeTorrentUpdates(() => {})
     expect(typeof unsub).toBe('function')
   })
@@ -66,6 +74,8 @@ describe('torrentClient', () => {
     const listMock = vi.fn().mockResolvedValue({ success: true, torrents: [{ infoHash: 'abc' }] })
     const pauseMock = vi.fn().mockResolvedValue({ success: true })
     const resumeMock = vi.fn().mockResolvedValue({ success: true })
+    const boostMock = vi.fn().mockResolvedValue({ success: true, numPeers: 15 })
+    const setStrategyMock = vi.fn().mockResolvedValue({ success: true, strategy: 'rarest' })
     const removeMock = vi.fn().mockResolvedValue({ success: true })
     const openMock = vi.fn().mockResolvedValue({ success: true })
     const getPathMock = vi.fn().mockResolvedValue('C:\\Downloads')
@@ -76,15 +86,17 @@ describe('torrentClient', () => {
       list: listMock,
       pause: pauseMock,
       resume: resumeMock,
+      boost: boostMock,
+      setStrategy: setStrategyMock,
       remove: removeMock,
       openFolder: openMock,
       getDefaultPath: getPathMock,
       onUpdate: onUpdateMock
     }
 
-    const res = await addTorrent({ uri: 'magnet:?xt=urn:btih:abc', downloadPath: 'C:\\Downloads' })
+    const res = await addTorrent({ uri: 'magnet:?xt=urn:btih:abc', downloadPath: 'C:\\Downloads', strategy: 'rarest' })
     expect(res.success).toBe(true)
-    expect(addMock).toHaveBeenCalledWith({ uri: 'magnet:?xt=urn:btih:abc', downloadPath: 'C:\\Downloads' })
+    expect(addMock).toHaveBeenCalledWith({ uri: 'magnet:?xt=urn:btih:abc', downloadPath: 'C:\\Downloads', strategy: 'rarest' })
 
     const list = await listTorrents()
     expect(list.torrents.length).toBe(1)
@@ -94,6 +106,14 @@ describe('torrentClient', () => {
 
     await resumeTorrent('abc')
     expect(resumeMock).toHaveBeenCalledWith({ infoHash: 'abc' })
+
+    const bRes = await boostTorrent('abc')
+    expect(bRes.success).toBe(true)
+    expect(boostMock).toHaveBeenCalledWith({ infoHash: 'abc' })
+
+    const sRes = await setTorrentStrategy('abc', 'rarest')
+    expect(sRes.success).toBe(true)
+    expect(setStrategyMock).toHaveBeenCalledWith({ infoHash: 'abc', strategy: 'rarest' })
 
     await removeTorrent('abc', true)
     expect(removeMock).toHaveBeenCalledWith({ infoHash: 'abc', deleteFiles: true })

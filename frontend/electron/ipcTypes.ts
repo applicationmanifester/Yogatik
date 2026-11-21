@@ -9,6 +9,13 @@ export const IPC_COMMANDS = [
   'fs:read', 'fs:write', 'fs:edit', 'fs:search',
   'proc:start', 'proc:read', 'proc:kill', 'proc:list',
   'browser:create', 'browser:navigate', 'browser:execute', 'browser:close', 'browser:list',
+  'browser:back', 'browser:forward', 'browser:refresh', 'browser:stop',
+  'browser:new-tab', 'browser:close-tab', 'browser:switch-tab', 'browser:duplicate-tab',
+  'browser:screenshot', 'browser:evaluate',
+  'browser:get-cookies', 'browser:set-cookies',
+  'browser:get-storage', 'browser:set-storage',
+  'browser:get-downloads', 'browser:cancel-download',
+  'browser:set-zoom', 'browser:get-tabs',
   'terminal:exec', 'terminal:resize', 'terminal:close', 'terminal:list',
   'search:query',
   'chat:send', 'chat:history',
@@ -57,6 +64,25 @@ export interface IpcContracts {
   'browser:execute': { sessionId: string; script: string }
   'browser:close': { sessionId: string }
   'browser:list': Record<string, never>
+  'browser:back': { sessionId: string }
+  'browser:forward': { sessionId: string }
+  'browser:refresh': { sessionId: string }
+  'browser:stop': { sessionId: string }
+  'browser:new-tab': { sessionId: string; url?: string }
+  'browser:close-tab': { sessionId: string; tabId: string }
+  'browser:switch-tab': { sessionId: string; tabId: string }
+  'browser:duplicate-tab': { sessionId: string; tabId: string }
+  'browser:screenshot': { sessionId: string; fullPage?: boolean }
+  'browser:print': { sessionId: string }
+  'browser:evaluate': { sessionId: string; script: string }
+  'browser:get-cookies': { sessionId: string; url?: string }
+  'browser:set-cookies': { sessionId: string; cookies: Array<{ name: string; value: string; domain?: string; path?: string; url?: string }> }
+  'browser:get-storage': { sessionId: string; type: 'local' | 'session' }
+  'browser:set-storage': { sessionId: string; type: 'local' | 'session'; key: string; value: string }
+  'browser:get-downloads': { sessionId?: string }
+  'browser:cancel-download': { downloadId: string }
+  'browser:set-zoom': { sessionId: string; zoomFactor: number }
+  'browser:get-tabs': { sessionId: string }
   'terminal:exec': { sessionId?: string; ctx?: string; command?: string; cwd?: string; timeout?: number; env?: Record<string, string>; shell?: string }
   'terminal:resize': { sessionId: string; cols: number; rows: number }
   'terminal:close': { sessionId: string }

@@ -76,3 +76,6 @@ fix*.js
 inspect.js
 v.js
 validate*.js
+.yogatik_explored
+recent.ps1
+*.ps1

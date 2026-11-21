@@ -573,6 +573,8 @@ contextBridge.exposeInMainWorld('__YOGATIK_TORRENT__', {
   list: () => ipcRenderer.invoke('torrent:list'),
   pause: (opts) => ipcRenderer.invoke('torrent:pause', opts),
   resume: (opts) => ipcRenderer.invoke('torrent:resume', opts),
+  boost: (opts) => ipcRenderer.invoke('torrent:boost', opts),
+  setStrategy: (opts) => ipcRenderer.invoke('torrent:setStrategy', opts),
   remove: (opts) => ipcRenderer.invoke('torrent:remove', opts),
   openFolder: (opts) => ipcRenderer.invoke('torrent:openFolder', opts),
   getDefaultPath: () => ipcRenderer.invoke('torrent:getDefaultPath'),
