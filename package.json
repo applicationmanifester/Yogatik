@@ -3,6 +3,7 @@
   "version": "20.0.0",
   "private": true,
   "description": "Yogatik Studio — Standalone Unrestricted AI Agentic Assistant & Desktop Environment. The application lives in frontend/ — see CLAUDE.md.",
+  "homepage": "https://yogatik.web.app",
   "main": "frontend/electron/main.cjs",
   "scripts": {
     "dev": "npm --prefix frontend run dev",

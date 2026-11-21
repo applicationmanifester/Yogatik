@@ -3,6 +3,7 @@
   "private": true,
   "version": "20.0.0",
   "description": "Yogatik Browser — AI-first privacy browser that thinks with you, not about you.",
+  "homepage": "https://yogatik.web.app/browser",
   "author": "applicationmanifester",
   "main": "electron/main.cjs",
   "scripts": {
@@ -65,7 +66,8 @@
       ],
       "category": "Network",
       "icon": "electron/assets/icon.png",
-      "maintainer": "applicationmanifester",
+      "maintainer": "applicationmanifester <bhargavgk00@gmail.com>",
+      "desktopName": "yogatik-browser.desktop",
       "artifactName": "YogatikBrowser.${ext}"
     },
     "appImage": {

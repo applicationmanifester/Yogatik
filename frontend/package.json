@@ -3,6 +3,7 @@
   "private": true,
   "version": "20.0.0",
   "description": "Yogatik — AI Desktop & Web Application",
+  "homepage": "https://yogatik.web.app",
   "author": "applicationmanifester",
   "type": "module",
   "main": "electron/main.cjs",
@@ -161,7 +162,8 @@
       ],
       "category": "Utility",
       "icon": "electron/icon.png",
-      "maintainer": "applicationmanifester",
+      "maintainer": "applicationmanifester <bhargavgk00@gmail.com>",
+      "desktopName": "yogatik.desktop",
       "artifactName": "Yogatik.${ext}"
     },
     "appImage": {
