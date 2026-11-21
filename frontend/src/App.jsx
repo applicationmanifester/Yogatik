@@ -876,9 +876,21 @@ export default function App() {
     }
   }, [])
 
-  const handleOpenTorrentDownloader = useCallback((params = {}) => {
+  const handleOpenTorrentDownloader = useCallback(async (params = {}) => {
+    if (params?.inApp) {
+      setShowTorrentModal(true)
+      return
+    }
     if (isDesktop() && window.__YOGATIK_DESKTOP__?.openTorrentDownloader) {
-      window.__YOGATIK_DESKTOP__.openTorrentDownloader(params)
+      try {
+        const res = await window.__YOGATIK_DESKTOP__.openTorrentDownloader(params)
+        if (!res || res.success === false || res.isOpened === false) {
+          setShowTorrentModal(true)
+        }
+      } catch (err) {
+        console.warn('[Yogatik] openTorrentDownloader fallback to modal:', err)
+        setShowTorrentModal(true)
+      }
     } else {
       setShowTorrentModal(true)
     }

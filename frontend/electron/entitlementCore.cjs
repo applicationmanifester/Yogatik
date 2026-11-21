@@ -244,6 +244,7 @@ const CHANNELS = {
   // folders are always accessible and never locked out.
   'torrent:getDefaultPath': FA, 'torrent:add': FA, 'torrent:list': FA,
   'torrent:pause': FA, 'torrent:resume': FA, 'torrent:remove': FA,
+  'torrent:boost': FA, 'torrent:setStrategy': FA,
   'torrent:openFolder': FA,
   'yogatik:loadConfig': FA, 'yogatik:saveConfig': FA,
 }

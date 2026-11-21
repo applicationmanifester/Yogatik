@@ -586,6 +586,52 @@ function clearCaches() {
 }
 
 // ══════╈─────────────────────────────────────────────────────────
+// ADSHIELD INJECTION & STATS
+// ╞──────────────────────────────────────────────────────────────
+
+function isAdShieldEnabled() {
+  return adShieldEnabled
+}
+
+function setAdShieldEnabled(enabled) {
+  adShieldEnabled = Boolean(enabled)
+  return adShieldEnabled
+}
+
+function getAdShieldStats() {
+  const s = getStats()
+  return {
+    blockedCount: s.blockedCount || 0,
+    lifetimeBlocked: s.blockedCount || 0,
+    patternsLoaded: (s.networkRules || 0) + (s.cosmeticRules || 0),
+    rulesLoaded: (s.networkRules || 0) + (s.cosmeticRules || 0),
+    enabled: adShieldEnabled,
+    ...s
+  }
+}
+
+function injectAdShield(wc) {
+  if (!wc || typeof wc.on !== 'function') return
+  wc.on('did-finish-load', () => {
+    if (wc.isDestroyed() || !isAdShieldEnabled()) return
+    wc.insertCSS(COSMETIC_AD_CSS).catch(() => {})
+    const url = (typeof wc.getURL === 'function' ? wc.getURL() : '') || ''
+    if (url.includes('youtube.com')) {
+      wc.executeJavaScript(YOUTUBE_AD_SKIP_SCRIPT).catch(() => {})
+    }
+    if (url.includes('newtab.html')) {
+      const stats = getAdShieldStats()
+      wc.executeJavaScript(`window.__setShieldStats && window.__setShieldStats(${JSON.stringify({
+        blockedCount: stats.blockedCount,
+        lifetimeBlocked: stats.lifetimeBlocked,
+        rulesLoaded: stats.rulesLoaded,
+        enabled: stats.enabled,
+      })})`).catch(() => {})
+    }
+  })
+}
+
+// ══════╈─────────────────────────────────────────────────────────
 // EXPORTS
 // ╞──────────────────────────────────────────────────────────────
 
@@ -601,6 +647,10 @@ module.exports = {
   disableAdBlocker,
   toggleAdBlocker,
   isAdBlockerEnabled,
+  isAdShieldEnabled,
+  setAdShieldEnabled,
+  getAdShieldStats,
+  injectAdShield,
   registerAdBlockerOnSession,
   addCustomFilter,
   addUserBlockHost,

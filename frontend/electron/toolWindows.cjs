@@ -153,6 +153,11 @@ function createToolWindow(toolId, params = {}) {
     win.loadFile(localBundlePath, {
       search: query.toString(),
       hash: query.toString(),
+    }).then(() => {
+      if (win && !win.isDestroyed() && !win.isVisible()) {
+        win.show()
+        win.focus()
+      }
     }).catch(err => {
       console.error(`[toolWindows] Failed to load local file for ${toolId}:`, err)
     })
@@ -175,15 +180,32 @@ function createToolWindow(toolId, params = {}) {
     } catch {
       fallbackToLocal()
     }
-  } else if (isDevMode) {
-    win.loadURL(`http://localhost:5173/?${query.toString()}#${query.toString()}`).catch(() => fallbackToLocal())
   } else {
+    // Main window is running off local bundle or no http server active
     fallbackToLocal()
   }
 
   win.once('ready-to-show', () => {
-    if (win && !win.isDestroyed()) win.show()
+    if (win && !win.isDestroyed()) {
+      win.show()
+      win.focus()
+    }
   })
+
+  win.webContents.once('did-finish-load', () => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      win.show()
+      win.focus()
+    }
+  })
+
+  // Failsafe timeout: guarantee window becomes visible even if events were missed
+  setTimeout(() => {
+    if (win && !win.isDestroyed() && !win.isVisible()) {
+      win.show()
+      win.focus()
+    }
+  }, 1000)
 
   win.on('closed', () => {
     openWindows.delete(toolId)
