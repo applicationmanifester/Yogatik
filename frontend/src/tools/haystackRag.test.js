@@ -7,6 +7,9 @@ import {
   reciprocalRankFusion,
   heuristicRerank,
   generateHydeExpansions,
+  hierarchicalChunkText,
+  enrichChunksWithContext,
+  evaluateRetrievalConfidence,
   haystackRagTool,
 } from './haystackRag'
 
@@ -83,5 +86,39 @@ Rust enforces memory safety without requiring a garbage collector.
     expect(res.results.length).toBe(2)
     expect(res.results[0].text.toLowerCase()).toContain('rust')
     expect(res.results[0].rerankScore).toBeGreaterThan(0)
+  })
+
+  it('performs hierarchical parent-child chunking preserving parentText', () => {
+    const res = hierarchicalChunkText(sampleDoc, { parentSize: 200, childSize: 80 })
+    expect(res.parents.length).toBeGreaterThan(0)
+    expect(res.children.length).toBeGreaterThan(res.parents.length)
+    expect(res.children[0].parentId).toBe(res.parents[0].id)
+    expect(res.children[0].parentText).toBe(res.parents[0].text)
+  })
+
+  it('enriches chunks with document title and section headers', () => {
+    const chunks = [{ id: 'c1', text: 'Vite is a build tool' }]
+    const enriched = enrichChunksWithContext(chunks, { documentTitle: 'Vite Guide', section: 'Overview' })
+    expect(enriched[0].text).toContain('[Document: Vite Guide]')
+    expect(enriched[0].text).toContain('[Section: Overview]')
+    expect(enriched[0].enriched).toBe(true)
+  })
+
+  it('evaluates Corrective RAG (CRAG) retrieval confidence', () => {
+    const confidentPassages = [
+      { id: '1', text: 'PostgreSQL connection pooling with PgBouncer', rerankScore: 0.9 },
+    ]
+    const highConf = evaluateRetrievalConfidence('PostgreSQL connection pooling', confidentPassages)
+    expect(highConf.confident).toBe(true)
+    expect(highConf.status).toBe('confident')
+    expect(highConf.action).toBe('synthesize')
+
+    const irrelevantPassages = [
+      { id: '2', text: 'Baking sourdough bread at home', rerankScore: 0.05 },
+    ]
+    const lowConf = evaluateRetrievalConfidence('PostgreSQL connection pooling', irrelevantPassages)
+    expect(lowConf.confident).toBe(false)
+    expect(lowConf.status).toBe('irrelevant')
+    expect(lowConf.action).toBe('web_search_fallback')
   })
 })

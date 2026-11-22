@@ -407,26 +407,35 @@ function registerShortcuts() {
   mainWin.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return
     const ctrl = input.control || input.meta
+    const key = String(input.key || '').toLowerCase()
 
     // Ctrl+T: New Tab
-    if (ctrl && input.key === 't') {
+    if (ctrl && !input.shift && key === 't') {
+      event.preventDefault()
       ipcMain.emit('browser:quick-action', null, { action: 'new-tab' })
+      return
     }
     // Ctrl+W: Close Tab
-    if (ctrl && input.key === 'w') {
+    if (ctrl && !input.shift && key === 'w') {
+      event.preventDefault()
       ipcMain.emit('browser:quick-action', null, { action: 'close-active' })
+      return
     }
     // Ctrl+L: Focus Address Bar
-    if (ctrl && input.key === 'l') {
+    if (ctrl && key === 'l') {
+      event.preventDefault()
       mainWin.webContents.executeJavaScript(
         'document.getElementById("addr")?.focus(); document.getElementById("addr")?.select()'
       ).catch(() => {})
+      return
     }
     // Ctrl+K: Command Palette
-    if (ctrl && input.key === 'k') {
+    if (ctrl && key === 'k') {
+      event.preventDefault()
       mainWin.webContents.executeJavaScript(
         'window.__toggleCommandPalette && window.__toggleCommandPalette()'
       ).catch(() => {})
+      return
     }
     // Ctrl+Shift+R: Reader Mode
     if (ctrl && input.shift && input.key === 'R') {

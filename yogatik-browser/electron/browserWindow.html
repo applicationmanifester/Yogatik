@@ -6,93 +6,113 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg-primary: #0a0e14;
-      --bg-toolbar: #0d1117;
-      --bg-tab-bar: #11151c;
-      --bg-input: #161b23;
-      --bg-hover: #1a1f29;
-      --bg-active: #2a3140;
-      --border-color: #1c222e;
-      --border-focus: #ff7a18;
-      --text-primary: #f1f5f9;
+      --bg-primary: #080b11;
+      --bg-toolbar: rgba(12, 17, 28, 0.82);
+      --bg-tab-bar: rgba(9, 13, 22, 0.90);
+      --bg-input: rgba(19, 26, 42, 0.65);
+      --bg-hover: rgba(255, 255, 255, 0.07);
+      --bg-active: rgba(255, 255, 255, 0.12);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: #06b6d4;
+      --text-primary: #f8fafc;
       --text-secondary: #94a3b8;
       --text-muted: #64748b;
       --accent: #ff7a18;
-      --accent-glow: rgba(255, 122, 24, 0.3);
+      --accent-cyan: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.28);
       --badge-shield: #10b981;
       --badge-dl: #ff7a18;
+      --glass-filter: blur(24px) saturate(180%);
     }
 
-    /* Arctic (Light) Theme */
+    /* Midnight (Deep Space Minimal) */
+    [data-theme="midnight"] {
+      color-scheme: dark;
+      --bg-primary: #080b11;
+      --bg-toolbar: rgba(12, 17, 28, 0.85);
+      --bg-tab-bar: rgba(9, 13, 22, 0.92);
+      --bg-input: rgba(19, 26, 42, 0.65);
+      --bg-hover: rgba(255, 255, 255, 0.07);
+      --bg-active: rgba(255, 255, 255, 0.12);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: #06b6d4;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #ff7a18;
+      --accent-glow: rgba(6, 182, 212, 0.28);
+    }
+
+    /* Arctic (Modern Light Glass) Theme */
     [data-theme="arctic"] {
       color-scheme: light;
       --bg-primary: #f8fafc;
-      --bg-toolbar: #ffffff;
-      --bg-tab-bar: #f1f5f9;
+      --bg-toolbar: rgba(255, 255, 255, 0.88);
+      --bg-tab-bar: rgba(241, 245, 249, 0.9);
       --bg-input: #e2e8f0;
-      --bg-hover: #e2e8f0;
-      --bg-active: #cbd5e1;
-      --border-color: #cbd5e1;
-      --border-focus: #2563eb;
+      --bg-hover: rgba(0, 0, 0, 0.04);
+      --bg-active: rgba(0, 0, 0, 0.08);
+      --border-color: rgba(0, 0, 0, 0.08);
+      --border-focus: #0284c7;
       --text-primary: #0f172a;
       --text-secondary: #475569;
       --text-muted: #94a3b8;
-      --accent: #2563eb;
-      --accent-glow: rgba(37, 99, 235, 0.25);
+      --accent: #0284c7;
+      --accent-glow: rgba(2, 132, 199, 0.25);
     }
 
-    /* Dracula Theme */
+    /* Obsidian Onyx Theme */
     [data-theme="dracula"] {
       color-scheme: dark;
-      --bg-primary: #181825;
-      --bg-toolbar: #1e1e2e;
-      --bg-tab-bar: #181825;
-      --bg-input: #313244;
-      --bg-hover: #45475a;
-      --bg-active: #585b70;
-      --border-color: #313244;
-      --border-focus: #cba6f7;
-      --text-primary: #cdd6f4;
-      --text-secondary: #a6adc8;
-      --text-muted: #6c7086;
-      --accent: #cba6f7;
-      --accent-glow: rgba(203, 166, 247, 0.3);
+      --bg-primary: #060608;
+      --bg-toolbar: rgba(14, 14, 20, 0.9);
+      --bg-tab-bar: rgba(10, 10, 14, 0.94);
+      --bg-input: rgba(26, 26, 36, 0.7);
+      --bg-hover: rgba(255, 255, 255, 0.06);
+      --bg-active: rgba(255, 255, 255, 0.1);
+      --border-color: rgba(255, 255, 255, 0.06);
+      --border-focus: #f59e0b;
+      --text-primary: #f5f5f7;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #f59e0b;
+      --accent-glow: rgba(245, 158, 11, 0.25);
     }
 
-    /* Solarized Theme */
+    /* Emerald Biophilic Theme */
     [data-theme="solarized"] {
       color-scheme: dark;
-      --bg-primary: #002b36;
-      --bg-toolbar: #073642;
-      --bg-tab-bar: #002b36;
-      --bg-input: #073642;
-      --bg-hover: #094757;
-      --bg-active: #0c576b;
-      --border-color: #586e75;
-      --border-focus: #b58900;
-      --text-primary: #fdf6e3;
-      --text-secondary: #93a1a1;
-      --text-muted: #657b83;
-      --accent: #b58900;
-      --accent-glow: rgba(181, 137, 0, 0.3);
+      --bg-primary: #04100e;
+      --bg-toolbar: rgba(8, 24, 20, 0.88);
+      --bg-tab-bar: rgba(6, 18, 15, 0.92);
+      --bg-input: rgba(12, 34, 28, 0.7);
+      --bg-hover: rgba(255, 255, 255, 0.06);
+      --bg-active: rgba(255, 255, 255, 0.1);
+      --border-color: rgba(16, 185, 129, 0.14);
+      --border-focus: #10b981;
+      --text-primary: #f0fdf4;
+      --text-secondary: #a7f3d0;
+      --text-muted: #6ee7b7;
+      --accent: #10b981;
+      --accent-glow: rgba(16, 185, 129, 0.3);
     }
 
-    /* Cyberpunk Theme */
+    /* Cyberpunk Neon Theme */
     [data-theme="cyberpunk"] {
       color-scheme: dark;
-      --bg-primary: #050505;
-      --bg-toolbar: #0c0c0c;
-      --bg-tab-bar: #080808;
-      --bg-input: #141414;
-      --bg-hover: #1f1f1f;
-      --bg-active: #2a2a2a;
-      --border-color: #222222;
+      --bg-primary: #08060f;
+      --bg-toolbar: rgba(16, 11, 28, 0.88);
+      --bg-tab-bar: rgba(11, 7, 20, 0.92);
+      --bg-input: rgba(30, 20, 50, 0.7);
+      --bg-hover: rgba(255, 255, 255, 0.08);
+      --bg-active: rgba(255, 255, 255, 0.14);
+      --border-color: rgba(236, 72, 153, 0.2);
       --border-focus: #00f0ff;
       --text-primary: #ffffff;
-      --text-secondary: #888888;
-      --text-muted: #555555;
-      --accent: #ff5500;
-      --accent-glow: rgba(255, 85, 0, 0.35);
+      --text-secondary: #cbd5e1;
+      --text-muted: #a855f7;
+      --accent: #ec4899;
+      --accent-glow: rgba(0, 240, 255, 0.35);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -179,8 +199,19 @@
     body.collapsed-sidebar .sidebar-header .tab-group-name,
     body.collapsed-sidebar .tab-item .label,
     body.collapsed-sidebar .tab-group-actions,
+    body.collapsed-sidebar .tab-item .close-btn,
+    body.collapsed-sidebar .tab-item .pin-btn,
+    body.collapsed-sidebar .tab-item .audio-indicator,
     body.collapsed-sidebar .sidebar-footer {
-      display: none;
+      display: none !important;
+    }
+    body.collapsed-sidebar .tab-item {
+      justify-content: center;
+      padding: 6px 0;
+    }
+    body.collapsed-sidebar button.tab-item {
+      padding: 6px 0;
+      justify-content: center;
     }
     .sidebar-header .collapse-btn {
       width: 24px;
@@ -444,53 +475,46 @@
       display: none;
     }
 
-    /* ── Toolbar adjustments for vertical tabs ─────────────────────────────── */
+    /* ── Toolbar (Glassmorphism Acrylic) ─────────────────────────────────── */
     #toolbar {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       height: 36px;
-      padding: 0 8px;
+      padding: 0 10px;
       background: var(--bg-toolbar);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
       border-bottom: 1px solid var(--border-color);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
       position: relative;
       z-index: 20;
-      transition: padding-left 0.2s ease;
+      transition: padding-left 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .vertical-tabs-toggle {
       width: 26px;
       height: 26px;
-      border-radius: 6px;
-      background: none;
-      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      border: 1px solid transparent;
       color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.15s;
-      margin-right: 4px;
+      transition: all 0.15s ease;
+      margin-right: 2px;
     }
     .vertical-tabs-toggle:hover {
       background: var(--bg-hover);
       color: var(--text-primary);
+      border-color: var(--border-color);
     }
     .vertical-tabs-toggle.active {
-      color: var(--accent);
-    }
-
-    /* ── Toolbar ──────────────────────────────────────────────────────────── */
-    #toolbar {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      height: 36px;
-      padding: 0 8px;
-      background: var(--bg-toolbar);
-      border-bottom: 1px solid var(--border-color);
-      position: relative;
-      z-index: 20;
+      color: var(--border-focus);
+      background: rgba(6, 182, 212, 0.12);
+      border-color: rgba(6, 182, 212, 0.3);
     }
 
     .brand-pill {
@@ -498,40 +522,51 @@
       align-items: center;
       gap: 6px;
       padding: 3px 6px;
-      border-radius: 6px;
+      border-radius: 7px;
       cursor: pointer;
-      margin-right: 2px;
+      transition: all 0.15s ease;
+    }
+    .brand-pill:hover {
+      background: var(--bg-hover);
+      transform: scale(1.02);
     }
     .brand-pill img {
       width: 18px;
       height: 18px;
+      filter: drop-shadow(0 2px 6px rgba(255, 122, 24, 0.3));
     }
 
     .nav-btn {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 26px;
       height: 26px;
-      border-radius: 6px;
-      background: none;
-      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      border: 1px solid transparent;
       color: var(--text-secondary);
       cursor: pointer;
       font-size: 13px;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
     }
     .nav-btn:hover:not(:disabled) {
       background: var(--bg-hover);
       color: var(--text-primary);
+      border-color: var(--border-color);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+    .nav-btn:active:not(:disabled) {
+      transform: scale(0.95);
     }
     .nav-btn:disabled {
       color: var(--text-muted);
       cursor: default;
-      opacity: 0.4;
+      opacity: 0.35;
     }
     .nav-btn.loading {
-      color: var(--accent);
+      color: var(--border-focus);
       animation: spin 1s linear infinite;
     }
     @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -539,38 +574,81 @@
     #addr-form {
       flex: 1 1 auto;
       display: flex;
+      align-items: center;
       min-width: 0;
+      position: relative;
+    }
+    #addr-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0 8px;
+      height: 26px;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    #addr-wrap:focus-within {
+      border-color: var(--border-focus);
+      background: rgba(22, 31, 50, 0.85);
+      box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.18), 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+    .omnibox-lock {
+      font-size: 11px;
+      color: var(--badge-shield);
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      opacity: 0.85;
+      flex-shrink: 0;
     }
     #addr {
       flex: 1 1 auto;
       min-width: 0;
-      background: var(--bg-input);
-      border: 1px solid var(--border-color);
-      border-radius: 7px;
+      background: transparent;
+      border: 0;
       color: var(--text-primary);
-      padding: 5px 10px;
+      padding: 0;
       font: 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       outline: none;
-      transition: all 0.15s;
+      letter-spacing: -0.2px;
     }
-    #addr:focus {
-      border-color: var(--border-focus);
-      background: var(--bg-hover);
-      box-shadow: 0 0 10px var(--accent-glow);
+    .omnibox-kbd {
+      font-size: 9.5px;
+      font-family: inherit;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 1px 4px;
+      user-select: none;
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+    #addr-wrap:focus-within .omnibox-kbd {
+      display: none;
     }
 
     #zoom-pct {
       flex: 0 0 auto;
-      background: none;
-      border: 0;
+      background: transparent;
+      border: 1px solid transparent;
       color: var(--text-secondary);
       font-size: 11px;
+      font-weight: 500;
       min-width: 32px;
       border-radius: 6px;
       cursor: pointer;
-      padding: 4px 2px;
+      padding: 3px 5px;
+      transition: all 0.15s ease;
     }
-    #zoom-pct:hover { background: var(--bg-hover); color: var(--text-primary); }
+    #zoom-pct:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
 
     /* Action Badges & Popovers */
     .popover-wrap { position: relative; flex: 0 0 auto; }
@@ -833,6 +911,29 @@
       background: var(--bg-tab-bar);
       border-bottom: 1px solid var(--border-color);
       overflow-x: auto;
+    }
+    .tab-strip-new-btn {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+      color: var(--text-muted);
+      border-radius: 6px;
+      background: transparent;
+      border: 1px dashed var(--border-color);
+      cursor: pointer;
+      flex: 0 0 auto;
+      transition: all 0.15s;
+    }
+    .tab-strip-new-btn:hover {
+      background: var(--bg-hover);
+      color: var(--accent);
+      border-color: var(--accent);
+      border-style: solid;
     }
     .tab {
       display: flex;
@@ -1116,7 +1217,13 @@
     <button class="nav-btn" id="fwd-btn" title="Forward (Alt+Right)">&#8594;</button>
     <button class="nav-btn" id="reload-btn" title="Reload (F5)">&#8635;</button>
     
-    <form id="addr-form"><input id="addr" placeholder="Search or enter web address..." autocomplete="off" spellcheck="false"></form>
+    <form id="addr-form">
+      <div id="addr-wrap">
+        <span class="omnibox-lock" title="Secure Connection">&#128274;</span>
+        <input id="addr" placeholder="Search or enter web address..." autocomplete="off" spellcheck="false">
+        <span class="omnibox-kbd">Ctrl+L</span>
+      </div>
+    </form>
 
     <button class="nav-btn" id="bookmark-btn" title="Bookmark this page (Ctrl+D)">&#9734;</button>
     <button class="nav-btn" id="reader-btn" title="Distraction-Free Reader Mode (Ctrl+Shift+R)">📖</button>
@@ -1273,6 +1380,7 @@
 
   <!-- ── Tab Strip ────────────────────────────────────────────────────────── -->
   <div id="bar">
+    <button class="tab-strip-new-btn" id="bar-new-tab-btn" title="New tab (Ctrl+T)">+</button>
     <span id="hint">
       <svg class="browser-status-logo" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="10" stroke="#ff7a18" stroke-width="2"/>
@@ -1390,8 +1498,13 @@
 
     let currentNav = null
     let currentTabsList = []
+    let currentActiveTabId = null
 
-    const act = (action, value) => window.__tabAction && window.__tabAction(action, value)
+    const act = (action, value) => {
+      if (typeof window.__tabAction === 'function') {
+        window.__tabAction(action, value)
+      }
+    }
 
     const wheelBtn = document.getElementById('wheel-btn')
     if (wheelBtn) {
@@ -1422,6 +1535,8 @@
     fwdBtn.onclick = () => act('forward')
     reloadBtn.onclick = () => act('reload')
     document.getElementById('new-tab-btn').onclick = () => act('new-tab')
+    const barNewTabBtn = document.getElementById('bar-new-tab-btn')
+    if (barNewTabBtn) barNewTabBtn.onclick = () => act('new-tab')
     document.getElementById('zoom-out-btn').onclick = () => act('zoom', 'out')
     document.getElementById('zoom-in-btn').onclick = () => act('zoom', 'in')
     zoomPct.onclick = () => act('zoom', 'reset')
@@ -2175,9 +2290,11 @@
 
     window.__setTabs = (tabs, activeId, nav) => {
       currentTabsList = tabs || []
+      currentActiveTabId = activeId
+      const barNewBtn = document.getElementById('bar-new-tab-btn')
       for (const el of [...bar.querySelectorAll('.tab')]) el.remove()
       let activeTitle = 'New tab'
-      for (const t of tabs) {
+      for (const t of currentTabsList) {
         const el = document.createElement('div')
         let classes = 'tab' + (t.tabId === activeId ? ' active' : '')
         if (t.hibernating) {
@@ -2213,10 +2330,21 @@
           el.appendChild(muteBtn)
         }
         el.onclick = () => act('select', t.tabId)
-        bar.insertBefore(el, hint)
+        if (barNewBtn) {
+          bar.insertBefore(el, barNewBtn)
+        } else {
+          bar.insertBefore(el, hint)
+        }
       }
 
-      currentNav = { ...(nav || {}), title: activeTitle }
+      currentNav = { ...(nav || {}), activeTabId: activeId, title: activeTitle }
+
+      if (typeof syncTabsWithGroups === 'function') {
+        syncTabsWithGroups(activeId)
+      }
+      if (typeof renderTabGroups === 'function') {
+        renderTabGroups()
+      }
 
       if (nav) {
         if (document.activeElement !== addr) addr.value = nav.url || ''
@@ -2295,8 +2423,17 @@
     let tabGroups = JSON.parse(localStorage.getItem('yogatik_tab_groups') || '[]')
     let nextGroupId = 1
 
-    // Initialize tab groups from existing tabs if empty
-    function initTabGroups() {
+    // Synchronize tab groups with live browser tabs
+    function syncTabsWithGroups(activeId) {
+      if (!Array.isArray(tabGroups)) tabGroups = []
+
+      // Sanitize: strip out any null, undefined, or empty values from each group
+      for (const g of tabGroups) {
+        if (!Array.isArray(g.tabs)) g.tabs = []
+        g.tabs = g.tabs.filter(id => typeof id === 'string' && id.trim())
+      }
+
+      // If no groups exist yet and we have tabs, seed default group
       if (tabGroups.length === 0 && currentTabsList.length > 0) {
         tabGroups = [{
           id: 'default',
@@ -2305,9 +2442,48 @@
           tabs: currentTabsList.map(t => t.tabId)
         }]
         saveTabGroups()
+        return
       }
+
+      // Live tabs currently active in browser
+      const liveTabIds = new Set(currentTabsList.map(t => t.tabId))
+
+      // Clean out dead tabs that were closed
+      for (const g of tabGroups) {
+        g.tabs = g.tabs.filter(id => liveTabIds.has(id))
+      }
+
+      // Find all tab IDs already tracked in any group
+      const trackedTabIds = new Set()
+      for (const g of tabGroups) {
+        for (const id of g.tabs) trackedTabIds.add(id)
+      }
+
+      // Any untracked tabs get assigned to the target or default group
+      const untracked = currentTabsList.filter(t => !trackedTabIds.has(t.tabId))
+      if (untracked.length > 0) {
+        let targetGroup = window.__targetGroupId
+          ? tabGroups.find(g => g.id === window.__targetGroupId)
+          : null
+        if (!targetGroup) targetGroup = tabGroups[0]
+        window.__targetGroupId = null
+
+        if (targetGroup) {
+          for (const t of untracked) {
+            if (!targetGroup.tabs.includes(t.tabId)) {
+              targetGroup.tabs.push(t.tabId)
+            }
+          }
+          saveTabGroups()
+        }
+      }
+    }
+
+    // Initialize tab groups from existing tabs if empty
+    function initTabGroups() {
+      syncTabsWithGroups()
       // Ensure nextGroupId is unique
-      const ids = tabGroups.map(g => parseInt(g.id.replace('group-', '')) || 0)
+      const ids = tabGroups.map(g => parseInt(String(g.id).replace('group-', '')) || 0)
       nextGroupId = Math.max(0, ...ids) + 1
     }
 
@@ -2472,14 +2648,8 @@ let anyVisible = false
         addTabBtn.innerHTML = '<span style="display:flex;align-items:center;gap:6px;color:inherit;">+ New Tab</span>'
         addTabBtn.onclick = (e) => {
           e.stopPropagation()
-          const newTabId = act('new-tab')
-          // Add to this group
-          const g = tabGroups.find(gr => gr.id === group.id)
-          if (g) {
-            g.tabs.unshift(newTabId)
-            saveTabGroups()
-            renderTabGroups()
-          }
+          window.__targetGroupId = group.id
+          act('new-tab')
         }
         tabList.appendChild(addTabBtn)
 
@@ -2525,13 +2695,13 @@ let anyVisible = false
 
     function createTabElement(tab, groupId) {
       const el = document.createElement('div')
-      el.className = 'tab-item' + (tab.tabId === currentNav?.activeTabId ? ' active' : '')
+      const isActive = tab.tabId === currentActiveTabId
+      el.className = 'tab-item' + (isActive ? ' active' : '')
       if (tab.hibernating) el.classList.add('hibernating')
       if (tab.pinned) el.classList.add('pinned')
       el.dataset.tabId = tab.tabId
       el.dataset.groupId = groupId
 
-      const isActive = tab.tabId === currentNav?.activeTabId
       const favicon = tab.favicon || ''
 
       el.innerHTML = `
@@ -2591,21 +2761,35 @@ let anyVisible = false
     // Sidebar collapse
     sidebarCollapseBtn.onclick = toggleSidebarCollapse
 
-    // Keyboard shortcuts for vertical tabs
+    // Keyboard shortcuts in chrome (tabs, groups, sidebar)
     document.addEventListener('keydown', (e) => {
-      if (e.type !== 'keydown') return
-      const ctrl = e.control || e.meta
+      const ctrl = e.ctrlKey || e.metaKey
       const shift = e.shiftKey
+      const key = (e.key || '').toLowerCase()
 
+      // Ctrl+T: New Tab
+      if (ctrl && !shift && key === 't') {
+        e.preventDefault()
+        act('new-tab')
+        return
+      }
+      // Ctrl+W: Close Tab
+      if (ctrl && !shift && key === 'w') {
+        e.preventDefault()
+        if (currentActiveTabId) act('close', currentActiveTabId)
+        return
+      }
       // Ctrl+Shift+V: Toggle vertical tabs
-      if (ctrl && shift && e.key.toLowerCase() === 'v') {
+      if (ctrl && shift && key === 'v') {
         e.preventDefault()
         toggleVerticalTabs()
+        return
       }
       // Ctrl+Shift+G: New tab group
-      if (ctrl && shift && e.key.toLowerCase() === 'g') {
+      if (ctrl && shift && key === 'g') {
         e.preventDefault()
         newTabGroupBtn.click()
+        return
       }
     })
 
@@ -2613,28 +2797,6 @@ let anyVisible = false
     initTabGroups()
     applyVerticalTabsState()
     sidebarCollapseBtn.innerHTML = sidebarCollapsed ? '&#9658;' : '&#9668;'
-
-    // Listen for tab changes to update groups
-    const originalAct = window.__tabAction
-    window.__tabAction = (action, value) => {
-      // Handle tab group updates
-      if (action === 'new-tab' && verticalTabsEnabled) {
-        // The new tab will be added by the main process, we just need to re-render
-        setTimeout(renderTabGroups, 50)
-      } else if (action === 'close' && verticalTabsEnabled) {
-        // Remove from all groups
-        for (const group of tabGroups) {
-          const idx = group.tabs.indexOf(value)
-          if (idx >= 0) group.tabs.splice(idx, 1)
-        }
-        saveTabGroups()
-        renderTabGroups()
-      } else if (action === 'select' && verticalTabsEnabled) {
-        // Update active state
-        renderTabGroups()
-      }
-      return originalAct(action, value)
-    }
 
     // Expose vertical tabs functions for command palette
     window.__verticalTabs = {

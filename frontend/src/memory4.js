@@ -50,19 +50,177 @@ export function relevance(item, query) {
 }
 
 /**
+ * Explicit Triad Memory Ranking Function:
+ * Balances semantic relevance (keyword/token overlap), intrinsic importance,
+ * exponential recency decay (Ebbinghaus forgetting curve), and verified frequency.
+ */
+export function triadRank(items = [], query = '', {
+  wRel = 0.45,
+  wImp = 0.25,
+  wRec = 0.20,
+  wRef = 0.10,
+  now = Date.now(),
+} = {}) {
+  return items.map((it) => {
+    const rel = query ? relevance(it, query) : 0.5
+    const imp = clamp01(it.importance ?? 0.5)
+    const rec = recencyWeight(it.store, it.at, now)
+    const ref = Math.min(1, (it.refCount || 0) / 5)
+
+    const score = clamp01(wRel * rel + wImp * imp + wRec * rec + wRef * ref)
+    return { it, score }
+  }).sort((a, b) => b.score - a.score)
+}
+
+/**
+ * Extracts structured Entity Knowledge Graph Triples `(Subject)-[Predicate]->(Object)`
+ * from user notes, preferences, or conversation turns.
+ */
+export function extractEntityTriples(text = '') {
+  if (!text || typeof text !== 'string') return []
+  const clean = text.trim()
+  const triples = []
+
+  // Entity relationship patterns common in user instructions and system setup
+  const patterns = [
+    // e.g. "User prefers Tailwind CSS", "Client likes dark mode", "Project uses React"
+    /(?:the\s+)?(user|client|assistant|project|system|workspace|api|database|codebase)\s+(prefers|likes|dislikes|avoids|uses|requires|runs on|is built with|supports|is configured with|relies on)\s+([^.\n,;]+)/gi,
+    // e.g. "Language is TypeScript", "Framework is Vite", "Backend is Node"
+    /(?:the\s+)?([A-Za-z0-9_-]{2,20})\s+(is|has|includes|features)\s+([A-Za-z0-9_. -]{2,40})/gi,
+  ]
+
+  for (const regex of patterns) {
+    let match
+    while ((match = regex.exec(clean)) !== null) {
+      const subject = match[1]?.trim()
+      const predicate = match[2]?.trim().toLowerCase()
+      const object = match[3]?.trim()
+      if (subject && predicate && object && object.length > 1 && object.length < 80) {
+        triples.push({
+          subject: subject.charAt(0).toUpperCase() + subject.slice(1),
+          predicate,
+          object,
+          at: Date.now(),
+        })
+      }
+    }
+  }
+
+  // Deduplicate exact triples
+  const seen = new Set()
+  return triples.filter((t) => {
+    const key = `${t.subject.toLowerCase()}|${t.predicate}|${t.object.toLowerCase()}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/**
+ * Deterministic Entity Knowledge Graph Traversal:
+ * Finds triples connected to the query or entity without vector hallucination.
+ */
+export function queryKnowledgeGraph(triples = [], entityOrQuery = '') {
+  if (!triples.length || !entityOrQuery) return []
+  const q = String(entityOrQuery).toLowerCase()
+  return triples.filter((t) =>
+    t.subject.toLowerCase().includes(q) ||
+    t.predicate.toLowerCase().includes(q) ||
+    t.object.toLowerCase().includes(q)
+  )
+}
+
+/**
+ * Renders Knowledge Graph triples as a structured markdown block for system prompt injection.
+ */
+export function formatKnowledgeGraphPrompt(triples = []) {
+  if (!triples.length) return ''
+  const lines = triples.map((t) => `- (${t.subject}) --[${t.predicate}]--> (${t.object})`)
+  return '\n\nSTRUCTURED ENTITY KNOWLEDGE GRAPH:\n' + lines.join('\n')
+}
+
+/**
+ * Autonomous Memory Consolidation ("Sleep" Cycle):
+ * Groups memories, resolves semantic contradictions / updates, merges duplicate episodic
+ * records into durable semantic knowledge, and prunes decayed items.
+ */
+export function consolidateMemories(memories = [], { now = Date.now() } = {}) {
+  const active = []
+  const updated = []
+  let prunedCount = 0
+  let consolidatedCount = 0
+
+  // 1. Group by entity/topic key
+  const byKey = new Map()
+
+  for (const m of memories) {
+    // Check Ebbinghaus decay for episodic memories
+    if (m.store === 'episodic') {
+      const rec = recencyWeight(m.store, m.at, now)
+      const imp = clamp01(m.importance ?? 0.5)
+      // If salience is near zero and memory is older than half-life, prune it
+      if (rec < 0.25 && imp < 0.35 && (m.refCount || 0) === 0) {
+        prunedCount++
+        continue
+      }
+    }
+
+    // Normalized topic signature (first 3 alphanumeric keywords)
+    const keywords = (m.text || '').toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []
+    const key = keywords.slice(0, 3).sort().join('_') || m.text.slice(0, 20)
+
+    if (!byKey.has(key)) {
+      byKey.set(key, [])
+    }
+    byKey.get(key).push(m)
+  }
+
+  // 2. Resolve duplicates & merge episodic into semantic
+  for (const [, group] of byKey.entries()) {
+    if (group.length === 1) {
+      active.push(group[0])
+      continue
+    }
+
+    // Sort by timestamp descending (newest first)
+    group.sort((a, b) => (b.at || 0) - (a.at || 0))
+    const newest = group[0]
+
+    // If there are multiple episodic updates on the same topic, consolidate into the newest
+    // and bump its importance and refCount
+    const totalRefs = group.reduce((sum, item) => sum + (item.refCount || 0), 0)
+    const maxImportance = Math.max(...group.map((item) => item.importance ?? 0.5))
+
+    const consolidated = {
+      ...newest,
+      refCount: totalRefs,
+      importance: maxImportance,
+      consolidatedFrom: group.length,
+    }
+
+    active.push(consolidated)
+    updated.push(consolidated)
+    consolidatedCount += (group.length - 1)
+  }
+
+  return {
+    active,
+    updated,
+    prunedCount,
+    consolidatedCount,
+  }
+}
+
+/**
  * Select the top-K memories to inject for a turn: relevance-gated, salience-
  * ranked, with per-store caps so emotional/procedural context can't crowd out
  * facts. Returns items sorted best-first.
  */
 export function selectForPrompt(items, query, { k = 12, perStoreCap = 5, now = Date.now() } = {}) {
-  const scored = items.map(it => ({
-    it,
-    score: 0.6 * relevance(it, query) + 0.4 * salience(it, now),
-  }))
-  scored.sort((a, b) => b.score - a.score)
+  const ranked = triadRank(items, query, { now })
   const counts = Object.create(null)
   const out = []
-  for (const { it, score } of scored) {
+  for (const { it, score } of ranked) {
     if (score <= 0) continue
     counts[it.store] = (counts[it.store] || 0)
     if (counts[it.store] >= perStoreCap) continue

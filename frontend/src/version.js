@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '20.0.0'
+export const APP_VERSION = '21.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 20.0.0 — Blazing-Fast Turbo P2P Swarm Engine & Synchronized Multi-Platform Suite'
+export const APP_CODENAME = 'Yogatik 21.0.0 — Deep Space Minimal & Acrylic Glass Redesign, Turbo Tab Sync & Enhanced Page-Context AI'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,55 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "21.0.0",
+    "title": "Yogatik 21.0.0: Deep Space Minimal & Acrylic Glass Redesign, Turbo Tab Sync & Enhanced Page-Context AI",
+    "date": "November 22, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Deep Space Minimal & Acrylic Glass UI: Ground-up redesign of Yogatik Studio and Yogatik Browser with cosmic dark backgrounds (#080b11), 24px acrylic blur, luminous cyan/amber accents, and sleek bento grids",
+      "Multi-Tab Sync & Tab Group Engine: Re-engineered tab lifecycle with zero-stall synchronous group management, horizontal + tab controls, and self-healing storage",
+      "Responsive New Tab Dashboard: Ultra-light tabular clock with live seconds, integrated privacy shield status, and multi-engine universal Omnibox with Tab cycling",
+      "Multi-Platform 21.0.0 Synchronized Suite: Synchronized release binaries across Web, Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)"
+    ],
+    "sections": [
+      {
+        "category": "🌌 Deep Space Acrylic Glass Design",
+        "items": [
+          {
+            "title": "Glassmorphism & Luminous Depth",
+            "description": "Acrylic frosted navigation, floating omnibox with SSL security lock, and luminous bottom active indicator bars."
+          },
+          {
+            "title": "Bento Grid Dashboard & Universal Engine Switcher",
+            "description": "Interactive search engine cycling across DuckDuckGo, Google, Perplexity AI, YouTube, and Bing with responsive bento quick dials."
+          }
+        ]
+      },
+      {
+        "category": "⚡ Synchronized Tab Management",
+        "items": [
+          {
+            "title": "Zero-Stall Tab Lifecycle",
+            "description": "Fixed asynchronous ID synchronization to ensure instant tab creation via Ctrl+T, toolbar +, and group actions without storage corruption."
+          }
+        ]
+      },
+      {
+        "category": "📱 Multi-Platform Releases",
+        "items": [
+          {
+            "title": "Desktop & Mobile Synchronized Suite v21.0.0",
+            "description": "Synchronized release binaries for Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "20.0.0",
     "title": "Yogatik 20.0.0: Blazing-Fast Turbo P2P Swarm Engine & Synchronized Multi-Platform Suite",
     "date": "November 21, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Blazing-Fast Turbo P2P Torrent Downloader: Overhauled swarm engine with 300 global connections, rarest-first piece scheduling, and 512-slot chunk RAM cache eliminating disk I/O bottlenecks",
       "Tier-1 High-Speed Trackers & Low-Latency Sockets: Added 25+ curated global UDP, HTTP, and WebSocket trackers with Nagle algorithm disabled (setNoDelay) and TCP keepalive for instant piece pipelining",

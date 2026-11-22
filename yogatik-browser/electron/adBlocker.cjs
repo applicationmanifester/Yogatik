@@ -71,6 +71,8 @@ const COSMETIC_AD_CSS = `
   ytd-banner-promo-renderer,
   ytd-statement-banner-renderer,
   ytd-player-legacy-desktop-watch-ads-renderer,
+  ytd-in-feed-ad-layout-renderer,
+  ytd-ad-break-service-renderer,
   #masthead-ad,
   #player-ads,
   /* General Web Banner & Pop-up Ads */
@@ -78,7 +80,14 @@ const COSMETIC_AD_CSS = `
   div[id^="google_ads_"],
   div[id*="_ad_container"],
   .ad-banner,
-  .advertisement {
+  .advertisement,
+  .sponsored-post,
+  [data-ad-slot],
+  [data-ad-unit],
+  .trc_related_container,
+  .outbrain-ad,
+  .taboola-ad,
+  .ad-slot {
     display: none !important;
     visibility: hidden !important;
     height: 0 !important;
@@ -88,31 +97,57 @@ const COSMETIC_AD_CSS = `
   }
 `
 
-// Injected lightweight YouTube ad-skipper & fast-forwarder
+// Injected lightweight YouTube ad-skipper, fast-forwarder & anti-adblock shield
 const YOUTUBE_AD_SKIP_SCRIPT = `
 (function() {
   if (window.__YOGATIK_SHIELD_ACTIVE__) return;
   window.__YOGATIK_SHIELD_ACTIVE__ = true;
 
+  let originalVolume = null;
+
   function skipYouTubeAds() {
-    // 1. Click standard skip buttons immediately if rendered
+    // 1. Auto-dismiss anti-adblock enforcement dialogs
+    const enforcement = document.querySelector('ytd-enforcement-message-view-model, tp-yt-paper-dialog[role="dialog"]');
+    if (enforcement) {
+      const text = enforcement.innerText || '';
+      if (/ad blockers? violate|allowlist|terms of service/i.test(text)) {
+        enforcement.remove();
+        document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(b => b.remove());
+        const video = document.querySelector('video');
+        if (video && video.paused) {
+          video.play().catch(() => {});
+        }
+      }
+    }
+
+    // 2. Click standard and modern skip buttons immediately if rendered
     const skipBtns = document.querySelectorAll(
-      '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-overlay-close-button'
+      '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-overlay-close-button, .ytp-skip-ad-button__text, button.ytp-ad-skip-button-modern'
     );
     for (const b of skipBtns) {
       if (b && typeof b.click === 'function') b.click();
     }
 
-    // 2. If a video ad is playing, fast-forward to end immediately and mute
+    // 3. If a video ad is playing, fast-forward to end immediately and mute
     const player = document.querySelector('.html5-video-player');
     if (player && (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting'))) {
       const video = player.querySelector('video');
       if (video) {
+        if (originalVolume === null) originalVolume = video.volume;
         video.muted = true;
         video.playbackRate = 16.0;
         if (Number.isFinite(video.duration) && video.duration > 0) {
           video.currentTime = video.duration;
         }
+      }
+    } else {
+      // Ad finished — restore normal volume if previously suppressed
+      const video = document.querySelector('.html5-video-player video');
+      if (video && originalVolume !== null && video.muted) {
+        video.muted = false;
+        video.volume = originalVolume;
+        video.playbackRate = 1.0;
+        originalVolume = null;
       }
     }
   }

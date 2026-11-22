@@ -1,11 +1,23 @@
 {
   "theme": "midnight",
   "searchEngine": "DuckDuckGo",
+  "adBlockerEnabled": true,
   "adBlocker": {
     "enabled": true,
     "blockTrackers": true,
     "skipYouTubeAds": true
   },
+  "cookieAutoReject": true,
+  "fingerprintRandomize": true,
+  "videoControlsEnabled": true,
+  "vimNavEnabled": false,
+  "aiBaseUrl": "",
+  "aiApiKey": "",
+  "aiModel": "",
+  "aiOllamaModel": "",
+  "aiOllamaNumCtx": 4096,
+  "sitePermissions": {},
+  "siteZoom": {},
   "privacy": {
     "isolateSessions": true,
     "clearOnExit": false,

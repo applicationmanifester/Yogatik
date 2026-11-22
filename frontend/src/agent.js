@@ -1254,10 +1254,14 @@ function safelyParseToolArgs(raw) {
               .trimStart()
             // Only suppress tokens if they match actual tool call invocation protocols,
             // NOT regular markdown JSON or code blocks meant for the user.
-            const looksLikeToolCall = /^\s*<(?:tool_call|function_call|function=|invoke\s|action:)/i.test(nonThinking)
+            // Length guard: real tool calls are short (<500 chars). Long content that
+            // happens to start with a matching pattern is prose, not a tool call.
+            const looksLikeToolCall = nonThinking.length < 500 && (
+                /^\s*<(?:tool_call|function_call|function=|invoke\s|action:)/i.test(nonThinking)
               || /^\s*```(?:json)?\s*\{\s*["\u201c]tool_calls/i.test(nonThinking)
               || /^\s*\{\s*["\u201c]tool_calls["\u201d]\s*:/i.test(nonThinking)
               || /^\s*\[TOOL_CALL/i.test(nonThinking)
+            )
             if (!looksLikeToolCall) {
               fullContent += t
               onToken?.(t)
@@ -1971,6 +1975,7 @@ function safelyParseToolArgs(raw) {
         model,
         isDesktop: isDesktopRuntime(),
         isPro: !isEntitlementLocked(),
+        toolCalls: toolCallsToProcess || [],
       })
 
       // Log every non-accept intervention for the Diagnostics panel
@@ -2009,7 +2014,7 @@ function safelyParseToolArgs(raw) {
         watchdogConts++
         onStatus?.(`⚡ Auto-continuing truncated response (${watchdogConts}/3)…`)
         messages.push({ role: 'assistant', content: cleanedContent })
-        messages.push({ role: 'user', content: watchdogContinuationPrompt(cleanedContent) })
+        messages.push({ role: 'user', content: watchdogContinuationPrompt(cleanedContent, watchdogVerdict.reason) })
         let chunk = ''
         await new Promise((resolve) => {
           streamChat({

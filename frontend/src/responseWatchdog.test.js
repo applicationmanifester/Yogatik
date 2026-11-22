@@ -15,6 +15,7 @@ import {
   regenerationPrompt,
   isFalseFileAccessDenial,
   isToolReceiptStub,
+  verifyGoalCompletion,
 } from './responseWatchdog'
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -68,6 +69,19 @@ describe('endsMidThought', () => {
   })
   it('detects trailing conjunction', () => {
     expect(endsMidThought('This works well because')).toBe(true)
+  })
+  it('detects dangling preposition or operator', () => {
+    expect(endsMidThought('We can configure the API endpoint with')).toBe(true)
+    expect(endsMidThought('The calculation equals 10 +')).toBe(true)
+    expect(endsMidThought('In order to start, refer to')).toBe(true)
+  })
+  it('detects dangling list item marker', () => {
+    expect(endsMidThought('Here is the list:\n1.')).toBe(true)
+    expect(endsMidThought('Some points to consider:\n -')).toBe(true)
+  })
+  it('detects trailing unclosed quote or slash', () => {
+    expect(endsMidThought('He said that it was "')).toBe(true)
+    expect(endsMidThought('Navigate to the folder src/')).toBe(true)
   })
   it('passes complete sentences', () => {
     expect(endsMidThought('The task is complete.')).toBe(false)
@@ -312,5 +326,41 @@ describe('isFalseFileAccessDenial', () => {
     })
     expect(verdict.action).toBe('regenerate')
     expect(verdict.check).toBe('file_access_denial')
+  })
+})
+
+describe('verifyGoalCompletion & Incomplete Task Self-Healing', () => {
+  it('detects when multi-part tasks in user prompt are omitted from response', () => {
+    const userPrompt = '1. Implement JWT authentication in backend\n2. Write unit tests for auth controller\n3. Update deployment docs'
+    const incompleteAnswer = 'I have implemented JWT authentication in the backend using jsonwebtoken.'
+
+    const audit = verifyGoalCompletion(userPrompt, incompleteAnswer)
+    expect(audit.complete).toBe(false)
+    expect(audit.pendingItems.length).toBeGreaterThanOrEqual(1)
+    expect(audit.missingDeliverables).toContain('unit tests')
+  })
+
+  it('passes when all deliverables are addressed', () => {
+    const userPrompt = '1. Implement JWT authentication\n2. Write unit tests for auth'
+    const completeAnswer = 'Here is the JWT authentication module. And here are the unit tests for auth.'
+
+    const audit = verifyGoalCompletion(userPrompt, completeAnswer)
+    expect(audit.complete).toBe(true)
+  })
+
+  it('generates targeted continuation prompt when deliverables are missing', () => {
+    const reason = 'Response addressed part of the request but omitted requested deliverables: Write unit tests; Update documentation'
+    const prompt = continuationPrompt('Here is code', reason)
+    expect(prompt).toContain('omitted the following deliverables:')
+    expect(prompt).toContain('Write unit tests')
+  })
+
+  it('flags incomplete goals for continuation in assessResponse', () => {
+    const userPrompt = '1. Create authentication middleware\n2. Add rate limiting configuration\n3. Write Dockerfile setup'
+    const partialResponse = 'I have created the authentication middleware with token verification.'
+
+    const v = assessResponse(partialResponse, { userMessage: userPrompt })
+    expect(v.action).toBe('continue')
+    expect(v.check).toBe('incomplete_goal')
   })
 })

@@ -1,5 +1,15 @@
 # Changelog
 
+## [21.0.0] — 2026-11-22: Deep Space Minimal & Acrylic Glass Redesign, Turbo Tab Sync & Enhanced Page-Context AI
+
+Major design and stability release overhauling the user interface across Yogatik Browser and Yogatik Studio with a cohesive Deep Space Minimal and Acrylic Glass aesthetic, re-engineering the tab lifecycle engine for instantaneous tab creation and self-healing state, and delivering synchronized multi-platform releases.
+
+### 🚀 Highlights
+- **Deep Space Minimal & Acrylic Glass UI**: Ground-up aesthetic modernization featuring cosmic dark surfaces (`#080b11`, `#0d1320`), frosted glassmorphic navigation (`backdrop-filter: blur(24px)`), luminous cyan (`#06b6d4`) and electric amber (`#ff7a18`) accents, and responsive bento grid widgets.
+- **Turbo Tab Sync & Tab Groups**: Resolved asynchronous tab creation synchronization in Yogatik Browser with `syncTabsWithGroups`, dedicated horizontal tab bar `+` control, centered icon alignment for collapsed sidebars, and protection against `localStorage` state corruption.
+- **Universal New Tab Omnibox & Clock**: Integrated real-time digital tabular clock with seconds counter, live protection shield monitor, and multi-engine universal Omnibox with fast keyboard `Tab` cycling across DuckDuckGo, Google, Perplexity AI, YouTube, and Bing.
+- **Multi-Platform Deployment & CI/CD**: Unified version 21.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [20.0.0] — 2026-11-21: Blazing-Fast Turbo P2P Swarm Engine & Synchronized Multi-Platform Suite
 
 Major performance release overhauling the native BitTorrent client for saturated blazing-fast peer-to-peer downloading, featuring expanded 300-peer connection pooling, rarest-first piece scheduling, 512-slot chunk RAM cache, zero-latency TCP socket tuning, and on-demand swarm boost.

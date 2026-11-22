@@ -90,6 +90,8 @@ const VIDEO_CONTROLS_SCRIPT = `
     <button class="speed" data-speed="2" title="2× speed">2×</button>
     <button class="speed" data-speed="3" title="3× speed">3×</button>
     <button class="silence" id="yogatik-silence-btn" title="Fast-forward through silent stretches (lectures, podcasts)">🤫 Skip Silence</button>
+    <button id="yogatik-pip-btn" title="Toggle Picture-in-Picture">📺 PiP</button>
+    <button id="yogatik-boost-btn" title="Boost quiet audio (1× / 1.5× / 2×)">🔊 1×</button>
   \`;
   document.body.appendChild(pill);
 
@@ -104,6 +106,53 @@ const VIDEO_CONTROLS_SCRIPT = `
     }
     return best;
   };
+
+  // ── Picture-in-Picture ──
+  const pipBtn = pill.querySelector('#yogatik-pip-btn');
+  if (pipBtn) {
+    pipBtn.onclick = async () => {
+      const v = currentVideo();
+      if (!v) return;
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else if (v.requestPictureInPicture) {
+          await v.requestPictureInPicture();
+        }
+      } catch (e) {
+        console.warn('PiP error:', e);
+      }
+    };
+  }
+
+  // ── Volume Boost via GainNode ──
+  let boostGain = null;
+  let boostLevel = 1.0;
+  const boostBtn = pill.querySelector('#yogatik-boost-btn');
+  if (boostBtn) {
+    boostBtn.onclick = () => {
+      const v = currentVideo();
+      if (!v) return;
+      try {
+        if (!boostGain) {
+          const actx = new (window.AudioContext || window.webkitAudioContext)();
+          const src = actx.createMediaElementSource(v);
+          boostGain = actx.createGain();
+          src.connect(boostGain);
+          boostGain.connect(actx.destination);
+        }
+        if (boostLevel === 1.0) boostLevel = 1.5;
+        else if (boostLevel === 1.5) boostLevel = 2.0;
+        else boostLevel = 1.0;
+
+        boostGain.gain.value = boostLevel;
+        boostBtn.textContent = '🔊 ' + boostLevel + '×';
+        boostBtn.style.color = boostLevel > 1.0 ? '#ff7a18' : 'inherit';
+      } catch (e) {
+        console.warn('Audio boost error:', e);
+      }
+    };
+  }
 
   // ── Seek & speed ──
   pill.querySelectorAll('button[data-seek]').forEach(b => {

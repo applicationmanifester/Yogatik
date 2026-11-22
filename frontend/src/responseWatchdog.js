@@ -34,7 +34,7 @@ const DEFAULTS = {
   /** Minimum visible characters for a non-trivial prompt's response. */
   minContentLength: 10,
   /** Common token-limit boundaries that hint at max_tokens truncation. */
-  tokenBoundaries: [4096, 8192, 16384, 32768],
+  tokenBoundaries: [2048, 4096, 8192, 16384, 32768, 65536],
   /** Token boundary tolerance (chars). */
   tokenBoundaryTolerance: 80,
 }
@@ -117,9 +117,12 @@ export function endsMidThought(text) {
   const trimmed = text.trim()
   // Trailing transitional phrases
   if (/\b(let'?s (also )?(check|inspect|look at|examine|see|run)|now (we will|let's|inspect)|next step is to)\s*[^.?!]*$/i.test(trimmed)) return true
-  // Ends with a colon, comma, dash, ampersand, pipe, or conjunction
-  if (/[:,(\-&|+=]\s*$/.test(trimmed)) return true
-  if (/\b(and|or|because|such as|for example|step \d+:?|following:?)\s*$/i.test(trimmed)) return true
+  // Ends with a colon, comma, dash, ampersand, pipe, operator, slash, or dangling quote
+  if (/[:,(\-&|+=/\\'"“‘]\s*$/.test(trimmed)) return true
+  // Ends with a dangling list or bullet marker e.g. "1." or " - "
+  if (/(?:^|\n)\s*(?:[-*•]|\d+\.)\s*$/.test(trimmed)) return true
+  // Trailing conjunctions, prepositions, or incomplete introductory words
+  if (/\b(and|or|because|such as|for example|step \d+:?|following:?|with|including|specifically|namely|such that|in order to|due to|refer to)\s*$/i.test(trimmed)) return true
   return false
 }
 
@@ -298,6 +301,17 @@ export function assessResponse(content, meta = {}) {
     return verdict('degraded', 'continue', 'Response length suggests it hit a max_tokens boundary.', 'low', 'token_boundary')
   }
 
+  // ── 10. Multi-part goal completion verification ────────────────────
+  if (!isVoice && userMessage && userMessage.length > 35) {
+    const goalAudit = verifyGoalCompletion(userMessage, visible, { toolCalls: meta.toolCalls || [] })
+    if (!goalAudit.complete && goalAudit.pendingItems.length > 0) {
+      if (continuations >= maxCont || forcedFinal) {
+        return verdict('degraded', 'accept_partial', `Response partially completed task but missed: ${goalAudit.missingDeliverables}`, 'medium', 'incomplete_goal')
+      }
+      return verdict('degraded', 'continue', `Response addressed part of the request but omitted requested deliverables: ${goalAudit.missingDeliverables}`, 'medium', 'incomplete_goal')
+    }
+  }
+
   // ── All checks passed ──────────────────────────────────────────────
   return verdict('good', 'accept', 'Response passed all quality checks.', 'low', 'none')
 }
@@ -329,9 +343,77 @@ export function retryDelay(attempt) {
 }
 
 /**
+ * Verifies whether multi-part user instructions or goals were fully addressed.
+ * Scans for numbered lists, bullet lists, or conjunctions in the user's message
+ * and confirms that corresponding deliverables appear in the assistant's response or tools.
+ */
+export function verifyGoalCompletion(userMessage = '', assistantContent = '', { toolCalls = [] } = {}) {
+  if (!userMessage || userMessage.length < 35 || !assistantContent) {
+    return { complete: true, pendingItems: [] }
+  }
+
+  const u = userMessage.trim()
+  const a = assistantContent.toLowerCase()
+  const toolNames = toolCalls.map(tc => (tc.name || tc.function?.name || '').toLowerCase()).join(' ')
+  const corpus = a + ' ' + toolNames
+
+  const explicitTasks = []
+
+  // 1. Numbered lists in user prompt: e.g. "1. fix X \n2. test Y \n3. update docs"
+  const numberedMatches = [...u.matchAll(/(?:^|\n)\s*\d+[\.\)]\s*([^\n]+)/g)]
+  if (numberedMatches.length >= 2) {
+    for (const m of numberedMatches) {
+      const task = m[1].trim()
+      if (task.length > 5) explicitTasks.push(task)
+    }
+  }
+
+  // 2. Conjunction multi-tasks: e.g. "implement auth AND write unit tests"
+  if (explicitTasks.length === 0) {
+    const multiTaskMatch = u.match(/(?:please\s+)?(implement|create|fix|add|write|update|build|test|verify)\s+([^,.?!]+?)\s+(?:and|also|as well as|additionally)\s+(?:also\s+)?(implement|create|fix|add|write|update|build|test|verify)\s+([^,.?!]+)/i)
+    if (multiTaskMatch) {
+      explicitTasks.push(`${multiTaskMatch[1]} ${multiTaskMatch[2]}`.trim())
+      explicitTasks.push(`${multiTaskMatch[3]} ${multiTaskMatch[4]}`.trim())
+    }
+  }
+
+  if (explicitTasks.length === 0) {
+    return { complete: true, pendingItems: [] }
+  }
+
+  const pendingItems = []
+  for (const task of explicitTasks) {
+    // Extract keywords (length > 3, alphanumeric)
+    const keywords = task.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) || []
+    if (keywords.length === 0) continue
+
+    // Count how many keywords appear in the response corpus
+    let hits = 0
+    for (const kw of keywords) {
+      if (corpus.includes(kw)) hits++
+    }
+
+    // If less than half the keywords appear, consider it pending
+    if (hits / keywords.length < 0.4) {
+      pendingItems.push(task)
+    }
+  }
+
+  return {
+    complete: pendingItems.length === 0,
+    pendingItems,
+    missingDeliverables: pendingItems.join('; '),
+  }
+}
+
+/**
  * Build a continuation prompt for the model to resume from truncated output.
  */
-export function continuationPrompt(content) {
+export function continuationPrompt(content, reason = '') {
+  if (reason && reason.includes('omitted requested deliverables:')) {
+    const missing = reason.split('omitted requested deliverables:')[1]?.trim() || ''
+    return `You completed part of the requested tasks, but omitted the following deliverables:\n${missing}\n\nContinue immediately and fulfill these remaining items without repeating any content already provided.`
+  }
   if (hasUnclosedCodeBlock(content)) {
     return 'Your previous output was cut off mid-code-block. Continue from EXACTLY where you stopped — do NOT repeat any text or code already given. Close all open code fences.'
   }

@@ -76,6 +76,120 @@ export function chunkText(text = '', { chunkSize = 400, overlap = 50, metadata =
 }
 
 /**
+ * Hierarchical (Parent-Child) Document Chunker:
+ * Generates smaller child chunks for high-precision retrieval while preserving
+ * larger parent document chunks to restore full context to the LLM.
+ */
+export function hierarchicalChunkText(text = '', { parentSize = 1000, childSize = 250, overlap = 40, metadata = {} } = {}) {
+  if (!text || text.trim().length === 0) return { parents: [], children: [] }
+
+  const parents = chunkText(text, { chunkSize: parentSize, overlap: 0, metadata })
+  const children = []
+  let childIdx = 0
+
+  for (const parent of parents) {
+    const parentChildren = chunkText(parent.text, {
+      chunkSize: childSize,
+      overlap,
+      metadata: {
+        ...parent.metadata,
+        parentId: parent.id,
+        parentText: parent.text,
+      },
+    })
+
+    for (const ch of parentChildren) {
+      ch.id = `child_${childIdx++}`
+      ch.parentId = parent.id
+      ch.parentText = parent.text
+      children.push(ch)
+    }
+  }
+
+  return { parents, children }
+}
+
+/**
+ * Context-Enriched Chunks:
+ * Prepends document titles, summaries, and section headers to chunks so
+ * embeddings and lexical search capture document-level context.
+ */
+export function enrichChunksWithContext(chunks = [], { documentTitle = '', summary = '', section = '' } = {}) {
+  const prefixParts = []
+  if (documentTitle) prefixParts.push(`[Document: ${documentTitle}]`)
+  if (section) prefixParts.push(`[Section: ${section}]`)
+  if (summary) prefixParts.push(`[Context Summary: ${summary}]`)
+
+  if (prefixParts.length === 0) return chunks
+  const prefix = prefixParts.join(' ') + '\n'
+
+  return chunks.map((c) => ({
+    ...c,
+    text: prefix + c.text,
+    enriched: true,
+  }))
+}
+
+/**
+ * Corrective RAG (CRAG) Retrieval Confidence Evaluator:
+ * Assesses whether retrieved chunks provide sufficient relevance to answer
+ * the query, or whether query rewriting / web search fallback is required.
+ */
+export function evaluateRetrievalConfidence(query = '', candidates = [], { minScore = 0.30 } = {}) {
+  if (!candidates || candidates.length === 0) {
+    return {
+      confident: false,
+      score: 0,
+      status: 'irrelevant',
+      action: 'web_search_fallback',
+      reason: 'No candidate passages retrieved.',
+    }
+  }
+
+  const qTokens = tokenize(query)
+  const topCandidate = candidates[0]
+  const topScore = topCandidate.rerankScore ?? topCandidate.rrfScore ?? topCandidate.score ?? 0
+
+  // Calculate query token coverage across top 3 candidates
+  const topPassages = candidates.slice(0, 3).map((c) => (c.text || '').toLowerCase()).join(' ')
+  let matchedTokens = 0
+  for (const t of qTokens) {
+    if (topPassages.includes(t)) matchedTokens++
+  }
+  const tokenCoverage = qTokens.length > 0 ? matchedTokens / qTokens.length : 0
+
+  const compositeConfidence = Number(((topScore * 0.5) + (tokenCoverage * 0.5)).toFixed(3))
+
+  if (compositeConfidence >= 0.55) {
+    return {
+      confident: true,
+      score: compositeConfidence,
+      status: 'confident',
+      action: 'synthesize',
+      reason: 'High semantic alignment and query token coverage.',
+    }
+  }
+
+  if (compositeConfidence >= minScore) {
+    return {
+      confident: false,
+      score: compositeConfidence,
+      status: 'ambiguous',
+      action: 'rewrite_query',
+      reason: 'Moderate semantic match; query reformulation or HyDE recommended.',
+    }
+  }
+
+  return {
+    confident: false,
+    score: compositeConfidence,
+    status: 'irrelevant',
+    action: 'web_search_fallback',
+    reason: 'Low retrieval confidence; external web search or human escalation advised.',
+  }
+}
+
+/**
  * Fast tokenize for BM25 keyword matching
  */
 function tokenize(text = '') {
@@ -253,18 +367,22 @@ export function generateHydeExpansions(query = '') {
  */
 export const haystackRagTool = {
   name: 'haystack_rag',
-  description: 'Enterprise hybrid RAG pipeline combining BM25 keyword search, dense embeddings, Reciprocal Rank Fusion (RRF), Cross-Encoder reranking, and HyDE query expansion.',
+  description: 'Enterprise hybrid RAG pipeline combining BM25 keyword search, dense embeddings, Reciprocal Rank Fusion (RRF), Cross-Encoder reranking, HyDE query expansion, Hierarchical (Parent-Child) chunking, and CRAG retrieval confidence evaluation.',
   schema: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        enum: ['chunk_document', 'hybrid_search', 'hyde_expand', 'rerank'],
+        enum: ['chunk_document', 'hierarchical_chunk', 'hybrid_search', 'hyde_expand', 'rerank', 'crag_evaluate'],
         description: 'Action to perform in the RAG pipeline.',
       },
       documentText: {
         type: 'string',
         description: 'Document content for chunking or ingestion.',
+      },
+      documentTitle: {
+        type: 'string',
+        description: 'Optional document title for context enrichment.',
       },
       query: {
         type: 'string',
@@ -283,18 +401,50 @@ export const haystackRagTool = {
         type: 'integer',
         description: 'Target chunk length in characters (default: 400).',
       },
+      parentSize: {
+        type: 'integer',
+        description: 'Target parent chunk length for hierarchical chunking (default: 1000).',
+      },
+      useParentContext: {
+        type: 'boolean',
+        description: 'When true, returned search results will include the full parent context.',
+      },
     },
     required: ['action'],
   },
   async execute(args) {
-    const { action, documentText, query, chunks: inputChunks, topK = 5, chunkSize = 400 } = args
+    const {
+      action,
+      documentText,
+      documentTitle = '',
+      query,
+      chunks: inputChunks,
+      topK = 5,
+      chunkSize = 400,
+      parentSize = 1000,
+      useParentContext = false,
+    } = args
 
     if (action === 'chunk_document') {
       if (!documentText) return { error: 'Missing documentText.' }
-      const chunks = chunkText(documentText, { chunkSize })
+      let chunks = chunkText(documentText, { chunkSize })
+      if (documentTitle) {
+        chunks = enrichChunksWithContext(chunks, { documentTitle })
+      }
       return {
         totalChunks: chunks.length,
         chunks,
+      }
+    }
+
+    if (action === 'hierarchical_chunk') {
+      if (!documentText) return { error: 'Missing documentText.' }
+      const res = hierarchicalChunkText(documentText, { parentSize, childSize: chunkSize })
+      return {
+        totalParents: res.parents.length,
+        totalChildren: res.children.length,
+        parents: res.parents,
+        children: res.children,
       }
     }
 
@@ -307,11 +457,25 @@ export const haystackRagTool = {
       }
     }
 
+    if (action === 'crag_evaluate') {
+      if (!query) return { error: 'Missing query.' }
+      const evaluation = evaluateRetrievalConfidence(query, inputChunks || [])
+      return {
+        query,
+        evaluation,
+      }
+    }
+
     if (action === 'hybrid_search' || action === 'rerank') {
       if (!query) return { error: 'Missing search query.' }
       let corpus = inputChunks || []
       if (corpus.length === 0 && documentText) {
-        corpus = chunkText(documentText, { chunkSize })
+        if (useParentContext) {
+          const hier = hierarchicalChunkText(documentText, { parentSize, childSize: chunkSize })
+          corpus = hier.children
+        } else {
+          corpus = chunkText(documentText, { chunkSize })
+        }
       }
       if (corpus.length === 0) return { error: 'No chunks or documentText provided for search.' }
 
@@ -336,10 +500,14 @@ export const haystackRagTool = {
       // 4. Heuristic Rerank
       const reranked = heuristicRerank(query, fused, { topK })
 
+      // 5. Corrective RAG Evaluation
+      const cragEval = evaluateRetrievalConfidence(query, reranked)
+
       return {
         query,
         totalCandidates: corpus.length,
         topK,
+        cragEvaluation: cragEval,
         results: reranked,
       }
     }

@@ -181,6 +181,8 @@ const READER_SCRIPT = `
       <button class="y-reader-btn" id="y-font-down" title="Decrease Font Size">A-</button>
       <button class="y-reader-btn" id="y-font-up" title="Increase Font Size">A+</button>
       <span style="opacity:0.3;">|</span>
+      <button class="y-reader-btn" id="y-reader-listen" title="Listen to Article (Text-to-Speech)">🔊 Listen</button>
+      <button class="y-reader-btn" id="y-reader-tldr" title="Generate Executive Summary (TL;DR)">⚡ TL;DR</button>
       <button class="y-reader-btn" id="y-reader-save" title="Save as Markdown">💾 Save</button>
       <button class="y-reader-btn" id="y-reader-close" style="color:#ff7a18;font-weight:bold;">✕ Exit</button>
     </div>
@@ -220,8 +222,76 @@ const READER_SCRIPT = `
     }
   };
 
-  const closeReader = () => overlay.remove();
+  const closeReader = () => {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    overlay.remove();
+  };
   document.getElementById('y-reader-close').onclick = closeReader;
+
+  // ── Text-to-Speech (TTS) Narrator ─────────────────────────────────────────
+  const listenBtn = document.getElementById('y-reader-listen');
+  let speaking = false;
+  if (listenBtn && window.speechSynthesis) {
+    listenBtn.onclick = () => {
+      if (speaking) {
+        window.speechSynthesis.cancel();
+        speaking = false;
+        listenBtn.textContent = '🔊 Listen';
+        listenBtn.style.color = 'inherit';
+        return;
+      }
+      const textToRead = h1 + '. ' + (articleBody.innerText || '').slice(0, 8000);
+      const utter = new SpeechSynthesisUtterance(textToRead);
+      utter.rate = 1.0;
+      utter.onend = () => {
+        speaking = false;
+        listenBtn.textContent = '🔊 Listen';
+        listenBtn.style.color = 'inherit';
+      };
+      utter.onerror = () => {
+        speaking = false;
+        listenBtn.textContent = '🔊 Listen';
+        listenBtn.style.color = 'inherit';
+      };
+      window.speechSynthesis.speak(utter);
+      speaking = true;
+      listenBtn.textContent = '⏸ Stop';
+      listenBtn.style.color = '#ff7a18';
+    };
+  }
+
+  // ── Executive Summary (TL;DR) ─────────────────────────────────────────────
+  const tldrBtn = document.getElementById('y-reader-tldr');
+  if (tldrBtn) {
+    tldrBtn.onclick = () => {
+      let box = document.getElementById('y-tldr-box');
+      if (box) {
+        box.remove();
+        tldrBtn.style.color = 'inherit';
+        return;
+      }
+      const paragraphs = Array.from(articleBody.querySelectorAll('p'))
+        .map(p => (p.innerText || '').trim())
+        .filter(t => t.length > 50);
+
+      // Extract top 3-4 key sentences
+      const bullets = paragraphs.slice(0, 4).map(p => {
+        const firstSentence = p.split(/(?<=[.!?])\\s+/)[0] || p;
+        return '<li>' + firstSentence + '</li>';
+      }).join('');
+
+      box = document.createElement('div');
+      box.id = 'y-tldr-box';
+      box.style.cssText = 'background:rgba(255,122,24,0.08);border:1px solid rgba(255,122,24,0.3);border-radius:10px;padding:16px 20px;margin-bottom:28px;font-size:15px;line-height:1.6;';
+      box.innerHTML = '<div style="font-weight:700;color:#ff7a18;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><span>⚡</span> Executive Summary (TL;DR)</div><ul style="padding-left:20px;margin:0;">' + (bullets || '<li>' + (paragraphs[0] || 'No summary available.') + '</li>') + '</ul>';
+
+      const content = articleBody.querySelector('.y-reader-content');
+      if (content) {
+        articleBody.insertBefore(box, content);
+        tldrBtn.style.color = '#ff7a18';
+      }
+    };
+  }
 
   // ── Save as Markdown ──────────────────────────────────────────────────────
   // Converts the extracted article to Markdown and downloads it via a blob —

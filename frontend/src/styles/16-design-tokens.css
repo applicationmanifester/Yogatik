@@ -595,3 +595,155 @@ html[data-device="tablet"] .dash-content::-webkit-scrollbar {
   --shadow-lg: var(--shadow-2);
   --shadow-xl: var(--shadow-3);
 }
+
+/* ═══ 13. DEEP SPACE ACRYLIC GLASS & AMBIENT DEPTH ═════════════════════ */
+:root {
+  --glass-bg: rgba(13, 19, 32, 0.72);
+  --glass-bg-hover: rgba(22, 32, 54, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(6, 182, 212, 0.35);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(20px) saturate(180%);
+  --accent-cyan: #06b6d4;
+  --accent-amber: #ff7a18;
+  --glow-cyan: rgba(6, 182, 212, 0.28);
+  --glow-amber: rgba(255, 122, 24, 0.28);
+}
+
+/* ── 13.1 Sidebar & Navigation Glass Polish ─────────────────────────── */
+.sidebar {
+  background: rgba(10, 14, 22, 0.82);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-right: 1px solid var(--glass-border);
+}
+.conversation-item {
+  border: 1px solid transparent;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+.conversation-item:hover {
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+.conversation-item.active {
+  background: rgba(19, 27, 44, 0.82);
+  border: 1px solid rgba(6, 182, 212, 0.28);
+  border-left: 3px solid var(--accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.new-chat-btn {
+  background: linear-gradient(135deg, #ff7a18 0%, #ea580c 45%, #06b6d4 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 16px rgba(255, 122, 24, 0.25);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+.new-chat-btn:hover {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 22px rgba(255, 122, 24, 0.35), 0 0 16px rgba(6, 182, 212, 0.2);
+  transform: translateY(-1px);
+}
+
+/* ── 13.2 Chat Input Composer Acrylic Polish ────────────────────────── */
+.input-wrapper textarea {
+  background: rgba(14, 20, 32, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.input-wrapper textarea:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ── 13.3 Starter Suggestions Bento Grid ────────────────────────────── */
+.suggestion {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.suggestion:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 16px rgba(6, 182, 212, 0.15);
+  transform: translateY(-2px);
+}
+
+/* ── 13.4 Tool Result & Card Elevation ──────────────────────────────── */
+.tool-result-card {
+  background: rgba(12, 17, 28, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* ── 13.5 Modal & Overlay Acrylic Glassmorphism ─────────────────────── */
+.modal-overlay {
+  background: rgba(4, 6, 12, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.modal,
+.modal-content,
+.modal-card {
+  background: rgba(12, 17, 28, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(6, 182, 212, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-xl, 16px);
+}
+
+.modal-header h2 {
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.modal-tabs button.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(255, 122, 24, 0.25));
+  border-color: var(--accent-cyan);
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.2);
+}
+
+/* ── 13.6 Persona Chips & Top Composer Bar Polish ──────────────────── */
+.persona-chip {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.persona-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(6, 182, 212, 0.4);
+  transform: translateY(-1px);
+}
+
+.persona-chip.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(255, 122, 24, 0.35));
+  border-color: var(--accent-cyan);
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.3);
+  color: #ffffff;
+}
+
+/* ── 13.7 Live Cockpit & Status Badges Glass Polish ─────────────────── */
+.live-ck-pill {
+  background: rgba(13, 19, 32, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ── 13.8 Workspace Selector & Controls ────────────────────────────── */
+.workspace-selector,
+.settings-btn,
+.sidebar-header {
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+

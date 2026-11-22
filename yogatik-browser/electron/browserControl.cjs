@@ -2591,6 +2591,8 @@ function registerBrowserControl(first, second) {
     let s = [...sessions.values()].find(x => x.win && (x.win.webContents === e.sender || (x.win.webContents && x.win.webContents.id === e.sender.id)))
     if (!s) {
       s = ensureSession('__default__', 'window')
+    }
+    if (s && (!s.win || s.win.isDestroyed())) {
       const win = BrowserWindow.fromWebContents(e.sender) || (mainWindowGetter ? mainWindowGetter() : null)
       if (win && !win.isDestroyed()) s.win = win
     }
@@ -2775,6 +2777,10 @@ function registerBrowserControl(first, second) {
   ipcMain.on('browser:quick-action', (_e, { action } = {}) => {
     let s = getSession('__default__') || [...sessions.values()][0]
     if (!s) s = ensureSession('__default__', 'window')
+    if (s && (!s.win || s.win.isDestroyed()) && mainWindowGetter) {
+      const mw = mainWindowGetter()
+      if (mw && !mw.isDestroyed()) s.win = mw
+    }
     if (!s) return
     const t = activeTab(s)
     switch (action) {

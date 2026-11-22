@@ -231,18 +231,25 @@ const MODEL_MAX_TOKENS = [
   { match: /gemini-2\.5-pro/i,               max: 65536 },
   { match: /gemini-2\.5-flash/i,             max: 32768 },
   { match: /gemini-2\.0-flash/i,             max: 16384 },
+  { match: /gemini-1\.5-pro/i,               max: 32768 },
+  { match: /gemini-1\.5-flash/i,             max: 16384 },
   { match: /claude-3-7/i,                    max: 64000 },
   { match: /claude-3-5/i,                    max: 32768 },
   { match: /claude-3-haiku/i,                max: 8192  },
   { match: /claude-3-opus/i,                 max: 32768 },
   { match: /gpt-4o/i,                        max: 16384 },
   { match: /gpt-4-turbo/i,                   max: 8192  },
+  { match: /gpt-4\.5/i,                      max: 16384 },
   { match: /o[134]-mini/i,                   max: 65536 },
   { match: /o[134]/i,                        max: 65536 },
   { match: /deepseek-r1/i,                   max: 32768 },
-  { match: /deepseek-chat/i,                 max: 16384 },
+  { match: /deepseek-(?:chat|v3)/i,          max: 16384 },
+  { match: /qwen-2\.5-coder|qwen-2\.5-72b|qwen-max|qwen-plus/i, max: 16384 },
+  { match: /qwen/i,                          max: 8192  },
   { match: /llama-3\.3-70b|llama-3-70b/i,   max: 8192  },
   { match: /llama-3\.1-8b|llama-3-8b/i,     max: 8192  },
+  { match: /gemma-[23]/i,                    max: 8192  },
+  { match: /phi-4/i,                         max: 8192  },
   { match: /nemotron-.*70b/i,                max: 8192  },
   { match: /nemotron-.*super/i,              max: 16384 },
   { match: /mistral-large/i,                 max: 16384 },
@@ -255,7 +262,7 @@ const MODEL_MAX_TOKENS = [
 ]
 
 /** Return the recommended maxTokens for a model, or a conservative fallback. */
-export function getModelMaxTokens(modelId, fallback = 4096) {
+export function getModelMaxTokens(modelId, fallback = 8192) {
   if (!modelId) return fallback
   for (const { match, max } of MODEL_MAX_TOKENS) {
     if (match.test(modelId)) return max
@@ -807,7 +814,7 @@ export async function streamChat({
     // Enable Anthropic thinking for Claude 3.7 or reasoning models
     const isClaude37 = /claude-3-7/i.test(cleanModel)
     if (isClaude37 || isReasoningModel) {
-      const budget = Math.min(2048, Math.max(1024, Math.floor((body.max_tokens || 4096) / 2)))
+      const budget = Math.min(16384, Math.max(1024, Math.floor((body.max_tokens || 4096) / 2)))
       body.thinking = { type: 'enabled', budget_tokens: budget }
       if (body.max_tokens <= budget) {
         body.max_tokens = budget + 2048
@@ -943,9 +950,18 @@ export async function streamChat({
         /reduce the length of the messages or completion|reduce the length|context_length_exceeded|maximum context length|too long.*token/i.test(err)
       if (isContextLimitError && !retriedContextTrim) {
         onStatus?.('⚠️ Context boundary reached — auto-trimming history & retrying…')
-        const trimmed = messages?.length > 2
-          ? [messages[0], messages[messages.length - 1]]
-          : messages
+        // Progressive trimming: remove oldest non-system messages one at a time
+        // instead of nuclear drop to [system, last]. This preserves recent context.
+        let trimmed = messages
+        if (messages?.length > 4) {
+          const system = messages.filter(m => m.role === 'system')
+          const nonSystem = messages.filter(m => m.role !== 'system')
+          // Keep system + most recent 60% of conversation (at least 2 turns)
+          const keepCount = Math.max(2, Math.floor(nonSystem.length * 0.6))
+          trimmed = [...system, ...nonSystem.slice(-keepCount)]
+        } else if (messages?.length > 2) {
+          trimmed = [messages[0], messages[messages.length - 1]]
+        }
         return streamChat({
           provider, apiKey, model: cleanModel, messages: trimmed, tools,
           temperature, signal, onToken, onToolCall, onDone, onError, onStatus,
