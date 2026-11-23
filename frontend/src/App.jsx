@@ -199,24 +199,37 @@ export default function App() {
   const queuedMessagesRef = useRef({})
   queuedMessagesRef.current = queuedMessagesMap
   const [theme, setTheme] = useState(() => {
-    // Migrate old key 'bgkai_theme' → 'yogatik_theme' on first load
-    const old = localStorage.getItem('bgkai_theme')
-    const cur = localStorage.getItem('yogatik_theme')
-    if (old && !cur) { localStorage.setItem('yogatik_theme', old); localStorage.removeItem('bgkai_theme') }
-    const explicit = localStorage.getItem('yogatik_theme_explicit')
-    if (explicit && (cur === 'dark' || cur === 'light')) {
-      return cur
-    }
+    try {
+      const old = localStorage.getItem('bgkai_theme')
+      const cur = localStorage.getItem('yogatik_theme')
+      if (old && !cur) { localStorage.setItem('yogatik_theme', old); localStorage.removeItem('bgkai_theme') }
+      const saved = localStorage.getItem('yogatik_theme')
+      if (saved === 'dark' || saved === 'light' || saved === 'contrast') {
+        return saved
+      }
+      if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark'
+      }
+    } catch {}
     return 'light'
   })
 
   const handleToggleTheme = useCallback(() => {
-    try { localStorage.setItem('yogatik_theme_explicit', 'true') } catch {}
-    setTheme(t => t === 'dark' ? 'light' : 'dark')
+    setTheme(t => {
+      const next = t === 'dark' ? 'light' : 'dark'
+      try {
+        localStorage.setItem('yogatik_theme', next)
+        localStorage.setItem('yogatik_theme_explicit', 'true')
+      } catch {}
+      return next
+    })
   }, [])
 
   const handleSetTheme = useCallback((newTheme) => {
-    try { localStorage.setItem('yogatik_theme_explicit', 'true') } catch {}
+    try {
+      localStorage.setItem('yogatik_theme', newTheme)
+      localStorage.setItem('yogatik_theme_explicit', 'true')
+    } catch {}
     setTheme(newTheme)
   }, [])
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768)
@@ -1485,8 +1498,38 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('yogatik_theme', theme)
+    document.body.setAttribute('data-theme', theme)
+    try {
+      localStorage.setItem('yogatik_theme', theme)
+      localStorage.setItem('yogatik_theme_explicit', 'true')
+    } catch {}
   }, [theme])
+
+  // Cross-tab and system-preference theme synchronization
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'yogatik_theme' && e.newValue && (e.newValue === 'dark' || e.newValue === 'light' || e.newValue === 'contrast')) {
+        setTheme(e.newValue)
+      }
+    }
+    window.addEventListener('storage', onStorage)
+
+    const mql = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null
+    const onSchemeChange = (e) => {
+      try {
+        const explicit = localStorage.getItem('yogatik_theme_explicit')
+        if (!explicit) {
+          setTheme(e.matches ? 'dark' : 'light')
+        }
+      } catch {}
+    }
+    mql?.addEventListener?.('change', onSchemeChange)
+
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      mql?.removeEventListener?.('change', onSchemeChange)
+    }
+  }, [])
 
   // Device-class adaptive UI: data-device / data-density on <html>, the
   // --sat/--sab/--sal/--sar safe-area vars, and the viewport-meta repair

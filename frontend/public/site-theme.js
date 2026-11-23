@@ -15,9 +15,9 @@
 
   function getTheme() {
     try {
-      var explicit = localStorage.getItem('yogatik_theme_explicit')
       var saved = localStorage.getItem(STORAGE_KEY)
-      if (explicit && (saved === 'dark' || saved === 'light')) return saved
+      if (saved === 'dark' || saved === 'light' || saved === 'contrast') return saved
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark'
       return 'light'
     } catch (e) {
       return 'light'
@@ -30,6 +30,7 @@
       localStorage.setItem(STORAGE_KEY, t)
     } catch (e) {}
     document.documentElement.setAttribute('data-theme', t)
+    if (document.body) document.body.setAttribute('data-theme', t)
     // Keep any toggle buttons in sync
     document.querySelectorAll('.theme-toggle-btn').forEach(function (btn) {
       btn.textContent = t === 'dark' ? '☀️' : '🌙'
@@ -37,6 +38,13 @@
       btn.setAttribute('aria-label', btn.title)
     })
   }
+
+  // Cross-tab storage listener
+  window.addEventListener('storage', function (e) {
+    if (e.key === STORAGE_KEY && e.newValue && (e.newValue === 'dark' || e.newValue === 'light' || e.newValue === 'contrast')) {
+      setTheme(e.newValue)
+    }
+  })
 
   // Apply immediately — before any CSS paint
   document.documentElement.setAttribute('data-theme', getTheme())

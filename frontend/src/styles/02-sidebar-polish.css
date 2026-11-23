@@ -1075,9 +1075,9 @@
   font-weight: 600;
   padding: 2px 5px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-muted, #71717a);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
 }
 
 /* ── Streamlined Sidebar Settings, Providers, Personas & Tools Icon Bar ── */

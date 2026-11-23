@@ -598,43 +598,97 @@ html[data-device="tablet"] .dash-content::-webkit-scrollbar {
 
 /* ═══ 13. DEEP SPACE ACRYLIC GLASS & AMBIENT DEPTH ═════════════════════ */
 :root {
+  /* Dark / Deep Space Glass Tokens (default) */
   --glass-bg: rgba(13, 19, 32, 0.72);
   --glass-bg-hover: rgba(22, 32, 54, 0.85);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-border-hover: rgba(6, 182, 212, 0.35);
   --glass-highlight: rgba(255, 255, 255, 0.12);
   --glass-blur: blur(20px) saturate(180%);
+  --sidebar-glass-bg: rgba(10, 14, 22, 0.82);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --item-active-glass-bg: rgba(19, 27, 44, 0.85);
+  --item-active-border: rgba(6, 182, 212, 0.3);
+  --textarea-glass-bg: rgba(14, 20, 32, 0.78);
+  --textarea-glass-border: rgba(255, 255, 255, 0.08);
+  --card-glass-bg: rgba(12, 17, 28, 0.72);
+  --modal-glass-bg: rgba(12, 17, 28, 0.92);
+  --overlay-scrim: rgba(4, 6, 12, 0.78);
   --accent-cyan: #06b6d4;
   --accent-amber: #ff7a18;
   --glow-cyan: rgba(6, 182, 212, 0.28);
   --glow-amber: rgba(255, 122, 24, 0.28);
 }
 
+[data-theme="light"] {
+  /* Light Theme Glass & Surface Polish */
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg-hover: rgba(240, 244, 250, 0.96);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-hover: rgba(6, 182, 212, 0.5);
+  --glass-highlight: rgba(255, 255, 255, 0.95);
+  --sidebar-glass-bg: rgba(255, 255, 255, 0.94);
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --item-active-glass-bg: rgba(6, 182, 212, 0.1);
+  --item-active-border: rgba(6, 182, 212, 0.4);
+  --textarea-glass-bg: rgba(255, 255, 255, 0.96);
+  --textarea-glass-border: rgba(0, 0, 0, 0.12);
+  --card-glass-bg: rgba(255, 255, 255, 0.92);
+  --modal-glass-bg: rgba(255, 255, 255, 0.98);
+  --overlay-scrim: rgba(15, 23, 42, 0.45);
+  --glow-cyan: rgba(6, 182, 212, 0.15);
+  --glow-amber: rgba(255, 122, 24, 0.15);
+}
+
+[data-theme="contrast"] {
+  --glass-bg: #000000;
+  --glass-bg-hover: #111111;
+  --glass-border: #ffffff;
+  --glass-border-hover: #ffff00;
+  --sidebar-glass-bg: #000000;
+  --sidebar-border: #ffffff;
+  --item-active-glass-bg: #1a1a1a;
+  --item-active-border: #ffff00;
+  --textarea-glass-bg: #000000;
+  --textarea-glass-border: #ffffff;
+  --card-glass-bg: #000000;
+  --modal-glass-bg: #000000;
+  --overlay-scrim: rgba(0, 0, 0, 0.9);
+}
+
 /* ── 13.1 Sidebar & Navigation Glass Polish ─────────────────────────── */
 .sidebar {
-  background: rgba(10, 14, 22, 0.82);
+  background: var(--sidebar-glass-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border-right: 1px solid var(--glass-border);
+  border-right: 1px solid var(--sidebar-border);
 }
 .conversation-item {
   border: 1px solid transparent;
+  color: var(--text-secondary);
   transition: all var(--dur-fast) var(--ease-out-quint);
 }
 .conversation-item:hover {
   background: var(--glass-bg-hover);
-  border-color: rgba(255, 255, 255, 0.06);
+  border-color: var(--glass-border);
+  color: var(--text-primary);
 }
 .conversation-item.active {
-  background: rgba(19, 27, 44, 0.82);
-  border: 1px solid rgba(6, 182, 212, 0.28);
+  background: var(--item-active-glass-bg);
+  border: 1px solid var(--item-active-border);
   border-left: 3px solid var(--accent);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.conversation-item.active .conv-title {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 .new-chat-btn {
   background: linear-gradient(135deg, #ff7a18 0%, #ea580c 45%, #06b6d4 100%);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 16px rgba(255, 122, 24, 0.25);
+  color: #ffffff;
   transition: all var(--dur-fast) var(--ease-out-quint);
 }
 .new-chat-btn:hover {
@@ -645,45 +699,48 @@ html[data-device="tablet"] .dash-content::-webkit-scrollbar {
 
 /* ── 13.2 Chat Input Composer Acrylic Polish ────────────────────────── */
 .input-wrapper textarea {
-  background: rgba(14, 20, 32, 0.78);
+  background: var(--textarea-glass-bg);
+  color: var(--text-primary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--textarea-glass-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 .input-wrapper textarea:focus {
   border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18), 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 3px var(--glow-cyan), 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
 /* ── 13.3 Starter Suggestions Bento Grid ────────────────────────────── */
 .suggestion {
   background: var(--glass-bg);
+  color: var(--text-primary);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 .suggestion:hover {
   background: var(--glass-bg-hover);
   border-color: var(--glass-border-hover);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 16px rgba(6, 182, 212, 0.15);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15), 0 0 16px var(--glow-cyan);
   transform: translateY(-2px);
 }
 
 /* ── 13.4 Tool Result & Card Elevation ──────────────────────────────── */
 .tool-result-card {
-  background: rgba(12, 17, 28, 0.72);
+  background: var(--card-glass-bg);
+  color: var(--text-primary);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 /* ── 13.5 Modal & Overlay Acrylic Glassmorphism ─────────────────────── */
 .modal-overlay {
-  background: rgba(4, 6, 12, 0.78);
+  background: var(--overlay-scrim);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
@@ -691,11 +748,12 @@ html[data-device="tablet"] .dash-content::-webkit-scrollbar {
 .modal,
 .modal-content,
 .modal-card {
-  background: rgba(12, 17, 28, 0.88);
+  background: var(--modal-glass-bg);
+  color: var(--text-primary);
   backdrop-filter: blur(28px) saturate(190%);
   -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(6, 182, 212, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--item-active-border);
   border-radius: var(--radius-xl, 16px);
 }
 
@@ -712,32 +770,35 @@ html[data-device="tablet"] .dash-content::-webkit-scrollbar {
 
 /* ── 13.6 Persona Chips & Top Composer Bar Polish ──────────────────── */
 .persona-chip {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   transition: all var(--dur-fast) var(--ease-out-quint);
 }
 
 .persona-chip:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(6, 182, 212, 0.4);
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  color: var(--text-primary);
   transform: translateY(-1px);
 }
 
 .persona-chip.active {
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(255, 122, 24, 0.35));
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(255, 122, 24, 0.25));
   border-color: var(--accent-cyan);
-  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.3);
-  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.25);
+  color: var(--text-primary);
 }
 
 /* ── 13.7 Live Cockpit & Status Badges Glass Polish ─────────────────── */
 .live-ck-pill {
-  background: rgba(13, 19, 32, 0.75);
+  background: var(--glass-bg);
+  color: var(--text-primary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* ── 13.8 Workspace Selector & Controls ────────────────────────────── */

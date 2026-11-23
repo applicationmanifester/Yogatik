@@ -683,7 +683,7 @@
   letter-spacing: .04em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--bg-secondary);
+  background: var(--sidebar-glass-bg, var(--bg-secondary));
 }
 .conv-group + .conv-group { margin-top: 2px; }
 

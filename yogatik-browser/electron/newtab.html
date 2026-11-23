@@ -20,6 +20,24 @@
       --text-muted: #64748b;
       --emerald: #10b981;
     }
+    [data-theme="arctic"], [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --card-bg-hover: rgba(241, 245, 249, 0.95);
+      --card-border: rgba(0, 0, 0, 0.08);
+      --card-border-hover: rgba(6, 182, 212, 0.5);
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+    }
+    [data-theme="arctic"] body, [data-theme="light"] body {
+      background: radial-gradient(ellipse 90% 70% at 50% -10%, #e2e8f0 0%, #f8fafc 65%, #ffffff 100%);
+    }
+    [data-theme="arctic"] .clock, [data-theme="light"] .clock {
+      color: #0f172a;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: radial-gradient(ellipse 90% 70% at 50% -10%, #121c30 0%, #080b11 65%, #040609 100%);
@@ -574,6 +592,18 @@
   </div>
 
   <script>
+    // Theme sync with browser and workspace
+    function syncTheme() {
+      const bTheme = localStorage.getItem('yogatik_browser_theme') || localStorage.getItem('yogatik_theme') || 'midnight';
+      document.documentElement.setAttribute('data-theme', bTheme);
+    }
+    syncTheme();
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'yogatik_browser_theme' || e.key === 'yogatik_theme') {
+        syncTheme();
+      }
+    });
+
     // Live Clock & Date
     function updateClock() {
       const now = new Date();

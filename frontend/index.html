@@ -7,9 +7,10 @@
   <script>
     (function () {
       try {
-        var explicit = localStorage.getItem('yogatik_theme_explicit');
         var saved = localStorage.getItem('yogatik_theme');
-        var t = (explicit && (saved === 'dark' || saved === 'light')) ? saved : 'light';
+        var t = (saved === 'dark' || saved === 'light' || saved === 'contrast')
+          ? saved
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         document.documentElement.setAttribute('data-theme', t);
       } catch (e) {
         document.documentElement.setAttribute('data-theme', 'light');
