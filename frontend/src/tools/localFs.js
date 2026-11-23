@@ -493,6 +493,39 @@ export const fsReadTool = {
     if (DESKTOP_ONLY_TOOLS.has(cleanPath.toLowerCase())) {
       return fail(`Invalid path "${cleanPath}". "${cleanPath}" is a tool name, not a file path. Specify the actual file path you want to read (e.g. { path: "src/index.js" }).`)
     }
+    if (!isDesktop()) {
+      try {
+        const { getDocuments, getSetting } = await import('../db')
+        const activeProj = typeof getSetting === 'function' ? await getSetting('active_project', null) : null
+        const docs = await getDocuments(activeProj)
+        const targetName = cleanPath.split(/[\\/]/).pop().toLowerCase()
+        const found = docs.find(d => (d.name || '').toLowerCase() === targetName || (d.name || '').toLowerCase() === cleanPath.toLowerCase())
+        if (found && typeof found.content === 'string') {
+          const rawStart = args.start_line ?? args.offset ?? args.line_start ?? args.startLine ?? args.offset_lines ?? args.from_line ?? args.StartLine
+          const rawEnd = args.end_line ?? args.endLine ?? args.line_end ?? args.to_line ?? args.EndLine
+          const lineNumbers = Boolean(args.with_line_numbers ?? args.line_numbers ?? args.numbered ?? args.WithLineNumbers)
+          const allLines = found.content.split('\n')
+          let startIdx = Number(rawStart) > 0 ? Number(rawStart) - 1 : 0
+          let endIdx = Number(rawEnd) > 0 ? Number(rawEnd) : allLines.length
+          const sliced = allLines.slice(startIdx, endIdx)
+          const content = sliced.join('\n')
+          return ok({
+            tool: 'fs_read',
+            path: cleanPath,
+            bytes: content.length,
+            content,
+            estimated_tokens: Math.round(content.length / 3.8),
+            numbered_content: lineNumbers
+              ? sliced.map((l, i) => `${String(startIdx + i + 1).padStart(5, ' ')} | ${l}`).join('\n')
+              : undefined,
+            from_workspace: true,
+          })
+        }
+        return fail(`File '${cleanPath}' not found in workspace documents. In the web version, files created or uploaded in this chat are accessible here.`)
+      } catch (err) {
+        return fail(`Web workspace read error: ${err.message}`)
+      }
+    }
     return guard(async () => {
       // Robust offset and line range parameter extraction across all model conventions
       const rawStart = args.start_line ?? args.offset ?? args.line_start ?? args.startLine ?? args.offset_lines ?? args.from_line ?? args.StartLine
@@ -757,6 +790,60 @@ export const fsWriteTool = {
     const dry_run = Boolean(args.dry_run ?? args.dryRun ?? false)
     const backup = Boolean(args.backup ?? false)
     if (!path) return fail('path is required (e.g. { path: "src/file.js", content: "..." })')
+    if (!isDesktop()) {
+      try {
+        const { addDocument, getSetting } = await import('../db')
+        const activeProj = typeof getSetting === 'function' ? await getSetting('active_project', null) : null
+        const ext = (String(path).split('.').pop() || '').toLowerCase()
+        const mimeMap = {
+          md: 'text/markdown',
+          txt: 'text/plain',
+          html: 'text/html',
+          htm: 'text/html',
+          css: 'text/css',
+          js: 'text/javascript',
+          jsx: 'text/javascript',
+          ts: 'text/typescript',
+          tsx: 'text/typescript',
+          json: 'application/json',
+          py: 'text/x-python',
+          csv: 'text/csv',
+          xml: 'application/xml',
+          svg: 'image/svg+xml',
+          pdf: 'application/pdf',
+        }
+        const mimeType = mimeMap[ext] || 'text/plain'
+        const cleanContent = String(content ?? '')
+        const filename = String(path).split(/[\\/]/).pop() || 'file.txt'
+        const doc = await addDocument({
+          name: filename,
+          type: mimeType,
+          content: cleanContent,
+          projectId: activeProj,
+        }).catch(() => null)
+
+        const dataUrl = `data:${mimeType};charset=utf-8,${encodeURIComponent(cleanContent)}`
+        const byteCount = new Blob([cleanContent]).size
+        const lineCount = cleanContent.split('\n').length
+
+        globalFsCache.set(path, cleanContent, Date.now(), null, cacheScope(opts))
+        globalWorkspaceTrie.insert(path)
+
+        return ok({
+          tool: 'fs_write',
+          path,
+          filename,
+          bytes: byteCount,
+          lines: lineCount,
+          saved_to_workspace: true,
+          document_id: doc?.id,
+          data_url: dataUrl,
+          message: `File '${path}' created successfully (${(byteCount / 1024).toFixed(1)} KB, ${lineCount} lines) and saved to your workspace documents. A download button is ready in the chat.`,
+        })
+      } catch (err) {
+        return fail(`Web workspace write error: ${err.message}`)
+      }
+    }
     return guard(async () => {
       // Record Workspace Time Machine snapshot for 1-click rollback if not dry run
       if (!dry_run) {

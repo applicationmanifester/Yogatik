@@ -10,6 +10,8 @@ import {
   generateApiSpec,
   generateSystemReport,
   generatePdfDoc,
+  sanitizePdfText,
+  cleanInlineMarkdown,
   documentGeneratorTool,
 } from './docGenerator'
 
@@ -195,14 +197,27 @@ describe('docGenerator suite (Independent Document Generation)', () => {
   })
 
   describe('Native Offline PDF Document Generator', () => {
+    it('sanitizes emojis and non-Latin1 unicode correctly', () => {
+      const sanitized = sanitizePdfText('🚀 Today’s Top AI & Tech Breakthroughs — (Nov 2024) 🧠')
+      expect(sanitized).toBe("Today's Top AI & Tech Breakthroughs -- (Nov 2024)")
+      expect(sanitized).not.toContain('🚀')
+      expect(sanitized).not.toContain('🧠')
+      expect(sanitized).not.toContain('—')
+    })
+
+    it('cleans inline markdown links, bold, code without corruption', () => {
+      const cleaned = cleanInlineMarkdown('**OpenAI o1** — The First "[Reasoning](https://openai.com)" `Model` 🧠')
+      expect(cleaned).toBe('OpenAI o1 -- The First "Reasoning (https://openai.com)" Model')
+    })
+
     it('generates a valid PDF with headings, lists, tables, and code blocks', async () => {
       const res = await generatePdfDoc({
-        title: 'Quarterly Architecture Review',
-        content: '# Overview\nSystem overview paragraph.\n\n## Components\n- Frontend\n- Backend\n\n```javascript\nconst a = 1;\n```\n\n| Feature | Status |\n|---|---|\n| PDF | Working |',
+        title: '🚀 Quarterly Architecture Review (2026)',
+        content: '# 🚀 Overview\nSystem overview with "smart quotes" and — em-dash.\n\n## 💡 Components\n- Frontend with [docs](https://yogatik.web.app)\n- 1. Backend with 🧠 AI reasoning\n\n```javascript\nconst a = 1;\n```\n\n| Feature | Status |\n|---|---|\n| PDF | Working |',
         author: 'Staff Engineer',
       })
       expect(res.success).toBe(true)
-      expect(res.filename).toBe('Quarterly_Architecture_Review.pdf')
+      expect(res.filename).toBe('Quarterly_Architecture_Review__2026_.pdf')
       expect(res.data_url).toContain('data:application/pdf;')
       expect(res.blob).toBeDefined()
     })

@@ -1233,33 +1233,53 @@ const ToolResultCardInner = React.memo(function ToolResultCard({ tool, result })
     )
   }
 
-  if (tool === 'md_to_pdf' && result.filename) {
-    const handleDownloadPdf = () => {
-      if (result.pdf_data_url) {
+  if ((tool === 'md_to_pdf' || tool === 'document_generator' || result?.data_url || result?.pdf_data_url) && result?.filename) {
+    const downloadUrl = result.pdf_data_url || result.data_url
+    const handleDownload = () => {
+      if (downloadUrl) {
         const a = document.createElement('a')
-        a.href = result.pdf_data_url
+        a.href = downloadUrl
         a.download = result.filename
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
       }
     }
+    const isPdf = result.filename.toLowerCase().endsWith('.pdf') || result.format === 'pdf'
+    const isDocx = result.filename.toLowerCase().endsWith('.docx') || result.format === 'docx'
+    const isExcel = result.filename.toLowerCase().endsWith('.xlsx') || result.format === 'xlsx' || result.format === 'csv'
+    const isMarkdown = result.filename.toLowerCase().endsWith('.md') || result.format === 'markdown'
+    const cardTitle = isPdf ? 'PDF Document Ready' : isDocx ? 'Word Document Ready' : isExcel ? 'Spreadsheet Ready' : isMarkdown ? 'Markdown Document Ready' : 'Document Ready'
+    const formatBadge = (result.format || result.filename.split('.').pop() || 'FILE').toUpperCase()
+    const sizeDisplay = result.size || (result.size_kb ? `${result.size_kb} KB` : (result.bytes ? `${(result.bytes / 1024).toFixed(1)} KB` : null))
+
     return (
       <div className="tool-result-card" style={{ borderLeft: '4px solid var(--accent-color, #ff6b35)' }}>
-        <div className="tool-result-header">
-          <FileDown size={14} /> PDF Document Ready
+        <div className="tool-result-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <FileDown size={14} /> {cardTitle}
+          </span>
+          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,107,53,0.12)', color: 'var(--accent-color, #ff6b35)', fontWeight: 700 }}>
+            {formatBadge}
+          </span>
         </div>
-        <div className="tool-detail" style={{ margin: '8px 0', fontSize: 13 }}>
-          File: <strong>{result.filename}</strong> ({result.size || 'PDF'})
+        <div className="tool-detail" style={{ margin: '8px 0', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span>File: <strong>{result.filename}</strong></span>
+          {sizeDisplay && <span style={{ color: 'var(--text-muted)' }}>({sizeDisplay})</span>}
+          {result.saved_to_workspace && (
+            <span style={{ fontSize: 10, background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>
+              ✓ Saved to Workspace
+            </span>
+          )}
         </div>
-        {result.pdf_data_url && (
+        {downloadUrl && (
           <button
             className="small-btn primary-btn"
-            onClick={handleDownloadPdf}
+            onClick={handleDownload}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               background: 'var(--accent-color, #ff6b35)', color: '#fff',
-              border: 'none', padding: '6px 12px', borderRadius: 6,
+              border: 'none', padding: '6px 14px', borderRadius: 6,
               fontWeight: 600, cursor: 'pointer', marginTop: 4,
             }}
           >

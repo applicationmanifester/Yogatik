@@ -151,13 +151,34 @@ export const mdToPdfTool = {
     const { generatePdfDoc } = await import('./docGenerator')
     const res = await generatePdfDoc({ title: outName, content: markdown, author: 'Yogatik AI' })
 
+    // Auto-save generated PDF to local IndexedDB workspace documents
+    let savedToWorkspace = false
+    let documentId = null
+    try {
+      const { addDocument, getSetting } = await import('../db')
+      const activeProj = typeof getSetting === 'function' ? await getSetting('active_project', null) : null
+      const doc = await addDocument({
+        name: res.filename,
+        type: 'application/pdf',
+        content: markdown,
+        data_url: res.data_url,
+        projectId: activeProj,
+      }).catch(() => null)
+      if (doc?.id) {
+        savedToWorkspace = true
+        documentId = doc.id
+      }
+    } catch { /* non-fatal */ }
+
     return {
       success: true,
       tool: 'md_to_pdf',
       filename: res.filename,
       size: res.size,
       pdf_data_url: res.data_url,
-      message: `PDF '${res.filename}' generated successfully (${res.size}). A download button is already presented to the user in the UI. No further tool calls or file writing are required. Summarize your completion to the user.`,
+      saved_to_workspace: savedToWorkspace,
+      document_id: documentId,
+      message: `PDF '${res.filename}' generated successfully (${res.size}) with crisp typography and clean formatting. A download button is already presented to the user in the UI. No further tool calls or file writing are required. Summarize your completion to the user.`,
     }
   }
 }

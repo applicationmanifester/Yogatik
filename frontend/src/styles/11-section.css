@@ -4,9 +4,101 @@
 .agent-workflow-card {
   margin: 10px 0;
   border-radius: 10px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-secondary, rgba(15, 23, 42, 0.55));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.agent-workflow-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 13px;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+  box-sizing: border-box;
+}
+
+.agent-workflow-header:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.agent-workflow-card.expanded .agent-workflow-header {
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+}
+
+.workflow-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workflow-zap-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workflow-title-text {
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.workflow-steps-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+  color: var(--text-secondary, #94a3b8);
+}
+
+.workflow-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.workflow-status-pill.completed {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+}
+
+.workflow-status-pill.has-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+}
+
+.workflow-header-right {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted, #94a3b8);
+}
+
+.workflow-toggle-icon {
+  display: flex;
+  align-items: center;
+}
+
+.agent-workflow-content {
+  padding: 10px 14px;
+  background: var(--bg-primary, rgba(2, 6, 23, 0.4));
+}
+
+.workflow-explain-text {
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0 0 10px 0;
+  line-height: 1.5;
 }
 
 .workflow-header-btn {
@@ -18,13 +110,13 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  color: #cbd5e1;
+  color: var(--text-secondary, #cbd5e1);
   font-size: 12px;
   transition: background 0.15s ease;
 }
 
 .workflow-header-btn:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
 }
 
 .workflow-title-cluster {
@@ -36,11 +128,6 @@
 .workflow-spin-icon {
   animation: spin 1s linear infinite;
   color: #38bdf8;
-}
-
-.workflow-title-text {
-  font-weight: 600;
-  color: #e2e8f0;
 }
 
 .workflow-progress-pill {
@@ -57,13 +144,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #94a3b8;
+  color: var(--text-muted, #94a3b8);
 }
 
 .workflow-timeline {
   padding: 10px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(2, 6, 23, 0.4);
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  background: var(--bg-primary, rgba(2, 6, 23, 0.4));
   display: flex;
   flex-direction: column;
 }
@@ -73,6 +160,88 @@
   gap: 12px;
   position: relative;
   min-height: 38px;
+}
+
+.timeline-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 20px;
+}
+
+.timeline-node-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.06));
+  color: var(--text-secondary, #94a3b8);
+}
+
+.timeline-line {
+  flex: 1;
+  width: 2px;
+  background: var(--border-color, rgba(255, 255, 255, 0.08));
+  margin: 3px 0;
+}
+
+.timeline-step-detail {
+  flex: 1;
+  padding-bottom: 8px;
+}
+
+.timeline-step-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.step-number {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+  font-weight: 600;
+}
+
+.step-tool-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+  font-family: monospace;
+}
+
+.step-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.step-badge.done {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.step-badge.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.step-args-preview {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+  font-family: monospace;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .timeline-node-track {
