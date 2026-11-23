@@ -14,7 +14,6 @@ import { startActivityTurn, publishStream, publishStep, endActivityTurn, setActi
 import { summariseToolResults } from './toolSummary'
 import { YogatikLogo } from './components/YogatikLogo'
 import { ToolResultCard, TOOL_ICONS } from './components/ToolResultCard'
-import ToolStatusPanel from './components/ToolStatusPanel'
 import { ContextMeter } from './components/ContextMeter'
 import { forceSettleAll } from './toolStatus'
 import A11yAnnouncer, { announce, announceAssertive } from './components/A11yAnnouncer'
@@ -6678,7 +6677,6 @@ export default function App() {
           </div>
         )}
         <CrisisCard card={crisisCard} onDismiss={() => setCrisisCard(null)} />
-        <ToolStatusPanel onRetry={(name) => send(`Please retry the ${name} tool.`)} />
 
         <div className={`input-area composer${dragOver ? ' drag-over' : ''}`}
           onDragOver={e => { e.preventDefault(); setDragOver(true) }}

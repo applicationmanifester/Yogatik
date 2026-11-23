@@ -310,10 +310,7 @@
 
 /* ── Tool status panel + standardised error UI (v3.9) ───────────────────── */
 .tool-status-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 6px 0;
+  display: none !important;
 }
 .tool-status-row {
   display: flex;
