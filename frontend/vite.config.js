@@ -93,7 +93,7 @@ function llmProxyPlugin() {
 }
 
 // CSP headers for dev server (matches electron/security.cjs)
-const CSP = `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://esm.run https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://*.google.com https://*.gstatic.com https://apis.google.com; worker-src 'self' blob:; connect-src 'self' https: wss: blob: data: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`;
+const CSP = `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://esm.run https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://*.google.com https://*.gstatic.com https://apis.google.com; worker-src 'self' blob:; connect-src 'self' https: wss: blob: data: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`;
 
 function cspPlugin() {
   return {
@@ -162,11 +162,9 @@ export default defineConfig({
           if (id.includes('/src/agents.js')) return 'agents-core'
           if (id.includes('/src/autonomousAgent.js')) return 'autonomous-agent'
           if (id.includes('/src/tools/spawnAgents.js')) return 'spawn-agents'
-          if (id.includes('/src/tools/crewRunner.js')) return 'crew-runner'
           if (id.includes('/src/tools/agentSwarmTool.js')) return 'agent-swarm'
           if (id.includes('/src/tools/subAgentRunner.js')) return 'sub-agent-runner'
           if (id.includes('/src/tools/localIndexEngine.js')) return 'local-index'
-          if (id.includes('/src/tools/localGen.js')) return 'local-gen'
           if (id.includes('/src/tools/videoRender.js')) return 'video-render'
           if (id.includes('/src/tools/docGenerator.js')) return 'doc-generator'
           // Sprint 2 Performance & Trust: heavy engines stay out of first
@@ -179,7 +177,7 @@ export default defineConfig({
           if (id.includes('/src/video/')) return 'video-pipeline'
           if (id.includes('/src/workers/')) return 'heavy-workers'
           if (id.includes('/src/tools/manimEngine.js')) return 'manim-engine'
-          if (id.includes('/src/trading/')) return 'trading-core'
+          if (id.includes('/src/trading/') || id.includes('/src/tools/zerodhaTrade.js')) return 'trading-core'
           if (id.includes('/src/companion/')) return 'companion-core'
 
           // Node modules — vendor chunks

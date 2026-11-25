@@ -521,7 +521,7 @@ export const fsReadTool = {
             from_workspace: true,
           })
         }
-        return fail(`File '${cleanPath}' not found in workspace documents. In the web version, files created or uploaded in this chat are accessible here.`)
+        return fail(`File '${cleanPath}' not found in workspace documents. In the web version, files created or uploaded in this chat are accessible here. To access local files directly from your computer, use the Yogatik desktop app.`)
       } catch (err) {
         return fail(`Web workspace read error: ${err.message}`)
       }

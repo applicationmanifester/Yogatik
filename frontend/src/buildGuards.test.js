@@ -71,6 +71,7 @@ describe('reachability', () => {
     const allowed = new Set([
       path.join('components', 'AdModal.jsx'),
       path.join('components', 'TerminalPanel.jsx'),
+      path.join('components', 'ToolStatusPanel.jsx'),
       path.join('components', 'ContextMeter.jsx'),
       // ToastContainer.jsx, EmptyState.jsx, EmptyStates.jsx,
       // SkeletonLoaders.jsx and OnboardingTour.jsx: DELETED in an earlier
@@ -167,6 +168,7 @@ describe('reachability', () => {
       // RETIRED — a re-export stub kept so a stale import cannot break a build.
       // Delete the file, its test, and this line together.
       'src/components/TerminalPanel.jsx',   // → terminal/ + TerminalDrawer
+      'src/components/ToolStatusPanel.jsx', // floating tool panel above composer was retired
 
       // Deliberately not rendered: the AdSense interstitial is switched off.
       'src/components/AdModal.jsx',
@@ -251,6 +253,9 @@ describe('reachability', () => {
       'src/crypto/index.js',                // standalone cryptographic routines
       'src/security/csp.js',                // standalone CSP security utilities
       'src/sync/firestoreSync.js',          // direct Firestore cloud sync module
+      'src/tools/browserSessionPersistence.js', // browser test harness session persistence
+      'src/tools/networkIntercept.js',      // browser test harness network interceptor & mock runner
+      'src/tools/visualRegression.js',       // browser test harness visual screenshot comparison runner
     ])
 
     expect(dead.filter(f => !allowed.has(f)).sort()).toEqual([])

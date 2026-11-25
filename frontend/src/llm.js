@@ -112,12 +112,15 @@ export const PROVIDERS = {
     baseUrl: 'https://api.openai.com/v1',
     models: [],
     default: '',
-    preferred: ['gpt-4o-mini', 'gpt-4o', 'o4-mini'],
+    preferred: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'o4-mini'],
     keyUrl: 'https://platform.openai.com/api-keys',
     pricing: {
+      'gpt-4.1': { input: 2.00, output: 8.00 },
+      'gpt-4.1-mini': { input: 0.40, output: 1.60 },
       'gpt-4o': { input: 2.50, output: 10.00 },
       'gpt-4o-mini': { input: 0.15, output: 0.60 },
       'o4-mini': { input: 1.10, output: 4.40 },
+      'o3': { input: 2.00, output: 8.00 },
       'o1-preview': { input: 15.00, output: 60.00 },
       'o1-mini': { input: 3.00, output: 12.00 },
       'gpt-4-turbo': { input: 10.00, output: 30.00 },
@@ -130,11 +133,13 @@ export const PROVIDERS = {
     baseUrl: 'https://api.anthropic.com/v1',
     models: [],
     default: '',
-    preferred: ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
+    preferred: ['claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
     keyUrl: 'https://console.anthropic.com/settings/api-keys',
     isAnthropic: true,
     needsProxy: true,
     pricing: {
+      'claude-opus-4-20250514': { input: 15.00, output: 75.00 },
+      'claude-sonnet-4-20250514': { input: 3.00, output: 15.00 },
       'claude-3-7-sonnet-20250219': { input: 3.00, output: 15.00 },
       'claude-3-5-sonnet-20241022': { input: 3.00, output: 15.00 },
       'claude-3-5-haiku-20241022': { input: 0.25, output: 1.25 },
@@ -233,16 +238,18 @@ const MODEL_MAX_TOKENS = [
   { match: /gemini-2\.0-flash/i,             max: 16384 },
   { match: /gemini-1\.5-pro/i,               max: 32768 },
   { match: /gemini-1\.5-flash/i,             max: 16384 },
+  { match: /claude-(?:sonnet|opus)-4|claude-4/i, max: 64000 },
   { match: /claude-3-7/i,                    max: 64000 },
   { match: /claude-3-5/i,                    max: 32768 },
   { match: /claude-3-haiku/i,                max: 8192  },
   { match: /claude-3-opus/i,                 max: 32768 },
+  { match: /gpt-4\.1/i,                      max: 32768 },
   { match: /gpt-4o/i,                        max: 16384 },
   { match: /gpt-4-turbo/i,                   max: 8192  },
   { match: /gpt-4\.5/i,                      max: 16384 },
   { match: /o[134]-mini/i,                   max: 65536 },
   { match: /o[134]/i,                        max: 65536 },
-  { match: /deepseek-r1/i,                   max: 32768 },
+  { match: /deepseek-(?:r1|reasoner)/i,      max: 32768 },
   { match: /deepseek-(?:chat|v3)/i,          max: 16384 },
   { match: /qwen-2\.5-coder|qwen-2\.5-72b|qwen-max|qwen-plus/i, max: 16384 },
   { match: /qwen/i,                          max: 8192  },
@@ -599,7 +606,11 @@ async function fetchWithRetry(url, options, prov, { retries = 5, onStatus, timeo
       // Combine caller signal + timeout signal
       let combinedSignal = controller.signal
       if (options?.signal) {
-        if (options.signal.aborted) { clearTimeout(timer); throw options.signal.reason }
+        if (options.signal.aborted) {
+          clearTimeout(timer)
+          releaseProviderSlot(providerId, true)
+          throw options.signal.reason || new DOMException('Aborted', 'AbortError')
+        }
         combinedSignal = AbortSignal.any ? AbortSignal.any([options.signal, controller.signal]) : options.signal
       }
 
@@ -607,7 +618,8 @@ async function fetchWithRetry(url, options, prov, { retries = 5, onStatus, timeo
         const resp = await smartFetch(url, { ...options, signal: combinedSignal }, prov)
         clearTimeout(timer)
         if (!RETRY_STATUS.has(resp.status) || attempt >= retries || options?.signal?.aborted) {
-          releaseProviderSlot(providerId, true)
+          const isUpstreamFailure = RETRY_STATUS.has(resp.status) && !options?.signal?.aborted
+          releaseProviderSlot(providerId, !isUpstreamFailure)
           return resp
         }
 
@@ -632,7 +644,8 @@ async function fetchWithRetry(url, options, prov, { retries = 5, onStatus, timeo
       } catch (err) {
         clearTimeout(timer)
         if (err.name === 'AbortError' || options?.signal?.aborted) {
-          releaseProviderSlot(providerId, false)
+          // User/caller cancellations must not penalize the provider's circuit breaker.
+          releaseProviderSlot(providerId, true)
           throw err
         }
         if (attempt < retries && (isTransientError(err) || RETRY_STATUS.has(err.status))) {
@@ -699,8 +712,8 @@ export async function streamChat({
   // Hoist temperature flags before the Ollama IPC branch — both that branch
   // and the main HTTP path use them. Declaring them only after the IPC block
   // caused a ReferenceError for every Electron + Ollama user (bug fix).
-  const isNoTempModel = /(^|\/)(o[13](-mini|-preview)?|deepseek-r1|gpt-4o-realtime)/i.test(cleanModel)
-  const isReasoningModel = /(^|\/)(o[13](-mini|-preview)?|nemotron-.*ultra|deepseek-r1|deepseek-reasoner|claude-3-7)/i.test(cleanModel)
+  const isNoTempModel = /(^|\/)(o[134](-mini|-preview)?|deepseek-r1|gpt-4o-realtime)/i.test(cleanModel)
+  const isReasoningModel = /(^|\/)(o[134](-mini|-preview)?|nemotron-.*ultra|deepseek-r1|deepseek-reasoner|claude-3-7|claude-(?:sonnet|opus)-4)/i.test(cleanModel)
     || /r1|reasoner|thinking/i.test(cleanModel)
   const shouldOmitTemp = retriedOmitTemp || isNoTempModel
   const isFixedTemp = (isReasoningModel && !shouldOmitTemp) || retriedFixedTemp
@@ -792,8 +805,13 @@ export async function streamChat({
   }
 
   if (resolvedMaxTokens && Number.isFinite(resolvedMaxTokens)) {
-    body.max_tokens = resolvedMaxTokens
-    if (provider === 'openai' || isReasoningModel) body.max_completion_tokens = resolvedMaxTokens
+    const isOpenAIReasoning = /(^|\/)o[134](?:-mini|-preview)?$/i.test(cleanModel)
+    if (isOpenAIReasoning) {
+      body.max_completion_tokens = resolvedMaxTokens
+    } else {
+      body.max_tokens = resolvedMaxTokens
+      if (provider === 'openai' || isReasoningModel) body.max_completion_tokens = resolvedMaxTokens
+    }
   }
 
   if (provider === 'openrouter' && (isReasoningModel || /r1|deepseek/i.test(cleanModel))) {
@@ -811,9 +829,9 @@ export async function streamChat({
     endpoint = `${prov.baseUrl}/messages`
     body.max_tokens = resolvedMaxTokens || 4096
 
-    // Enable Anthropic thinking for Claude 3.7 or reasoning models
-    const isClaude37 = /claude-3-7/i.test(cleanModel)
-    if (isClaude37 || isReasoningModel) {
+    // Enable Anthropic thinking for Claude 3.7 / Claude 4 or reasoning models
+    const isClaudeThinking = /claude-(?:3-7|(?:sonnet|opus)-4)/i.test(cleanModel)
+    if (isClaudeThinking || isReasoningModel) {
       const budget = Math.min(16384, Math.max(1024, Math.floor((body.max_tokens || 4096) / 2)))
       body.thinking = { type: 'enabled', budget_tokens: budget }
       if (body.max_tokens <= budget) {
@@ -915,9 +933,10 @@ export async function streamChat({
         if (onToolsRejected) { onToolsRejected(); onDone?.(); return }
         return streamChat({
           provider, apiKey, model: cleanModel, messages, tools: null,
-          temperature, signal, onToken, onToolCall, onDone, onError, onStatus,
+          temperature, maxTokens, signal, onToken, onToolCall, onDone, onError, onStatus,
           retriedWithoutTools: true,
-          retriedFixedTemp,
+          retriedFixedTemp, retriedOmitTemp, retriedContextTrim,
+          providerOptions, responseFormat,
         })
       }
       // 1. Certain models or provider routes strictly forbid the temperature parameter
@@ -926,10 +945,11 @@ export async function streamChat({
       if (resp.status === 400 && isOmitTempError && !retriedOmitTemp) {
         return streamChat({
           provider, apiKey, model: cleanModel, messages, tools,
-          temperature, signal, onToken, onToolCall, onDone, onError, onStatus,
+          temperature, maxTokens, signal, onToken, onToolCall, onDone, onError, onStatus,
           retriedWithoutTools, onToolsRejected,
           retriedFixedTemp,
           retriedOmitTemp: true,
+          retriedContextTrim, providerOptions, responseFormat,
         })
       }
 
@@ -938,10 +958,10 @@ export async function streamChat({
       if (resp.status === 400 && isFixedTempError && !retriedFixedTemp) {
         return streamChat({
           provider, apiKey, model: cleanModel, messages, tools,
-          temperature: 1.0, signal, onToken, onToolCall, onDone, onError, onStatus,
+          temperature: 1.0, maxTokens, signal, onToken, onToolCall, onDone, onError, onStatus,
           retriedWithoutTools, onToolsRejected,
           retriedFixedTemp: true,
-          retriedOmitTemp,
+          retriedOmitTemp, retriedContextTrim, providerOptions, responseFormat,
         })
       }
 
@@ -962,6 +982,7 @@ export async function streamChat({
         } else if (messages?.length > 2) {
           trimmed = [messages[0], messages[messages.length - 1]]
         }
+        const reducedMaxTokens = resolvedMaxTokens ? Math.max(1024, Math.floor(resolvedMaxTokens / 2)) : (maxTokens || null)
         return streamChat({
           provider, apiKey, model: cleanModel, messages: trimmed, tools,
           temperature, signal, onToken, onToolCall, onDone, onError, onStatus,
@@ -969,7 +990,7 @@ export async function streamChat({
           retriedFixedTemp,
           retriedOmitTemp,
           retriedContextTrim: true,
-          maxTokens: maxTokens || null,
+          maxTokens: reducedMaxTokens,
           providerOptions, responseFormat,
         })
       }
@@ -1049,7 +1070,14 @@ export async function streamChat({
         clearTimeout(nudge180)
         clearTimeout(nudge240)
       })
-      const { done, value } = await Promise.race([readPromise, chunkPromise])
+      let chunkRes
+      try {
+        chunkRes = await Promise.race([readPromise, chunkPromise])
+      } catch (raceErr) {
+        reader.cancel().catch(() => {})
+        throw raceErr
+      }
+      const { done, value } = chunkRes
       if (done) break
 
       buffer += decoder.decode(value, { stream: true })

@@ -38,6 +38,46 @@
       color: #0f172a;
       text-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
     }
+    [data-theme="dracula"] {
+      color-scheme: dark;
+      --bg: #060608;
+      --card-bg: rgba(18, 18, 26, 0.72);
+      --card-bg-hover: rgba(28, 28, 40, 0.88);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-hover: rgba(245, 158, 11, 0.45);
+      --accent: #f59e0b;
+      --accent-cyan: #f59e0b;
+    }
+    [data-theme="solarized"] {
+      color-scheme: dark;
+      --bg: #04100e;
+      --card-bg: rgba(8, 24, 20, 0.75);
+      --card-bg-hover: rgba(12, 36, 30, 0.9);
+      --card-border: rgba(16, 185, 129, 0.16);
+      --card-border-hover: rgba(16, 185, 129, 0.5);
+      --accent: #10b981;
+      --accent-cyan: #10b981;
+    }
+    [data-theme="cyberpunk"] {
+      color-scheme: dark;
+      --bg: #08060f;
+      --card-bg: rgba(20, 12, 36, 0.75);
+      --card-bg-hover: rgba(34, 20, 58, 0.9);
+      --card-border: rgba(236, 72, 153, 0.22);
+      --card-border-hover: rgba(0, 240, 255, 0.55);
+      --accent: #ec4899;
+      --accent-cyan: #00f0ff;
+    }
+    .dial-card:focus-visible, .search-btn:focus-visible {
+      outline: 2px solid var(--accent-cyan);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: radial-gradient(ellipse 90% 70% at 50% -10%, #121c30 0%, #080b11 65%, #040609 100%);

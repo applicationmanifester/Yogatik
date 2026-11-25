@@ -26,28 +26,71 @@ const ACTIVE_CANARIES = new Map()
 // call — a long-running chat session would otherwise grow this map forever.
 // A Map keeps insertion order, so the first key really is the oldest.
 const MAX_CANARIES = 200
+const MAX_CANARIES_BYTES = 32 * 1024
+const CANARY_TTL_MS = 24 * 60 * 60 * 1000
+let totalCanaryBytes = 0
+
+function estimateCanaryBytes(token, sessionId) {
+  return String(token).length * 2 + String(sessionId).length * 2 + 64
+}
+
+function pruneExpiredCanaries(now = Date.now(), ttlMs = CANARY_TTL_MS) {
+  for (const [token, meta] of ACTIVE_CANARIES.entries()) {
+    if (now - meta.createdAt > ttlMs) {
+      totalCanaryBytes = Math.max(0, totalCanaryBytes - (meta.bytes || 0))
+      ACTIVE_CANARIES.delete(token)
+    }
+  }
+}
 
 /**
- * Generate a unique canary token and register it
+ * Generate a unique canary token and register it with count, byte-size, and TTL bounds.
  */
-export function generateCanary(sessionId = 'default') {
-  const token = `canary_${Math.random().toString(36).substring(2, 10)}_${Date.now().toString(36)}`
-  ACTIVE_CANARIES.set(token, { sessionId, createdAt: Date.now() })
-  if (ACTIVE_CANARIES.size > MAX_CANARIES) {
-    ACTIVE_CANARIES.delete(ACTIVE_CANARIES.keys().next().value)
+export function generateCanary(sessionId = 'default', opts = {}) {
+  const now = opts.now ?? Date.now()
+  const maxCount = opts.maxCount ?? MAX_CANARIES
+  const maxBytes = opts.maxBytes ?? MAX_CANARIES_BYTES
+  const ttlMs = opts.ttlMs ?? CANARY_TTL_MS
+
+  pruneExpiredCanaries(now, ttlMs)
+
+  const token = `canary_${Math.random().toString(36).substring(2, 10)}_${now.toString(36)}`
+  const bytes = estimateCanaryBytes(token, sessionId)
+  ACTIVE_CANARIES.set(token, { sessionId, createdAt: now, bytes })
+  totalCanaryBytes += bytes
+
+  while (ACTIVE_CANARIES.size > maxCount || (totalCanaryBytes > maxBytes && ACTIVE_CANARIES.size > 1)) {
+    const oldestKey = ACTIVE_CANARIES.keys().next().value
+    const oldestMeta = ACTIVE_CANARIES.get(oldestKey)
+    totalCanaryBytes = Math.max(0, totalCanaryBytes - (oldestMeta?.bytes || 0))
+    ACTIVE_CANARIES.delete(oldestKey)
   }
   return token
 }
 
-/** Test-only accessor, matching the _resetCrewTraces/_resetToolStatus convention. */
+/** Test-only accessors, matching the _resetCrewTraces/_resetToolStatus convention. */
 export function _canaryCount() { return ACTIVE_CANARIES.size }
+export function _canaryStats() {
+  return { count: ACTIVE_CANARIES.size, bytes: totalCanaryBytes, maxCount: MAX_CANARIES, maxBytes: MAX_CANARIES_BYTES }
+}
+export function _resetCanaries() {
+  ACTIVE_CANARIES.clear()
+  totalCanaryBytes = 0
+}
 
 /**
  * Check if text contains any active canary tokens (indicating leak)
  */
-export function checkCanaryLeak(text = '') {
+export function checkCanaryLeak(text = '', opts = {}) {
+  const now = opts.now ?? Date.now()
+  const ttlMs = opts.ttlMs ?? CANARY_TTL_MS
+  pruneExpiredCanaries(now, ttlMs)
+
   for (const [token, meta] of ACTIVE_CANARIES.entries()) {
     if (text.includes(token)) {
+      // Refresh LRU position on active hit
+      ACTIVE_CANARIES.delete(token)
+      ACTIVE_CANARIES.set(token, meta)
       return {
         leaked: true,
         token,

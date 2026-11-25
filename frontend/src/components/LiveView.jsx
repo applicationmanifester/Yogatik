@@ -1145,6 +1145,7 @@ export function LiveView({
       if (t.role && t.text.trim()) onTranscript?.(t.role, t.text.trim())
       liveMetrics.endSession(liveMetrics.END_REASON.UNMOUNT)
       session.stop()
+      try { temporalVideoBuffer.clear() } catch {}
     }
   }, [provider, apiKey, voice, voiceEngine, engine])
 
@@ -1676,6 +1677,7 @@ export function LiveView({
     // opposite things.
     liveMetrics.endSession(liveMetrics.END_REASON.USER)
     try { sessionRef.current?.stop?.() } catch {}
+    try { temporalVideoBuffer.clear() } catch {}
     const endedAt = Date.now()
     const durationSec = Math.max(1, (endedAt - startTimeRef.current) / 1000)
     const validTranscripts = (transcript || []).filter(t => t.type === 'message' && t.text)

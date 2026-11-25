@@ -48,6 +48,12 @@ function setWindowViewport({ width, height, coarse }) {
       configurable: true,
       writable: true,
     })
+  } else {
+    Object.defineProperty(window, 'matchMedia', {
+      value: (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }),
+      configurable: true,
+      writable: true,
+    })
   }
 }
 
@@ -62,7 +68,11 @@ beforeEach(() => {
 afterEach(() => {
   if (savedViewport.w) Object.defineProperty(window, 'innerWidth', savedViewport.w)
   if (savedViewport.h) Object.defineProperty(window, 'innerHeight', savedViewport.h)
-  if (savedViewport.mm) Object.defineProperty(window, 'matchMedia', savedViewport.mm)
+  if (savedViewport.mm) {
+    Object.defineProperty(window, 'matchMedia', savedViewport.mm)
+  } else {
+    delete window.matchMedia
+  }
   document.documentElement.removeAttribute('data-device')
   document.documentElement.removeAttribute('data-density')
   for (const name of Object.values(SAFE_AREA_VARS)) {

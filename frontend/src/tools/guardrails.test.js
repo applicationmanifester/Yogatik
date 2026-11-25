@@ -7,6 +7,8 @@ import {
   checkCanaryLeak,
   guardrailsTool,
   _canaryCount,
+  _canaryStats,
+  _resetCanaries,
 } from './guardrails'
 
 describe('Guardrails & Rebuff Safety Engine', () => {
@@ -58,6 +60,20 @@ describe('Guardrails & Rebuff Safety Engine', () => {
     expect(checkCanaryLeak(`reply containing ${stale}`).leaked).toBe(false)
     const recent = generateCanary('evict-recent')
     expect(checkCanaryLeak(`reply containing ${recent}`).leaked).toBe(true)
+  })
+
+  it('evicts oldest canaries when byte budget is exceeded and expires entries past TTL', () => {
+    _resetCanaries()
+    const baseTime = 1_700_000_000_000
+    const first = generateCanary('long-session-' + 'x'.repeat(200), { now: baseTime, maxBytes: 700 })
+    const second = generateCanary('long-session-' + 'y'.repeat(200), { now: baseTime + 1, maxBytes: 700 })
+    expect(_canaryStats().bytes).toBeLessThanOrEqual(700)
+    expect(checkCanaryLeak(first, { now: baseTime + 2 }).leaked).toBe(false)
+    expect(checkCanaryLeak(second, { now: baseTime + 2 }).leaked).toBe(true)
+
+    // Expired past TTL
+    expect(checkCanaryLeak(second, { now: baseTime + 25 * 60 * 60 * 1000 }).leaked).toBe(false)
+    expect(_canaryCount()).toBe(0)
   })
 
   it('guardrailsTool executes redact_pii, generate_canary, check_canary, and validate_schema', async () => {

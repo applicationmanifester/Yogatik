@@ -863,26 +863,49 @@ export default function App() {
     }
   }, [showToast])
 
-  const handleOpenVideoStudio = useCallback((url = null) => {
+  const handleOpenVideoStudio = useCallback(async (url = null) => {
     if (isDesktop() && window.__YOGATIK_DESKTOP__?.openVideoStudio) {
-      window.__YOGATIK_DESKTOP__.openVideoStudio({ videoUrl: url || '' })
+      try {
+        const res = await window.__YOGATIK_DESKTOP__.openVideoStudio({ videoUrl: url || '' })
+        if (!res || res.success === false || res.isOpened === false) {
+          setVideoStudioInitialUrl(url)
+          setShowVideoStudio(true)
+        }
+      } catch {
+        setVideoStudioInitialUrl(url)
+        setShowVideoStudio(true)
+      }
     } else {
       setVideoStudioInitialUrl(url)
       setShowVideoStudio(true)
     }
   }, [])
 
-  const handleOpenMediaStudio = useCallback((params = {}) => {
+  const handleOpenMediaStudio = useCallback(async (params = {}) => {
     if (isDesktop() && window.__YOGATIK_DESKTOP__?.openMediaStudio) {
-      window.__YOGATIK_DESKTOP__.openMediaStudio(params)
+      try {
+        const res = await window.__YOGATIK_DESKTOP__.openMediaStudio(params)
+        if (!res || res.success === false || res.isOpened === false) {
+          setShowMediaStudio(true)
+        }
+      } catch {
+        setShowMediaStudio(true)
+      }
     } else {
       setShowMediaStudio(true)
     }
   }, [])
 
-  const handleOpenTradingTerminal = useCallback((params = {}) => {
+  const handleOpenTradingTerminal = useCallback(async (params = {}) => {
     if (isDesktop() && window.__YOGATIK_DESKTOP__?.openTradingTerminal) {
-      window.__YOGATIK_DESKTOP__.openTradingTerminal(params)
+      try {
+        const res = await window.__YOGATIK_DESKTOP__.openTradingTerminal(params)
+        if (!res || res.success === false || res.isOpened === false) {
+          setShowTradingModal(true)
+        }
+      } catch {
+        setShowTradingModal(true)
+      }
     } else {
       setShowTradingModal(true)
     }
@@ -908,9 +931,16 @@ export default function App() {
     }
   }, [])
 
-  const handleOpenDomainHub = useCallback((params = {}) => {
+  const handleOpenDomainHub = useCallback(async (params = {}) => {
     if (isDesktop() && window.__YOGATIK_DESKTOP__?.openDomainHub) {
-      window.__YOGATIK_DESKTOP__.openDomainHub(params)
+      try {
+        const res = await window.__YOGATIK_DESKTOP__.openDomainHub(params)
+        if (!res || res.success === false || res.isOpened === false) {
+          setShowDomainHub(true)
+        }
+      } catch {
+        setShowDomainHub(true)
+      }
     } else {
       setShowDomainHub(true)
     }

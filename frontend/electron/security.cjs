@@ -3,7 +3,7 @@
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval' https://apis.google.com https://*.gstatic.com https://esm.run https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://apis.google.com https://*.gstatic.com https://esm.run https://cdn.jsdelivr.net",
   "worker-src 'self' blob:",
   "connect-src 'self' https: wss: blob: data: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
   "img-src 'self' data: blob: https:",

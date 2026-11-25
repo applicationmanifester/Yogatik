@@ -15,7 +15,7 @@
 const { app, BrowserWindow, globalShortcut, Notification, ipcMain, shell, session: electronSession } = require('electron')
 const path = require('path')
 
-const { enableAdBlocker } = require('./adBlocker.cjs')
+const { enableAdBlocker, isAdShieldEnabled, shouldBlockUrl, recordBlocked } = require('./adBlocker.cjs')
 const { registerBrowserControl, destroyAllSessions, restoreSavedSession, sessions, toggleSplitView, ensureSession, createTab, showActive, layout, syncTabBar } = require('./browserControl.cjs') // layout/syncTabBar: [page-pipeline]
 const { get: getSetting } = require('./settings/store.cjs')
 const { loadChromeExtensions } = require('./extensions.cjs')
@@ -259,31 +259,34 @@ function applyNetworkPrivacy() {
     } catch {}
   }
 
-  // HTTPS-only mode: redirect http:// → https:// at the request layer.
+  // Unified onBeforeRequest handler: Electron allows only ONE onBeforeRequest
+  // listener per session (a second registration silently replaces the first).
+  // Runs in order: (1) Ad & tracker blocking, (2) HTTPS-only upgrade,
+  // (3) Tracking query parameter stripping on GET navigations.
   electronSession.defaultSession.webRequest.onBeforeRequest(
-    { urls: ['http://*/*'] },
+    { urls: ['http://*/*', 'https://*/*'] },
     (details, cb) => {
       const url = details.url || ''
-      try {
-        const u = new URL(url)
-        // localhost / LAN / anything that is not a public http host stays.
-        const isLocal = u.hostname === 'localhost' ||
-          u.hostname === '127.0.0.1' || u.hostname === '::1' ||
-          /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname)
-        if (isLocal || u.pathname === '/favicon.ico') { cb({ cancel: false }); return }
-        // Only upgrade idempotent requests (GET/HEAD/OPTIONS). A redirected
-        // POST can be re-issued as GET by the redirect layer, silently
-        // corrupting form submissions and logins — mirrors Chrome's
-        // HTTPS-First Mode behavior.
-        const method = (details.method || 'GET').toUpperCase()
-        if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
-          cb({ cancel: false })
+      if (isAdShieldEnabled() && shouldBlockUrl(url)) {
+        recordBlocked()
+        cb({ cancel: true })
+        return
+      }
+      const httpsUrl = privacyStack.upgradeHttpsUrl(url, details.method)
+      if (httpsUrl) {
+        cb({ redirectURL: httpsUrl })
+        return
+      }
+      const method = String(details.method || 'GET').toUpperCase()
+      const isNav = details.resourceType === 'mainFrame' || details.resourceType === 'subFrame'
+      if (isNav && method === 'GET' && getSetting('privacy.stripTrackingParams') !== false) {
+        const cleaned = privacyStack.stripTrackingParams(url)
+        if (cleaned.strippedCount > 0) {
+          cb({ redirectURL: cleaned.url })
           return
         }
-        cb({ redirectURL: 'https://' + u.host + u.pathname + u.search })
-      } catch {
-        cb({ cancel: false })
       }
+      cb({ cancel: false })
     }
   )
 }
@@ -299,6 +302,10 @@ function configureSecureUserAgent() {
     const headers = { ...details.requestHeaders }
     headers['User-Agent'] = CHROME_UA
     headers['Sec-Ch-Ua'] = `"Chromium";v="${CHROME_VERSION.split('.')[0]}", "Google Chrome";v="${CHROME_VERSION.split('.')[0]}", "Not?A_Brand";v="99"`
+    if (getSetting('privacy.doNotTrack') !== false) {
+      headers['Sec-GPC'] = '1'
+      headers['DNT'] = '1'
+    }
     callback({ requestHeaders: headers })
   })
 }
@@ -487,8 +494,8 @@ app.whenReady().then(() => {
   // Show splash while loading
   showSplash()
 
-  // Enable ad/tracker blocking
-  enableAdBlocker()
+  // Initialize ad/tracker pattern list (network hook runs in applyNetworkPrivacy)
+  enableAdBlocker(electronSession.defaultSession, { skipRequestHook: true })
 
   // Load unpacked Chrome extensions from <userData>/chrome-extensions/
   loadChromeExtensions(electronSession.defaultSession)

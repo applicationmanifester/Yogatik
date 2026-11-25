@@ -44,6 +44,7 @@ export async function searchPlatform(platform = 'reddit', query = '', limit = 5)
     try {
       const resp = await fetch(`https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&limit=${limit}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) YogatikAgentReach/1.0' },
+        signal: AbortSignal.timeout(3500),
       })
       if (resp.ok) {
         const data = await resp.json()
@@ -65,7 +66,9 @@ export async function searchPlatform(platform = 'reddit', query = '', limit = 5)
 
   if (normPlatform === 'hackernews') {
     try {
-      const resp = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&hitsPerPage=${limit}`)
+      const resp = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(query)}&hitsPerPage=${limit}`, {
+        signal: AbortSignal.timeout(3500),
+      })
       if (resp.ok) {
         const data = await resp.json()
         const items = (data.hits || []).map(hit => ({
@@ -87,6 +90,7 @@ export async function searchPlatform(platform = 'reddit', query = '', limit = 5)
     try {
       const resp = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(query)}&per_page=${limit}`, {
         headers: { 'User-Agent': 'YogatikAgentReach' },
+        signal: AbortSignal.timeout(3500),
       })
       if (resp.ok) {
         const data = await resp.json()
@@ -107,7 +111,9 @@ export async function searchPlatform(platform = 'reddit', query = '', limit = 5)
 
   if (normPlatform === 'arxiv') {
     try {
-      const resp = await fetch(`https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=${limit}`)
+      const resp = await fetch(`https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=${limit}`, {
+        signal: AbortSignal.timeout(3500),
+      })
       if (resp.ok) {
         const text = await resp.text()
         const titles = [...text.matchAll(/<title>([^<]+)<\/title>/g)].slice(1).map(m => m[1].trim())
@@ -223,7 +229,9 @@ export async function extractVideoInfo(videoUrlOrId = '') {
   if (ytMatch) videoId = ytMatch[1]
 
   try {
-    const oembedResp = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`)
+    const oembedResp = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {
+      signal: AbortSignal.timeout(3000),
+    })
     if (oembedResp.ok) {
       const oembed = await oembedResp.json()
       return {

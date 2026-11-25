@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   detectPlatform,
   searchPlatform,
@@ -9,6 +9,11 @@ import {
 } from './agentReach'
 
 describe('Agent-Reach Multi-Platform Intelligence Suite', () => {
+  const originalFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
   it('supports 13+ content, code, video, and social platforms', () => {
     expect(SUPPORTED_PLATFORMS.length).toBeGreaterThanOrEqual(13)
     const ids = SUPPORTED_PLATFORMS.map(p => p.id)
@@ -32,13 +37,31 @@ describe('Agent-Reach Multi-Platform Intelligence Suite', () => {
   })
 
   it('searches platforms and returns structured results', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        hits: [
+          { title: 'Show HN: AI Agents', objectID: '123', author: 'tester', points: 50, num_comments: 12, created_at: '2026-11-20' },
+        ],
+      }),
+    })
     const result = await searchPlatform('hackernews', 'AI agents', 3)
     expect(result.platform).toBe('hackernews')
     expect(result.query).toBe('AI agents')
     expect(Array.isArray(result.results)).toBe(true)
+    expect(result.results.length).toBeGreaterThan(0)
   })
 
   it('extracts YouTube video metadata and thumbnail', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        title: 'Rick Astley - Never Gonna Give You Up',
+        author_name: 'Rick Astley',
+        author_url: 'https://www.youtube.com/@RickAstleyYT',
+        thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      }),
+    })
     const video = await extractVideoInfo('https://www.youtube.com/watch?v=dQw4w9WgXcQ')
     expect(video.success).toBe(true)
     expect(video.platform).toBe('youtube')
@@ -47,6 +70,16 @@ describe('Agent-Reach Multi-Platform Intelligence Suite', () => {
   })
 
   it('agentReachTool executes platform search, post fetch, and platform listing', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: {
+          children: [
+            { data: { title: 'Deep Learning Update', subreddit: 'MachineLearning', author: 'researcher', score: 100, num_comments: 20, permalink: '/r/MachineLearning/comments/123', selftext: 'Details...' } },
+          ],
+        },
+      }),
+    })
     const listRes = await agentReachTool.execute({ action: 'list_platforms' })
     expect(listRes.success).toBe(true)
     expect(listRes.totalPlatforms).toBeGreaterThanOrEqual(13)

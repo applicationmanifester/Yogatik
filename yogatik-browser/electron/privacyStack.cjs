@@ -526,15 +526,75 @@ function wirePrivacyStack(deps = {}) {
   return true
 }
 
+const TRACKING_PARAMS = new Set([
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id', 'utm_name',
+  'fbclid', 'gclid', 'gbraid', 'wbraid', 'dclid', 'msclkid',
+  'mc_cid', 'mc_eid', 'igshid', 'yclid', 'ttclid',
+  '_hsenc', '_hsmi', 'vero_id', 'mkt_tok', 'oly_enc_id', 'oly_anon_id', 'rb_clickid', 's_cid',
+])
+
+/**
+ * Strip known cross-site tracking query parameters from an http(s) URL.
+ * Preserves all non-tracking query parameters and URL fragments.
+ */
+function stripTrackingParams(urlString) {
+  if (typeof urlString !== 'string' || !urlString) return { url: urlString, strippedCount: 0 }
+  try {
+    const u = new URL(urlString)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return { url: urlString, strippedCount: 0 }
+    if (!u.search) return { url: urlString, strippedCount: 0 }
+    const host = u.hostname.toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return { url: urlString, strippedCount: 0 }
+    }
+    let strippedCount = 0
+    for (const key of [...u.searchParams.keys()]) {
+      if (TRACKING_PARAMS.has(key.toLowerCase())) {
+        u.searchParams.delete(key)
+        strippedCount++
+      }
+    }
+    if (strippedCount === 0) return { url: urlString, strippedCount: 0 }
+    return { url: u.toString(), strippedCount }
+  } catch {
+    return { url: urlString, strippedCount: 0 }
+  }
+}
+
+/**
+ * Compute an HTTPS upgrade redirect URL for public idempotent http:// requests.
+ * Returns null when the URL should not be upgraded (already https, localhost/LAN,
+ * /favicon.ico, or non-idempotent HTTP method like POST).
+ */
+function upgradeHttpsUrl(urlString, method = 'GET') {
+  if (typeof urlString !== 'string' || !urlString.startsWith('http://')) return null
+  try {
+    const u = new URL(urlString)
+    const host = u.hostname.toLowerCase()
+    const isLocal = host === 'localhost' ||
+      host === '127.0.0.1' || host === '::1' ||
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)
+    if (isLocal || u.pathname === '/favicon.ico') return null
+    const m = String(method || 'GET').toUpperCase()
+    if (m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS') return null
+    return 'https://' + u.host + u.pathname + u.search
+  } catch {
+    return null
+  }
+}
+
 module.exports = {
   DEFAULT_DNS_TEMPLATES,
   DEFAULT_CSP_POLICY,
+  TRACKING_PARAMS,
   buildDnsSwitches,
   applyDnsSwitches,
   enableSecureDns,
   decideCsp,
   withOptionalCsp,
   installCspInjection,
+  stripTrackingParams,
+  upgradeHttpsUrl,
   normalizeContainerId,
   containerPartition,
   createContainerSessions,

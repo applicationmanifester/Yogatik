@@ -82,10 +82,13 @@ export function isFalseFileAccessDenial(text) {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-/** Strip `<think>…</think>` blocks and return only user-visible content. */
+/** Strip `<think>`/`<thought>`/`<reasoning>` blocks and return only user-visible content. */
 export function visibleContent(text) {
   if (!text) return ''
-  return text.replace(/<think[\s\S]*?<\/think>/gi, '').trim()
+  return text
+    .replace(/<(?:think|thought|reasoning)\b[^>]*>[\s\S]*?<\/(?:think|thought|reasoning)>/gi, '')
+    .replace(/<(?:think|thought|reasoning)\b[^>]*>[\s\S]*$/i, '')
+    .trim()
 }
 
 /**

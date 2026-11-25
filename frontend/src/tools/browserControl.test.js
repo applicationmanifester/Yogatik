@@ -95,8 +95,31 @@ describe('browser_control — zoom / find / downloads', () => {
       await vi.advanceTimersByTimeAsync(400 * 5)
       const res = await p
 
-      expect(res).toMatchObject({ success: true, savePath: '/tmp/report.pdf', filename: 'report.pdf' })
+      expect(res).toMatchObject({ success: true, savePath: '/tmp/report.pdf', filename: 'report.pdf', dangerousFile: false, safeToRead: true })
       expect(call).toBeGreaterThanOrEqual(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('wait_for_download flags dangerous executable downloads and withholds fs_read recommendation', async () => {
+    vi.useFakeTimers()
+    try {
+      const downloads = vi.fn(async () => ({
+        success: true,
+        downloads: [{ filename: 'invoice.pdf.exe', state: 'completed', savePath: '/tmp/invoice.pdf.exe', receivedBytes: 4096 }],
+      }))
+      vi.stubGlobal('window', { __YOGATIK_BROWSER__: { downloads } })
+
+      const p = browserControlTool.execute({ action: 'wait_for_download', text: 'invoice' })
+      await vi.advanceTimersByTimeAsync(100)
+      const res = await p
+
+      expect(res.success).toBe(true)
+      expect(res.dangerousFile).toBe(true)
+      expect(res.safeToRead).toBe(false)
+      expect(res.securityWarning).toMatch(/\.exe/i)
+      expect(res.note).toMatch(/SECURITY WARNING/i)
     } finally {
       vi.useRealTimers()
     }

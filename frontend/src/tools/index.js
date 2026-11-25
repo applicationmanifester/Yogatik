@@ -12,6 +12,7 @@ import { translateTool } from './translate'
 import { chartTool } from './chart'
 import { codeExecTool } from './codeExec'
 import { ocrTool } from './ocr'
+import { detectObjectsTool } from './detectObjectsTool'
 import { qrGenerateTool, qrReadTool } from './qr'
 import { pdfExtractTool } from './pdfExtract'
 import { summarizeTool } from './summarize'
@@ -304,6 +305,7 @@ const ALL_TOOLS = {
   audio_edit: audioTool,
   image_info: imageInfoTool,
   object_scan: objectScanTool,
+  detect_objects: detectObjectsTool,
   link_preview: linkPreviewTool,
   diff: diffTool,
   unit_convert: unitConvertTool,
@@ -590,6 +592,10 @@ export const TOOL_ALIASES = {
   image_identify: 'identify',
   recognize_image: 'identify',
   analyze_image: 'identify',
+  object_detect: 'detect_objects',
+  object_detection: 'detect_objects',
+  image_objects: 'detect_objects',
+  detect_in_image: 'detect_objects',
   // Local Inference aliases
   ollama: 'local_inference',
   lmstudio: 'local_inference',
@@ -1450,6 +1456,10 @@ export function prioritizeToolSchemas(schemas = [], userMessage = '', { limit = 
   }
   if (/\b(cut ?out|remove the background|isolate|segment|just the (object|product|item)|crop to (the|this))\b/i.test(text)) {
     scores['segment'] = 200
+  }
+  if (/\b(detect objects|object detection|bounding box|what objects|count objects|objects in (this|the) image|ocr and object)\b/i.test(text)) {
+    scores['detect_objects'] = 220
+    scores['ocr'] = Math.max(scores['ocr'] || 0, 180)
   }
   if (/\b(delegate|sub-agent|subagent|multi-agent|plan|steps|roadmap|complex task|workflow|break down|in parallel|concurrently|orchestrat|multi-part|end-to-end)\b/i.test(text) ||
       (/\b(and also|compare|research and|analyze and|build and|design and)\b/i.test(text) && text.length > 50)) {

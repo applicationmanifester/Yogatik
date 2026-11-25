@@ -8,7 +8,8 @@
  * AbortError hangs the whole turn.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { streamChat, chatComplete, parseProviderError } from './llm'
+import { streamChat, chatComplete, parseProviderError, getModelMaxTokens } from './llm'
+import { getLimiterState, resetCircuit } from './rateLimiter'
 
 /** A Response whose body streams the given SSE frames. */
 function sseResponse(frames, { status = 200, headers = {} } = {}) {
@@ -344,5 +345,59 @@ describe('parseProviderError', () => {
 
   it('never returns an empty string for an empty body', () => {
     expect(String(parseProviderError(500, '')).length).toBeGreaterThan(0)
+  })
+})
+
+describe('modern model limits, OpenAI reasoning params, and retry preservation', () => {
+  it('returns adaptive maxTokens for modern models including gpt-4.1, claude-sonnet-4, deepseek-reasoner, and o3/o4', () => {
+    expect(getModelMaxTokens('gpt-4.1')).toBe(32768)
+    expect(getModelMaxTokens('claude-sonnet-4-20250514')).toBe(64000)
+    expect(getModelMaxTokens('deepseek-reasoner')).toBe(32768)
+    expect(getModelMaxTokens('o3')).toBe(65536)
+    expect(getModelMaxTokens('o4-mini')).toBe(65536)
+  })
+
+  it('sends max_completion_tokens without max_tokens or temperature for OpenAI o-series reasoning models', async () => {
+    fetchMock.mockResolvedValueOnce(sseResponse([delta({ content: 'ok' }), 'data: [DONE]\n\n']))
+    await streamChat({
+      provider: 'openai', apiKey: 'k', model: 'o4-mini',
+      messages: [{ role: 'user', content: 'solve' }],
+      onToken: () => {}, onDone: () => {},
+    })
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(sent.max_completion_tokens).toBe(65536)
+    expect(sent.max_tokens).toBeUndefined()
+    expect(sent.temperature).toBeUndefined()
+  })
+
+  it('preserves maxTokens and responseFormat when auto-retrying without temperature', async () => {
+    fetchMock
+      .mockResolvedValueOnce(errorResponse(400, "The parameter 'temperature' is not supported by this model route."))
+      .mockResolvedValueOnce(sseResponse([delta({ content: '{}' }), 'data: [DONE]\n\n']))
+    await streamChat({
+      provider: 'openrouter', apiKey: 'k', model: 'custom-route-model',
+      messages: [{ role: 'user', content: 'hi' }],
+      maxTokens: 2048,
+      responseFormat: { type: 'json_object' },
+      onToken: () => {}, onDone: () => {},
+    })
+    const retryBody = JSON.parse(fetchMock.mock.calls[1][1].body)
+    expect(retryBody.max_tokens).toBe(2048)
+    expect(retryBody.response_format).toEqual({ type: 'json_object' })
+  })
+
+  it('does not penalize provider circuit breaker on user AbortError', async () => {
+    resetCircuit('Groq')
+    const controller = new AbortController()
+    controller.abort()
+    const onError = vi.fn()
+    await streamChat({
+      provider: 'groq', apiKey: 'k', model: 'llama',
+      messages: [{ role: 'user', content: 'hi' }],
+      signal: controller.signal,
+      onError, onDone: () => {},
+    })
+    expect(getLimiterState('Groq').failures).toBe(0)
+    expect(getLimiterState('Groq').circuitState).toBe('closed')
   })
 })

@@ -39,7 +39,7 @@
 // if running it twice, running it for nothing, or running it on a wrong
 // guess is completely harmless — no popup, no permission prompt, no network
 // side effect beyond a read.
-export const REFLEX_WHITELIST = Object.freeze(['unit_convert', 'calculator', 'weather', 'timezone', 'translate'])
+export const REFLEX_WHITELIST = Object.freeze(['unit_convert', 'calculator', 'weather', 'timezone', 'translate', 'currency'])
 
 const MAX_MESSAGE_LEN = 300
 
@@ -51,6 +51,7 @@ const UNIT_ALIASES = {
   m: 'm', meter: 'm', meters: 'm', metre: 'm', metres: 'm',
   mi: 'mi', mile: 'mi', miles: 'mi',
   ft: 'ft', foot: 'ft', feet: 'ft',
+  inch: 'in', inches: 'in',
   cm: 'cm',
   kg: 'kg', kilogram: 'kg', kilograms: 'kg', kilo: 'kg', kilos: 'kg',
   g: 'g', gram: 'g', grams: 'g',
@@ -191,12 +192,69 @@ function detectTranslate(message) {
   return { name: 'translate', args: { text, target } }
 }
 
+// ---------------------------------------------------------------------------
+// currency — "100 USD to INR", "$50 in EUR", "convert 250 eur into jpy"
+// ---------------------------------------------------------------------------
+// Currencies supported by ECB/Frankfurter (tools/opendata.js:currencyTool).
+// Kept strictly to explicit ISO codes, unambiguous symbols, and common fiat
+// names so ordinary prose never triggers a speculative fetch.
+const CURRENCY_ALIASES = {
+  usd: 'USD', dollar: 'USD', dollars: 'USD',
+  eur: 'EUR', euro: 'EUR', euros: 'EUR',
+  gbp: 'GBP', pound: 'GBP', pounds: 'GBP',
+  inr: 'INR', rupee: 'INR', rupees: 'INR',
+  jpy: 'JPY', yen: 'JPY',
+  cad: 'CAD', aud: 'AUD', chf: 'CHF',
+  cny: 'CNY', yuan: 'CNY', rmb: 'CNY',
+  hkd: 'HKD', sgd: 'SGD', krw: 'KRW', won: 'KRW',
+  mxn: 'MXN', brl: 'BRL', sek: 'SEK', nok: 'NOK', dkk: 'DKK',
+  pln: 'PLN', try: 'TRY', zar: 'ZAR', nzd: 'NZD',
+  thb: 'THB', idr: 'IDR', php: 'PHP', myr: 'MYR',
+  czk: 'CZK', huf: 'HUF', ils: 'ILS', isk: 'ISK', ron: 'RON', bgn: 'BGN',
+}
+
+const CURRENCY_SYMBOLS = {
+  '$': 'USD',
+  '€': 'EUR',
+  '£': 'GBP',
+  '¥': 'JPY',
+  '₹': 'INR',
+}
+
+const CURRENCY_SYM_RE = /^(?:convert\s+)?([$€£¥₹])\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s+(?:to|into|in)\s+([a-z]{3,10})\s*\??$/i
+const CURRENCY_CODE_RE = /^(?:convert\s+)?(?:(\d+(?:,\d{3})*(?:\.\d+)?)\s+)?([a-z]{3,10})\s+(?:to|into|in)\s+([a-z]{3,10})\s*\??$/i
+
+function detectCurrency(message) {
+  const trimmed = message.trim()
+  let amount = 1
+  let rawFrom = null
+  let rawTo = null
+
+  const symMatch = CURRENCY_SYM_RE.exec(trimmed)
+  if (symMatch) {
+    rawFrom = CURRENCY_SYMBOLS[symMatch[1]]
+    amount = Number(symMatch[2].replace(/,/g, ''))
+    rawTo = symMatch[3].toLowerCase()
+  } else {
+    const codeMatch = CURRENCY_CODE_RE.exec(trimmed)
+    if (!codeMatch) return null
+    amount = codeMatch[1] ? Number(codeMatch[1].replace(/,/g, '')) : 1
+    rawFrom = codeMatch[2].toLowerCase()
+    rawTo = codeMatch[3].toLowerCase()
+  }
+
+  const from = CURRENCY_ALIASES[rawFrom] || (CURRENCY_ALIASES[rawFrom?.toLowerCase()] ?? null)
+  const to = CURRENCY_ALIASES[rawTo]
+  if (!Number.isFinite(amount) || amount <= 0 || !from || !to || from === to) return null
+  return { name: 'currency', args: { from, to, amount } }
+}
+
 // Priority order — the cheapest/least ambiguous first. A message very rarely
 // matches more than one; only the first hit is returned, since one
 // speculative call is the whole point (one wasted cheap call is harmless;
 // racing several against each other adds cost and complexity for no
 // measurable benefit at this whitelist's size).
-const DETECTORS = [detectUnitConvert, detectCalculator, detectWeather, detectTimezone, detectTranslate]
+const DETECTORS = [detectUnitConvert, detectCurrency, detectCalculator, detectWeather, detectTimezone, detectTranslate]
 
 /**
  * Detect a fully-confident, side-effect-free tool call from a raw user

@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '21.0.0'
+export const APP_VERSION = '22.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 21.0.0 — Deep Space Minimal & Acrylic Glass Redesign, Turbo Tab Sync & Enhanced Page-Context AI'
+export const APP_CODENAME = 'Yogatik 22.0.0 — On-Device Object Detection, Chromium Privacy Stack & PDF/Theme Polish'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,65 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "22.0.0",
+    "title": "Yogatik 22.0.0: On-Device Object Detection, Chromium Privacy Stack & PDF/Theme Polish",
+    "date": "November 25, 2026",
+    "isLatest": true,
+    "highlights": [
+      "On-Device Semantic Object Detection (`detect_objects`): Integrated DETR bounding-box detection, optional CLIP zero-shot classification, and Tesseract OCR into a unified lazy-loaded tool",
+      "Chromium Privacy Stack in Yogatik Browser: Added Encrypted DNS (DoH + ECH), opt-in CSP injection, isolated container sessions, and per-origin storage audit & wipe",
+      "PDF & Document Generation Polish: Eliminated PDF text distortion, sanitized typography/emojis, and enhanced web & documentation file creation",
+      "Light & Dark Theme Synchronization: Completed contrast polish across app, tabs, and browser new tab, and streamlined the composer by removing the floating tool status panel",
+      "Multi-Platform 22.0.0 Synchronized Suite: Synchronized release binaries across Web, Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)"
+    ],
+    "sections": [
+      {
+        "category": "👁️ On-Device Vision & Agent Guardrails",
+        "items": [
+          {
+            "title": "Unified detect_objects Tool",
+            "description": "Semantic object detection and counting with on-device DETR, optional CLIP zero-shot scene labelling, and optional OCR in a single pass."
+          },
+          {
+            "title": "Hardened Agent Reflex, Guardrails & Browser Control",
+            "description": "Improved agent reach, response watchdog, LLM transport, and security guardrails across web and desktop."
+          }
+        ]
+      },
+      {
+        "category": "🛡️ Yogatik Browser Privacy Stack",
+        "items": [
+          {
+            "title": "Encrypted DNS, Container Sessions & Storage Audit",
+            "description": "Added DoH + ECH switches, isolated persist:container sessions, opt-in CSP injection, tracking parameter stripping, and per-origin cookie/storage wipe."
+          }
+        ]
+      },
+      {
+        "category": "🎨 Theme, UI & PDF Export Polish",
+        "items": [
+          {
+            "title": "Clean PDF Output & Synchronized Themes",
+            "description": "Fixed PDF text distortion and typography sanitization, synchronized light/dark design tokens, and cleaned up composer layout."
+          }
+        ]
+      },
+      {
+        "category": "📱 Multi-Platform Releases",
+        "items": [
+          {
+            "title": "Desktop & Mobile Synchronized Suite v22.0.0",
+            "description": "Synchronized release binaries for Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "21.0.0",
     "title": "Yogatik 21.0.0: Deep Space Minimal & Acrylic Glass Redesign, Turbo Tab Sync & Enhanced Page-Context AI",
     "date": "November 22, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Deep Space Minimal & Acrylic Glass UI: Ground-up redesign of Yogatik Studio and Yogatik Browser with cosmic dark backgrounds (#080b11), 24px acrylic blur, luminous cyan/amber accents, and sleek bento grids",
       "Multi-Tab Sync & Tab Group Engine: Re-engineered tab lifecycle with zero-stall synchronous group management, horizontal + tab controls, and self-healing storage",

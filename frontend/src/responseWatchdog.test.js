@@ -21,8 +21,10 @@ import {
 // ── Helpers ──────────────────────────────────────────────────────────
 
 describe('visibleContent', () => {
-  it('strips <think> blocks and trims', () => {
+  it('strips <think>, <thought>, and <reasoning> blocks and trims', () => {
     expect(visibleContent('<think>reasoning here</think>Hello world')).toBe('Hello world')
+    expect(visibleContent('<thought>internal plan</thought>Final answer')).toBe('Final answer')
+    expect(visibleContent('<reasoning>step 1</reasoning>Result')).toBe('Result')
   })
   it('returns empty for think-only content', () => {
     expect(visibleContent('<think>long reasoning\nmore lines</think>')).toBe('')

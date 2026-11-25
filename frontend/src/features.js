@@ -143,12 +143,12 @@ export const FEATURES = {
   terminalApproval: {
     label: 'Terminal Command Auto Execution',
     hint: 'Controls whether terminal commands require your approval before running',
-    default: 'auto', // 'auto' | 'ask' | 'deny'
+    default: 'ask', // 'auto' | 'ask' | 'deny'
   },
   fileWriteApproval: {
     label: 'Autonomous File Edit & Write',
     hint: 'Autonomously allow file creation, editing, and batch writes in active workspace without interrupting for permission',
-    default: 'auto', // 'auto' | 'ask' | 'deny'
+    default: 'ask', // 'auto' | 'ask' | 'deny'
   },
   queuedMessageMode: {
     label: 'Queued Messages',

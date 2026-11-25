@@ -164,11 +164,12 @@ export const ocrTool = {
         image_url: { type: 'string', description: 'URL or data URL of the image' },
         lang: { type: 'string', description: 'Language code (default eng)' },
         raw: { type: 'boolean', description: 'Skip preprocessing and read the image as-is.' },
+        detect_objects: { type: 'boolean', description: 'Also run on-device object detection alongside OCR (default false).' },
       },
       required: ['image_url'],
     },
   },
-  async execute({ image_url, lang = 'eng', raw = false } = {}) {
+  async execute({ image_url, lang = 'eng', raw = false, detect_objects = false } = {}) {
     if (typeof image_url !== 'string' || !image_url.trim()) {
       return { success: false, error: 'image_url is required' }
     }
@@ -222,6 +223,28 @@ export const ocrTool = {
       if (!best) return { success: false, error: 'OCR produced no result for this image.' }
 
       const trusted = isTrustworthy(best)
+      let objectInfo = null
+      if (detect_objects) {
+        try {
+          const { detectObjects, summariseDetections, describePosition } = await import('../vision/detect')
+          const detected = await detectObjects(image_url)
+          if (Array.isArray(detected)) {
+            objectInfo = {
+              object_count: detected.length,
+              object_summary: summariseDetections(detected),
+              objects: detected.slice(0, 12).map(o => ({
+                label: o.label,
+                score: Math.round(Number(o.score) * 1000) / 1000,
+                position: describePosition(o.box),
+                box: o.box,
+              })),
+            }
+          }
+        } catch (detErr) {
+          objectInfo = { object_detection_error: detErr?.message || String(detErr) }
+        }
+      }
+
       return {
         success: true,
         tool: 'ocr',
@@ -237,6 +260,7 @@ export const ocrTool = {
         preprocessing: best.note,
         lang,
         structure: analysis ? describeStructure(analysis) : undefined,
+        ...(objectInfo || {}),
         note: trusted
           ? undefined
           : 'No legible text was found. Do NOT treat the low-confidence fragment as the content of this image — describe the image from its structure and any other signals instead.',

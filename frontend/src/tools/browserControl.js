@@ -20,6 +20,47 @@ function bridge() {
   return (typeof window !== 'undefined' && window.__YOGATIK_BROWSER__) || null
 }
 
+const DANGEROUS_DOWNLOAD_EXTS = new Set([
+  '.exe', '.msi', '.bat', '.cmd', '.ps1', '.vbs', '.vbe', '.js', '.jse',
+  '.wsf', '.wsh', '.scr', '.pif', '.com', '.dll', '.sys', '.hta', '.cpl',
+  '.msc', '.jar', '.app', '.dmg', '.pkg', '.deb', '.rpm', '.sh', '.run',
+])
+
+/**
+ * Validate a completed browser download before recommending `fs_read` on it.
+ * Flags executable/script extensions, double-extension spoofing, and any
+ * bridge-reported danger/scan failure.
+ */
+export function validateDownloadedFile(download) {
+  const name = String(download?.filename || download?.savePath || '').trim()
+  const lower = name.toLowerCase()
+  const lastDot = lower.lastIndexOf('.')
+  const ext = lastDot >= 0 ? lower.slice(lastDot) : ''
+
+  if (download?.dangerType && download.dangerType !== 'safe') {
+    return {
+      safe: false,
+      ext,
+      reason: `Browser flagged download as ${download.dangerType}: ${name || 'unknown'}`,
+    }
+  }
+  if (download?.scanResult && download.scanResult !== 'clean') {
+    return {
+      safe: false,
+      ext,
+      reason: `Download security scan failed (${download.scanResult}): ${name || 'unknown'}`,
+    }
+  }
+  if (ext && DANGEROUS_DOWNLOAD_EXTS.has(ext)) {
+    return {
+      safe: false,
+      ext,
+      reason: `Potentially dangerous executable/script file type (${ext}): ${name}`,
+    }
+  }
+  return { safe: true, ext, reason: null }
+}
+
 const DESKTOP_ONLY = {
   success: false,
   error: 'Browser control runs only in the Yogatik desktop app.',
@@ -649,10 +690,18 @@ export const browserControlTool = {
             if (d) {
               sawAny = true
               if (d.state === 'completed') {
+                const check = validateDownloadedFile(d)
                 return {
                   tool: 'browser_control', action, success: true,
                   filename: d.filename, savePath: d.savePath, bytes: d.receivedBytes, state: d.state,
-                  note: 'Use fs_read with this savePath to open the downloaded file.',
+                  dangerousFile: !check.safe,
+                  safeToRead: check.safe,
+                  ...(check.safe
+                    ? { note: 'Use fs_read with this savePath to open the downloaded file.' }
+                    : {
+                        securityWarning: check.reason,
+                        note: `SECURITY WARNING: ${check.reason}. Do NOT open with fs_read or execute without explicit user confirmation.`,
+                      }),
                 }
               }
               if (d.state === 'cancelled' || d.state === 'interrupted') {

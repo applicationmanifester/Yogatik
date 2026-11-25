@@ -219,11 +219,20 @@ async function _requestPermission(tool, args, ctx = {}) {
   let rules = []
   try { rules = await loadRules() } catch { rules = [] }
 
+  const verdict = decide(rules, tool, args, ctx)
+  if (verdict.outcome === 'allow') return { allowed: true, reason: verdict.reason }
+  if (verdict.outcome === 'deny') return { allowed: false, reason: `Denied: ${verdict.reason}` }
+
+  // Fail closed when no approval UI is installed (headless / tests)
+  if (!promptFn) {
+    return { allowed: false, reason: 'Denied: no approval UI is available to confirm this action.' }
+  }
+
   // Check user preference for Terminal Command Auto Execution
   if (['terminal_run', 'terminal_exec', 'proc_start'].includes(tool)) {
     try {
       const prefs = await getSetting('prefs', {})
-      const termSetting = prefs?.features?.terminalApproval || 'auto'
+      const termSetting = prefs?.features?.terminalApproval
       if (termSetting === 'auto') return { allowed: true, reason: 'Terminal auto-execution enabled in settings.' }
       if (termSetting === 'deny') return { allowed: false, reason: 'Terminal execution disabled in settings (Read Only).' }
     } catch {}
@@ -238,18 +247,10 @@ async function _requestPermission(tool, args, ctx = {}) {
   if (WRITE_TOOLS.includes(tool)) {
     try {
       const prefs = await getSetting('prefs', {})
-      const writeSetting = prefs?.features?.fileWriteApproval || 'auto'
+      const writeSetting = prefs?.features?.fileWriteApproval
       if (writeSetting === 'auto') return { allowed: true, reason: 'Autonomous file write/edit enabled in settings.' }
       if (writeSetting === 'deny') return { allowed: false, reason: 'File modification disabled in settings (Read Only).' }
     } catch {}
-  }
-
-  const verdict = decide(rules, tool, args, ctx)
-  if (verdict.outcome === 'allow') return { allowed: true, reason: verdict.reason }
-  if (verdict.outcome === 'deny') return { allowed: false, reason: `Denied: ${verdict.reason}` }
-
-  if (!promptFn) {
-    return { allowed: false, reason: 'Denied: no approval UI is available to confirm this action.' }
   }
 
   // Show the actual patch for a write — approving "write src/app.js" tells you

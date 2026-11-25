@@ -39,18 +39,35 @@ export function releaseCamera() {
   camera = null
 }
 
-/** Set by the app when the user attaches an image, so `see` can read that instead. */
-let pendingImage = null
-export function setPendingImage(dataUrl) { pendingImage = dataUrl || null }
-export function getPendingImage() { return pendingImage }
+/** Set by the app when the user attaches an image, so `see` can read that instead. Scoped per conversationId. */
+const pendingImages = new Map()
+export function setPendingImage(dataUrl, conversationId = 'default') {
+  const key = conversationId || 'default'
+  if (dataUrl) pendingImages.set(key, dataUrl)
+  else pendingImages.delete(key)
+}
+export function getPendingImage(conversationId = 'default') {
+  const key = conversationId || 'default'
+  return pendingImages.get(key) || (key !== 'default' ? pendingImages.get('default') : null) || null
+}
 
 /**
  * Runtime context the agent injects: whether the chat model itself can see.
- * Module-level because executeTool's signature is (name, args) everywhere else
- * and widening it would touch all 44 tools.
+ * Scoped per conversationId so concurrent chats on different models (e.g. a
+ * vision model in Chat A and a text-only model in Chat B) never overwrite
+ * each other.
  */
-let ctx = { modelCanSee: false, allowLocal: true }
-export function setVisionContext(next) { ctx = { ...ctx, ...next } }
+const DEFAULT_VISION_CTX = { modelCanSee: false, allowLocal: true }
+const visionContexts = new Map()
+export function setVisionContext(next, conversationId = 'default') {
+  const key = conversationId || 'default'
+  const prev = visionContexts.get(key) || DEFAULT_VISION_CTX
+  visionContexts.set(key, { ...prev, ...next })
+}
+function getVisionContext(conversationId = 'default') {
+  const key = conversationId || 'default'
+  return visionContexts.get(key) || visionContexts.get('default') || DEFAULT_VISION_CTX
+}
 
 export const seeTool = {
   schema: {
@@ -68,13 +85,19 @@ export const seeTool = {
     },
   },
 
-  async execute({ question, camera: which = 'front' }) {
+  async execute({ question, camera: which = 'front' }, opts = {}) {
+    const convId = opts?.ctx?.conversationId || 'default'
+    const activeCtx = getVisionContext(convId)
     const images = []
-    let image = pendingImage
+    let image = pendingImages.get(convId) || null
     if (image) {
       // An attached image answers the question it was attached for, once.
       // Leaving it set made every later look return the same stale picture.
-      pendingImage = null
+      pendingImages.delete(convId)
+      images.push(image)
+    } else if (convId !== 'default' && pendingImages.has('default')) {
+      image = pendingImages.get('default')
+      pendingImages.delete('default')
       images.push(image)
     } else {
       try {
@@ -103,7 +126,7 @@ export const seeTool = {
     }
 
     // Path 1 — the chat model can see it itself. Hand the pixels up.
-    if (ctx.modelCanSee) {
+    if (activeCtx.modelCanSee) {
       return {
         success: true, tool: 'see', via: 'model',
         image, images, question,
@@ -114,7 +137,7 @@ export const seeTool = {
     }
 
     // Paths 2 and 3 — resolve it without the chat model and pass text up.
-    if (ctx.allowLocal) {
+    if (activeCtx.allowLocal) {
       try {
         const { via, text, model } = await describeWithoutModel(image, question)
         return {

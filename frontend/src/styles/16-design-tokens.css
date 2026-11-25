@@ -808,3 +808,1319 @@ html[data-device="tablet"] .dash-content::-webkit-scrollbar {
   transition: all var(--dur-fast) var(--ease-out-quint);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * 14. COMPREHENSIVE UI MODULES, FIELDS, SPACING, WIDTH, HEIGHT & DEPTH
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 14.1 Universal Form Fields & Input Ergonomics ───────────────────── */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="search"],
+input[type="number"],
+input[type="url"],
+.modal-form input,
+.settings-input,
+.api-key-input,
+.provider-input,
+.search-input,
+.dash-rail-search input,
+.filter-input {
+  width: 100%;
+  min-height: var(--control-h-md, 38px);
+  padding: 9px 14px;
+  background: var(--surface-input, rgba(14, 20, 32, 0.78));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-sm, 13px);
+  line-height: 1.5;
+  box-sizing: border-box;
+  box-shadow: inset 0 1.5px 2px rgba(0, 0, 0, 0.2), 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), background-color var(--dur-fast);
+}
+
+input[type="text"]::placeholder,
+input[type="password"]::placeholder,
+input[type="email"]::placeholder,
+input[type="search"]::placeholder,
+input[type="number"]::placeholder,
+input[type="url"]::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+input[type="text"]:hover,
+input[type="password"]:hover,
+input[type="email"]:hover,
+input[type="search"]:hover,
+input[type="number"]:hover,
+input[type="url"]:hover,
+.modal-form input:hover,
+.settings-input:hover,
+.api-key-input:hover,
+.provider-input:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 2%, var(--surface-input));
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+input[type="url"]:focus,
+.modal-form input:focus,
+.settings-input:focus,
+.api-key-input:focus,
+.provider-input:focus {
+  outline: none;
+  border-color: var(--accent-cyan, var(--accent));
+  background: var(--surface-input);
+  box-shadow: 0 0 0 3px var(--glow-cyan, var(--accent-glow)), inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(20%);
+}
+
+/* ── 14.2 Select Dropdown Fields & Arrow Styling ─────────────────────── */
+select,
+.settings select,
+.modal-form select,
+.provider-select,
+.device-select {
+  width: 100%;
+  min-height: var(--control-h-md, 38px);
+  padding: 9px 36px 9px 14px;
+  background: var(--surface-input, rgba(14, 20, 32, 0.78));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-sm, 13px);
+  line-height: 1.5;
+  box-sizing: border-box;
+  box-shadow: inset 0 1.5px 2px rgba(0, 0, 0, 0.2), 0 1px 0 rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238899aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+select:hover,
+.settings select:hover,
+.modal-form select:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border-subtle));
+}
+
+select:focus,
+.settings select:focus,
+.modal-form select:focus {
+  outline: none;
+  border-color: var(--accent-cyan, var(--accent));
+  box-shadow: 0 0 0 3px var(--glow-cyan, var(--accent-glow));
+}
+
+/* ── 14.3 Range Sliders with Tactile Depth ───────────────────────────── */
+input[type="range"],
+.settings input[type="range"] {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-tertiary, #1a2233);
+  border-radius: var(--radius-pill, 999px);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  margin: 10px 0;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 4px var(--accent-glow), 0 3px 8px rgba(0, 0, 0, 0.5);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+/* ── 14.4 Form Labels, Help Text & Fieldsets ─────────────────────────── */
+label,
+.modal-form label,
+.settings label {
+  font-size: var(--font-xs, 12px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.form-help-text,
+.field-hint,
+.input-help {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  transition: background-color var(--dur-fast), border-color var(--dur-fast);
+}
+
+.toggle-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--glass-border);
+}
+
+/* ── 14.5 Modals & Dialog Depth, Width and Heights ───────────────────── */
+.modal-overlay {
+  background: var(--overlay-scrim, rgba(4, 6, 12, 0.78));
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modal,
+.modal-content,
+.modal-card {
+  width: min(580px, calc(100vw - 32px));
+  max-width: min(580px, calc(100vw - 32px));
+  max-height: min(88vh, 880px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-xl, 16px);
+  border: 1px solid var(--glass-border);
+  background: var(--modal-glass-bg);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  box-shadow:
+    0 0 0 1px var(--glass-border),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 32px -4px rgba(0, 0, 0, 0.45),
+    0 28px 72px -12px rgba(0, 0, 0, 0.65);
+}
+
+.modal-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 16px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.modal-header h2 {
+  font-size: var(--font-lg, 16px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-body,
+.settings-body,
+.modal-content-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 24px;
+  box-sizing: border-box;
+}
+
+.modal-actions,
+.modal-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+/* Modal sizes by purpose */
+.modal.modal-sm {
+  width: min(440px, calc(100vw - 32px));
+  max-width: min(440px, calc(100vw - 32px));
+}
+
+.modal.modal-md,
+.settings-modal,
+.provider-modal,
+.auth-modal,
+.onboarding-modal,
+.upgrade-modal {
+  width: min(720px, calc(100vw - 32px));
+  max-width: min(720px, calc(100vw - 32px));
+}
+
+.modal.modal-lg,
+.trading-modal,
+.torrent-manager,
+.domain-hub-modal,
+.file-editor-modal,
+.diff-review-modal,
+.diagnostics-modal,
+.citation-graph-modal {
+  width: min(940px, calc(100vw - 40px));
+  max-width: min(940px, calc(100vw - 40px));
+  max-height: min(90vh, 920px);
+}
+
+.modal.modal-xl,
+.media-studio-modal,
+.video-studio-modal {
+  width: min(1180px, calc(100vw - 48px));
+  max-width: min(1180px, calc(100vw - 48px));
+  max-height: min(92vh, 960px);
+}
+
+/* ── 14.6 DashboardShell & Settings Rail Elevation ───────────────────── */
+.dash-shell {
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary, #0a0e14);
+}
+
+.dash-rail {
+  width: 280px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  background: var(--sidebar-glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-right: 1px solid var(--sidebar-border);
+  overflow-y: auto;
+}
+
+.dash-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .dash-shell {
+    flex-direction: column;
+  }
+  .dash-rail {
+    width: 100%;
+    height: auto;
+    max-height: 200px;
+  }
+}
+
+.dash-nav-item {
+  min-height: 44px;
+  padding: 10px 14px;
+  gap: 12px;
+  border-radius: var(--radius-md, 8px);
+  margin: 3px 12px;
+  font-size: var(--font-sm, 13px);
+  font-weight: 500;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.dash-nav-item:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border);
+  color: var(--text-primary);
+}
+
+.dash-nav-item.active {
+  background: var(--item-active-glass-bg);
+  border: 1px solid var(--item-active-border);
+  border-left: 3px solid var(--accent);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.dash-content {
+  padding: 32px 48px;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dash-card,
+.settings-card,
+.provider-card,
+.mcp-card,
+.plugin-card,
+.agent-card,
+.skill-card {
+  padding: 22px 26px;
+  border-radius: var(--radius-lg, 14px);
+  background: var(--card-glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  margin-bottom: 20px;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+
+.dash-card:hover,
+.settings-card:hover,
+.provider-card:hover,
+.mcp-card:hover,
+.plugin-card:hover,
+.agent-card:hover,
+.skill-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ── 14.7 Chat Input Composer & Action Toolbar ──────────────────────── */
+.input-area {
+  padding: 14px 20px 20px;
+  background: var(--sidebar-glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-border);
+}
+
+.input-wrapper {
+  max-width: var(--chat-max-width);
+  margin: 0 auto;
+  border-radius: var(--radius-xl, 16px);
+}
+
+.composer-top-bar {
+  min-height: 38px;
+  gap: 8px;
+  padding: 4px 6px;
+  margin: 0 auto 10px;
+  align-items: center;
+}
+
+.persona-chips {
+  gap: 6px;
+}
+
+.persona-chip {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-pill, 999px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-trigger,
+.upload-area .model-trigger {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.composer-textarea {
+  min-height: 52px;
+  padding: 12px 18px;
+  font-size: var(--font-base, 14px);
+  line-height: 1.55;
+  border-radius: var(--radius-lg, 12px);
+}
+
+.send-btn {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: var(--radius-md, 10px);
+  font-size: var(--font-sm, 13px);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  box-shadow: 0 4px 16px rgba(255, 122, 24, 0.32);
+  border: none;
+  color: #ffffff;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.send-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 22px rgba(255, 122, 24, 0.42);
+  transform: translateY(-1px);
+}
+
+.send-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ── 14.8 Bottom & Side Drawers (Terminal, Activity, Workspace) ───────── */
+.terminal-drawer {
+  border-top: 1px solid var(--glass-border);
+  background: var(--sidebar-glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.terminal-header {
+  height: 44px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.terminal-body {
+  padding: 14px 18px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.activity-panel,
+.ws-dock,
+.browser-panel,
+.artifact-panel {
+  width: clamp(360px, 32vw, 560px);
+  border-left: 1px solid var(--glass-border);
+  background: var(--sidebar-glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.25);
+}
+
+.activity-panel-header,
+.ws-dock-header,
+.browser-toolbar,
+.artifact-panel-header {
+  height: 52px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── 14.9 Command Palette Polish ─────────────────────────────────────── */
+.palette {
+  width: min(680px, calc(100vw - 32px));
+  max-height: 75vh;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  background: var(--modal-glass-bg);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  box-shadow:
+    0 0 0 1px var(--glass-border),
+    0 28px 80px rgba(0, 0, 0, 0.7);
+}
+
+.palette-input {
+  height: 54px;
+  font-size: var(--font-base, 15px);
+  padding: 0 20px 0 48px;
+  border: none;
+  border-bottom: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.palette-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.palette-item {
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md, 10px);
+  margin: 3px 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.palette-item:hover,
+.palette-item.active {
+  background: var(--glass-bg-hover);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ── 14.10 Light & Contrast Theme Depth Adjustments ──────────────────── */
+[data-theme="light"] input[type="text"],
+[data-theme="light"] input[type="password"],
+[data-theme="light"] input[type="email"],
+[data-theme="light"] input[type="search"],
+[data-theme="light"] input[type="number"],
+[data-theme="light"] input[type="url"],
+[data-theme="light"] select {
+  box-shadow: inset 0 1.5px 2px rgba(0, 0, 0, 0.06), 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="light"] .modal,
+[data-theme="light"] .modal-content,
+[data-theme="light"] .modal-card,
+[data-theme="light"] .palette {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 32px -4px rgba(20, 30, 45, 0.15),
+    0 28px 72px -12px rgba(20, 30, 45, 0.22);
+}
+
+[data-theme="contrast"] input[type="text"],
+[data-theme="contrast"] input[type="password"],
+[data-theme="contrast"] input[type="email"],
+[data-theme="contrast"] input[type="search"],
+[data-theme="contrast"] input[type="number"],
+[data-theme="contrast"] input[type="url"],
+[data-theme="contrast"] select,
+[data-theme="contrast"] .modal,
+[data-theme="contrast"] .modal-content,
+[data-theme="contrast"] .modal-card,
+[data-theme="contrast"] .palette {
+  border: 2px solid #ffffff;
+  box-shadow: none;
+}
+
+/* ── 14.11 Account, Providers, Capabilities & Workspace Buttons ──────── */
+.account-page {
+  max-width: 900px;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.account-card {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg, 14px);
+  padding: 24px 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+
+.account-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.account-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.account-card-head h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0;
+}
+
+.account-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid var(--glass-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.account-avatar-fallback {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(255, 122, 24, 0.2));
+  color: var(--accent);
+  border: 2px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.account-identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.account-identity-text strong {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.account-identity-text span {
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-signed-out p,
+.account-plan-detail {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
+.account-plan-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.account-plan-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.account-device-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.account-device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  border: 1px solid var(--glass-border);
+  text-decoration: none;
+  transition: all var(--dur-fast);
+}
+
+.account-device-chip:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* Common Workspace & Account Action Buttons */
+.ws-primary-btn {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: var(--radius-md, 8px);
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 3px 12px rgba(255, 122, 24, 0.3);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.ws-primary-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  box-shadow: 0 6px 20px rgba(255, 122, 24, 0.42);
+  transform: translateY(-1px);
+}
+
+.ws-primary-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ws-ghost-btn {
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.ws-ghost-btn:hover:not(:disabled) {
+  background: var(--bg-input);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.ws-ghost-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.ws-ghost-btn.danger {
+  color: var(--error, #f43f5e);
+}
+
+.ws-ghost-btn.danger:hover:not(:disabled) {
+  border-color: var(--error);
+  color: var(--error);
+  background: color-mix(in srgb, var(--error, #f43f5e) 12%, transparent);
+}
+
+.ws-primary-btn.sm,
+.ws-ghost-btn.sm {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+.ws-primary-btn.xs,
+.ws-ghost-btn.xs {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+/* Providers List Polish */
+.providers-page {
+  max-width: 900px;
+  width: 100%;
+}
+
+.provider-row-card {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 20px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  margin-bottom: 12px;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.provider-row-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  transform: translateY(-1px);
+}
+
+.provider-row-card.active {
+  border-color: var(--accent);
+  border-left: 3px solid var(--accent);
+  box-shadow: 0 4px 18px rgba(255, 107, 53, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.provider-row-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.provider-card-title strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.provider-active-badge {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.provider-latency-badge {
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+.provider-key-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.provider-key-row input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.provider-model-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.provider-model-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.provider-model-row select {
+  min-height: 38px;
+  max-width: 380px;
+  padding: 8px 36px 8px 12px;
+  font-size: 13px;
+}
+
+/* Tool Groups & Capabilities */
+.tool-group-card {
+  padding: 18px 22px !important;
+  border-radius: var(--radius-lg, 12px) !important;
+  background: var(--card-glass-bg) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  margin-bottom: 18px !important;
+}
+
+.tool-group-head {
+  padding-bottom: 10px !important;
+  margin-bottom: 12px !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+}
+
+.tool-toggle-item {
+  padding: 8px 12px !important;
+  border-radius: var(--radius-md, 8px) !important;
+  transition: all var(--dur-fast) !important;
+}
+
+.tool-toggle-item:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  border-color: var(--accent) !important;
+  transform: translateY(-1px);
+}
+
+/* ── 14.12 Dashboard Tabs, Groups, Kanban, MCP & Billing Modules ────── */
+.tab-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px !important;
+  flex-wrap: wrap;
+}
+
+.tab-row button {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.tab-row button:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+}
+
+.tab-row button.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(255, 122, 24, 0.22));
+  border-color: var(--accent-cyan, var(--accent));
+  color: var(--text-primary);
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.2);
+}
+
+.personalise-group {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg, 14px);
+  padding: 22px 26px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+.personalise-group:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.personalise-group h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.personalise-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+
+.personalise-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+/* Kanban Board Layout & Tasks */
+.kanban-column {
+  background: var(--card-glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-lg, 12px) !important;
+  padding: 14px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 260px;
+}
+
+.kanban-task-card {
+  background: rgba(255, 255, 255, 0.035) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-md, 8px) !important;
+  padding: 12px 14px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.kanban-task-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--glass-border)) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Capabilities & Tool Picker */
+.tool-picker-modal-content {
+  max-height: 70vh !important;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.cap-search input {
+  min-height: 40px !important;
+  padding-left: 36px !important;
+  font-size: 13.5px !important;
+  border-radius: var(--radius-md, 8px) !important;
+}
+
+.tool-group-card {
+  background: var(--card-glass-bg) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-lg, 12px) !important;
+  padding: 16px 20px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  margin-bottom: 18px !important;
+}
+
+.tool-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px !important;
+  margin-bottom: 12px !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+}
+
+.tool-group-head strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.tool-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.tool-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px !important;
+  border-radius: var(--radius-md, 8px) !important;
+  border: 1px solid var(--border-subtle) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.tool-toggle-item:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+  border-color: var(--accent) !important;
+  transform: translateY(-1px);
+}
+
+.tool-toggle-item.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* Billing Panel Embedded Polish */
+.billing-panel.embedded-page {
+  width: 100%;
+  max-width: 900px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.billing-plan-card {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-left: 4px solid var(--success, #10b981) !important;
+  border-radius: var(--radius-lg, 14px);
+  padding: 22px 26px;
+  margin-bottom: 22px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+/* MCP Servers & Presets */
+.mcp-servers-page {
+  max-width: 940px;
+  width: 100%;
+}
+
+.mcp-server-card {
+  background: var(--card-glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 18px 22px;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.mcp-server-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  transform: translateY(-1px);
+}
+
+/* ── 14.13 Diagnostics, Data & Usage Dashboard Module Polish ────── */
+.diagnostics-modal.embedded-page,
+.data-dashboard.embedded-page {
+  width: 100% !important;
+  max-width: 960px !important;
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.tab-btn {
+  padding: 10px 18px !important;
+  font-size: 13px !important;
+  border-radius: var(--radius-md, 8px) var(--radius-md, 8px) 0 0 !important;
+  transition: all var(--dur-fast) var(--ease-out-quint) !important;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--text-primary) !important;
+}
+
+.tab-btn.active {
+  color: var(--accent-cyan, var(--accent)) !important;
+  border-bottom: 2px solid var(--accent-cyan, var(--accent)) !important;
+}
+
+.error-btn-secondary {
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: var(--radius-md, 6px);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.error-btn-secondary:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.data-dashboard .yg-panel-body > div > div[style*="grid"] > div,
+.diagnostics-modal div[style*="border: 1px solid"] {
+  border-radius: var(--radius-lg, 12px) !important;
+  background: var(--card-glass-bg) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+
+.data-dashboard .yg-panel-body > div > div[style*="grid"] > div:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--glass-border)) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  transform: translateY(-1px);
+}
+
+
+
+
+

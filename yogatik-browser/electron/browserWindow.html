@@ -50,6 +50,7 @@
       --bg-toolbar: rgba(255, 255, 255, 0.88);
       --bg-tab-bar: rgba(241, 245, 249, 0.9);
       --bg-input: #e2e8f0;
+      --bg-input-focus: #ffffff;
       --bg-hover: rgba(0, 0, 0, 0.04);
       --bg-active: rgba(0, 0, 0, 0.08);
       --border-color: rgba(0, 0, 0, 0.08);
@@ -592,7 +593,7 @@
     }
     #addr-wrap:focus-within {
       border-color: var(--border-focus);
-      background: rgba(22, 31, 50, 0.85);
+      background: var(--bg-input-focus, rgba(22, 31, 50, 0.85));
       box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.18), 0 4px 14px rgba(0, 0, 0, 0.35);
     }
     .omnibox-lock {
@@ -604,6 +605,8 @@
       opacity: 0.85;
       flex-shrink: 0;
     }
+    .omnibox-lock.insecure { color: #f59e0b; opacity: 1; }
+    .omnibox-lock.internal { color: var(--accent-cyan, #06b6d4); opacity: 0.95; }
     #addr {
       flex: 1 1 auto;
       min-width: 0;
@@ -675,11 +678,23 @@
       right: 0;
       margin-top: 4px;
       background: var(--bg-toolbar);
+      backdrop-filter: var(--glass-filter);
+      -webkit-backdrop-filter: var(--glass-filter);
       border: 1px solid var(--border-color);
       border-radius: 10px;
       box-shadow: 0 12px 32px rgba(0,0,0,0.5);
       z-index: 50;
       padding: 8px;
+    }
+    .nav-btn:focus-visible, .tab:focus-visible, .ai-chip:focus-visible, .shield-toggle-btn:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 1px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
     }
     .dl-menu { width: 330px; max-height: 380px; overflow-y: auto; }
     .dl-list { display: flex; flex-direction: column; gap: 6px; }
@@ -1255,6 +1270,18 @@
         <div class="stat-row">
           <span>Network Filter:</span>
           <strong>Strict</strong>
+        </div>
+        <div class="stat-row">
+          <span>Clean URLs (UTM Strip):</span>
+          <strong style="color:var(--badge-shield);">Active</strong>
+        </div>
+        <div class="stat-row">
+          <span>Global Privacy (GPC):</span>
+          <strong style="color:var(--badge-shield);">Sent</strong>
+        </div>
+        <div class="stat-row">
+          <span>HTTPS-Only Mode:</span>
+          <strong style="color:var(--badge-shield);">Active</strong>
         </div>
         <div class="site-perm-divider"></div>
         <div class="site-perm-header">
@@ -2348,6 +2375,23 @@
 
       if (nav) {
         if (document.activeElement !== addr) addr.value = nav.url || ''
+        const lockEl = document.querySelector('#addr-wrap .omnibox-lock')
+        if (lockEl) {
+          const u = String(nav.url || '')
+          lockEl.classList.remove('insecure', 'internal')
+          if (u.startsWith('https://')) {
+            lockEl.innerHTML = '&#128274;'
+            lockEl.title = 'Secure HTTPS connection'
+          } else if (u.startsWith('http://')) {
+            lockEl.innerHTML = '&#9888;&#65039;'
+            lockEl.title = 'Insecure HTTP connection'
+            lockEl.classList.add('insecure')
+          } else {
+            lockEl.innerHTML = '&#10022;'
+            lockEl.title = 'Yogatik Browser internal page'
+            lockEl.classList.add('internal')
+          }
+        }
         backBtn.disabled = !nav.canGoBack
         fwdBtn.disabled = !nav.canGoForward
         reloadBtn.classList.toggle('loading', !!nav.loading)

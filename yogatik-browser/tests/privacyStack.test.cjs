@@ -448,6 +448,25 @@ async function run() {
     pass('storage-audit + wipe-origin IPC validate payloads and respond cleanly')
   } catch (e) { fail('storage-audit + wipe-origin IPC validate payloads and respond cleanly', e) }
 
+  section('8. stripTrackingParams & upgradeHttpsUrl (clean URLs + HTTPS-only)')
+  try {
+    const cleaned = privacyStack.stripTrackingParams('https://example.com/post?id=42&utm_source=x&fbclid=abc#sec')
+    assert(cleaned.strippedCount === 2, 'should strip 2 tracking params')
+    assert(cleaned.url === 'https://example.com/post?id=42#sec', 'must preserve non-tracking params and hash: ' + cleaned.url)
+
+    const untouched = privacyStack.stripTrackingParams('https://localhost:3000/?utm_source=dev')
+    assert(untouched.strippedCount === 0, 'localhost must stay untouched')
+    pass('stripTrackingParams removes tracking params while preserving content params and hash')
+  } catch (e) { fail('stripTrackingParams removes tracking params while preserving content params and hash', e) }
+
+  try {
+    assert(privacyStack.upgradeHttpsUrl('http://example.com/a?b=1', 'GET') === 'https://example.com/a?b=1', 'public GET should upgrade')
+    assert(privacyStack.upgradeHttpsUrl('http://example.com/login', 'POST') === null, 'POST must not upgrade')
+    assert(privacyStack.upgradeHttpsUrl('http://127.0.0.1:8080/api', 'GET') === null, 'loopback must not upgrade')
+    assert(privacyStack.upgradeHttpsUrl('http://example.com/favicon.ico', 'GET') === null, 'favicon.ico exempt')
+    pass('upgradeHttpsUrl upgrades public idempotent http requests and exempts POST/LAN/favicon')
+  } catch (e) { fail('upgradeHttpsUrl upgrades public idempotent http requests and exempts POST/LAN/favicon', e) }
+
   // Restore module resolution for anything loaded after this suite.
   Module._resolveFilename = origResolve
   return { passes, failures }

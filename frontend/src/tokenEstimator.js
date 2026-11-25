@@ -120,6 +120,8 @@ export function getUsageColor(percent) {
   return '#34d399' // green
 }
 
+export { extractUsageFromResponse, default as tokenTracker } from './tokenTracker'
+
 // Re-export CHARS_PER_TOKEN as default for convenience
 export default {
   CHARS_PER_TOKEN,

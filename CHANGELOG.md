@@ -1,5 +1,15 @@
 # Changelog
 
+## [22.0.0] — 2026-11-25: On-Device Object Detection, Chromium Privacy Stack & PDF/Theme Polish
+
+Major capability and privacy release introducing on-device semantic object detection (`detect_objects`), a full Chromium privacy & network stack in Yogatik Browser, clean PDF/document generation, and synchronized light/dark theme polish across all platforms.
+
+### 🚀 Highlights
+- **On-Device Semantic Object Detection (`detect_objects`)**: Unified lazy-loaded vision tool combining DETR bounding-box detection, optional CLIP zero-shot classification, and Tesseract OCR.
+- **Chromium Privacy Stack (`privacyStack.cjs`)**: Encrypted DNS (DoH + ECH), opt-in CSP injection, isolated container sessions (`persist:container-*`), tracking parameter stripping, and per-origin storage audit & wipe.
+- **PDF & Theme Polish**: Eliminated PDF text distortion, sanitized typography/emojis, synchronized light/dark design tokens across Studio and Browser, and streamlined the composer by removing the floating tool status panel.
+- **Multi-Platform Deployment & CI/CD**: Unified version 22.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [21.0.0] — 2026-11-22: Deep Space Minimal & Acrylic Glass Redesign, Turbo Tab Sync & Enhanced Page-Context AI
 
 Major design and stability release overhauling the user interface across Yogatik Browser and Yogatik Studio with a cohesive Deep Space Minimal and Acrylic Glass aesthetic, re-engineering the tab lifecycle engine for instantaneous tab creation and self-healing state, and delivering synchronized multi-platform releases.

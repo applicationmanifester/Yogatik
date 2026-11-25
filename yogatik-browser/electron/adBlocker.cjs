@@ -432,20 +432,24 @@ function shouldBlockUrl(rawUrl) {
   return false
 }
 
+function recordBlocked() {
+  blockedCount++
+  lifetimeBlocked++
+  persistLifetimeCount()
+}
+
 /**
  * Register network-level ad blocking on the default Electron session.
  */
-function enableAdBlocker(ses = session.defaultSession) {
-  if (!ses?.webRequest) return
+function enableAdBlocker(ses = session.defaultSession, opts = {}) {
   // Ensure patterns are loaded
   if (!patternsLoaded) {
     initializePatterns().catch(() => {})
   }
+  if (opts.skipRequestHook || !ses?.webRequest) return
   ses.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*'] }, (details, cb) => {
     if (isAdShieldEnabled() && shouldBlockUrl(details.url)) {
-      blockedCount++
-      lifetimeBlocked++
-      persistLifetimeCount()
+      recordBlocked()
       cb({ cancel: true })
       return
     }
@@ -487,6 +491,7 @@ loadLifetimeCount()
 
 module.exports = {
   shouldBlockUrl,
+  recordBlocked,
   enableAdBlocker,
   injectAdShield,
   isAdShieldEnabled,

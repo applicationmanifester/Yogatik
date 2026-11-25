@@ -1116,8 +1116,8 @@ export async function runAgent({
   }
 
   // Tells the `see` tool whether to hand back pixels (this model can look) or
-  // a text observation from the on-device VLM (it cannot).
-  setVisionContext({ modelCanSee, allowLocal: localVisionEnabled })
+  // a text observation from the on-device VLM (it cannot), scoped per chat.
+  setVisionContext({ modelCanSee, allowLocal: localVisionEnabled }, executionCtx.conversationId || 'default')
 
   // Fold the active skill's + active agent's tool allowlists into the disabled set.
   let effectiveDisabled = disabledTools
@@ -1244,9 +1244,15 @@ function safelyParseToolArgs(raw) {
           }
           // Swallow bare degenerate stubs that Nemotron/Qwen emit when stalling
           // after tool results - "null", "undefined", etc. are not real answers.
-          const tTrimmed = t.trim()
-          const isStubToken = /^(?:null|undefined|none|n\/a|na|false|true)$/i.test(tTrimmed)
-          if (isStubToken) return
+          // Only suppress when no visible prose has streamed yet AND the entire
+          // non-thinking reply so far is still just that bare stub word; otherwise
+          // valid mid-sentence tokens like "true", "false", or "null" would be dropped.
+          const nonThinkingSoFar = roundContent
+            .replace(/<(?:think|thought|reasoning)\b[^>]*>[\s\S]*?<\/(?:think|thought|reasoning)>/gi, '')
+            .replace(/<(?:think|thought|reasoning)\b[^>]*>[\s\S]*$/i, '')
+            .trim()
+          const isBareStub = !fullContent && /^(?:null|undefined|none|n\/a|na|false|true)$/i.test(nonThinkingSoFar)
+          if (isBareStub) return
           if (toolMode !== 'prompted') {
             const nonThinking = roundContent
               .replace(/<(?:think|thought|reasoning)\b[^>]*>[\s\S]*?<\/(?:think|thought|reasoning)>/gi, '')

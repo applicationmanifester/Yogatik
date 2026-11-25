@@ -3,7 +3,7 @@ import { detectReflexCandidate, REFLEX_WHITELIST } from './agentReflex'
 
 describe('agentReflex — whitelist', () => {
   it('is the small, deliberately conservative set, never web_search/social_search or anything side-effecting', () => {
-    expect(REFLEX_WHITELIST).toEqual(['unit_convert', 'calculator', 'weather', 'timezone', 'translate'])
+    expect(REFLEX_WHITELIST).toEqual(['unit_convert', 'calculator', 'weather', 'timezone', 'translate', 'currency'])
     expect(REFLEX_WHITELIST).not.toContain('web_search')
     expect(REFLEX_WHITELIST).not.toContain('social_search')
     expect(REFLEX_WHITELIST).not.toContain('fs_write')
@@ -99,6 +99,29 @@ describe('agentReflex — translate', () => {
 
   it('leaves other phrasings ("how do you say...") to the model, deliberately', () => {
     expect(detectReflexCandidate('how do you say hello in spanish')).toBeNull()
+  })
+})
+
+describe('agentReflex — currency', () => {
+  it('detects ISO currency pairs with or without explicit amounts and symbols', () => {
+    expect(detectReflexCandidate('100 USD to INR')).toEqual({
+      name: 'currency', args: { from: 'USD', to: 'INR', amount: 100 },
+    })
+    expect(detectReflexCandidate('convert 50.5 eur into jpy')).toEqual({
+      name: 'currency', args: { from: 'EUR', to: 'JPY', amount: 50.5 },
+    })
+    expect(detectReflexCandidate('$250 in EUR?')).toEqual({
+      name: 'currency', args: { from: 'USD', to: 'EUR', amount: 250 },
+    })
+    expect(detectReflexCandidate('USD to INR')).toEqual({
+      name: 'currency', args: { from: 'USD', to: 'INR', amount: 1 },
+    })
+  })
+
+  it('never triggers on same-currency, zero/negative amounts, or unknown codes', () => {
+    expect(detectReflexCandidate('100 USD to USD')).toBeNull()
+    expect(detectReflexCandidate('0 USD to INR')).toBeNull()
+    expect(detectReflexCandidate('100 XYZ to INR')).toBeNull()
   })
 })
 

@@ -430,7 +430,7 @@ export async function streamMessage(body, onToken, onSources, onDone, onError, o
     return
   }
 
-  const channel = body.channel || 'chat'
+  const channel = body.channel || body.conversationId || 'chat'
   aborters.get(channel)?.abort()
   const controller = new AbortController()
   aborters.set(channel, controller)
@@ -546,7 +546,10 @@ export async function streamMessage(body, onToken, onSources, onDone, onError, o
               modelCanSee: (await getCachedVision(pid, fallbackMdl)) ?? looksVisionCapable(fallbackMdl),
               localVisionEnabled: prefs2.local_vision !== false,
               onToolModeChange: (mode) => { setToolMode(pid, fallbackMdl, mode).catch(() => {}) },
-              temperature: body.temperature || 0.7,
+              temperature: qualityParams.temperature ?? body.temperature ?? 0.7,
+              maxTokens: body.maxTokens ?? body.max_tokens ?? null,
+              providerOptions: qualityParams.providerOptions,
+              responseFormat: qualityParams.responseFormat,
               signal: controller.signal,
               onToken: (t) => { produced = true; onToken?.(t) },
               onStatus,
