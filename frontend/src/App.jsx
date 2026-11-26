@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, useDeferredValue, startTransition } from 'react'
 import ReactDOM from 'react-dom' // Test edit after rename // Test edit on backup // TODO: test edit
-import { Send, Plus, Sun, Moon, Upload, Menu, X, Trash2, Plug, LogIn, LogOut, User, Square, Download, DownloadCloud, Share2, Sparkles, Mic, MicOff, Wrench, Smartphone, AlertTriangle, Globe, FileText, Film, Search, Pencil, RefreshCw, ChevronDown, Key, Cloud, CloudOff, Zap, GitCompare, Radio, Sliders, Cpu, Folder, Star, Tag, Filter, Clock, Bell, Monitor, Activity, Bot, ListPlus, Edit2, PanelLeft, TerminalSquare, Compass, FileCode, Wand2, CheckCircle2, PlayCircle, ShieldCheck, Brain, Play, DollarSign, LayoutDashboard, ExternalLink, Camera, TrendingUp, Package } from 'lucide-react'
+import { Send, Plus, Sun, Moon, Upload, Menu, X, Trash2, Plug, LogIn, LogOut, User, Square, Download, DownloadCloud, Share2, Sparkles, Mic, MicOff, Wrench, Smartphone, AlertTriangle, Globe, FileText, Film, Search, Pencil, RefreshCw, ChevronDown, Key, Cloud, CloudOff, Zap, GitCompare, Radio, Sliders, Cpu, Folder, Star, Tag, Filter, Clock, Bell, Monitor, Activity, Bot, ListPlus, Edit2, PanelLeft, TerminalSquare, Compass, FileCode, Wand2, CheckCircle2, PlayCircle, ShieldCheck, Shield, ShieldAlert, ShieldOff, Brain, Play, DollarSign, LayoutDashboard, ExternalLink, Camera, TrendingUp, Package } from 'lucide-react'
 import { streamMessage, stopGeneration, enhancePromptText, uploadDocument, getModels, removeProvider, testProvider, saveProviderApiKey, logout, getMe, getConversations, getConversation, deleteConversation, getTemplates, requestTTS, stopTTS, listDocuments, removeDocument, createConversation, saveMessage, renameConversation, updateConversationFolder, updateConversationTags, updateConversationModel, trimConversationFrom, getActiveProvider, setActiveProvider, getActiveModel, setActiveModel, getAllProviderStatus, ensureTested, autoPickModel, getTools, setToolEnabled, setToolsEnabledBulk, getPrefs, setPref, getTodayUsage, getProjects, createProject, deleteProject, getActiveProject, setActiveProject, hasAcceptedTerms, acceptTerms, downloadBackup, restoreBackup, getMeasuredModels, isRetiredModelError, pruneRetiredModel, getAllKeyInfo, forgetApiKey, getLiveConfig, checkGoogleRedirect, authRedirectPending, hasAnyProviderKey, getStoredProvider, getVisionStatus, syncCloudKeys, createTemplate, updateTemplate, deleteTemplate, addCustomModelToProvider } from './api'
 import { isDesktop, addRoot, listRoots, removeRoot, setPrimaryRoot, rebindChatRoots, unbindChatRoots, setWorkspaceContext } from './tools/localFs'
 import { getFavoriteLocations, addFavoriteLocation, removeFavoriteLocation, isFavoriteLocation, toggleFavoriteLocation, getRecentLocations, recordRecentLocation } from './tools/favoriteLocations'
@@ -332,6 +332,9 @@ export default function App() {
   const [autoRoute, setAutoRouteState] = useState(false)
   const [fallback, setFallbackState] = useState(true)
   const [prefs, setPrefsState] = useState({})
+  const [permissionMode, setPermissionModeState] = useState('review')
+  const [showPermModeMenu, setShowPermModeMenu] = useState(false)
+  const permModeRef = useRef(null)
   const [showPersonalise, setShowPersonalise] = useState(false)
   // Account/Providers/Privacy split off the one catch-all "Settings" page —
   // see the comment on DASHBOARD_SECTIONS in DashboardShell.jsx.
@@ -1034,6 +1037,30 @@ export default function App() {
   const resolvePermission = useCallback((answer) => {
     setPermRequest(prev => { prev?.resolve(answer); return null })
   }, [])
+
+  // ── Permission Mode selector ──────────────────────────────────────────────
+  const setPermissionMode = useCallback((mode) => {
+    setPermissionModeState(mode)
+    setShowPermModeMenu(false)
+    // Persist into prefs.features.permissionMode
+    setPrefsState(p => {
+      const next = { ...p, features: { ...(p.features || {}), permissionMode: mode } }
+      setPref('features', next.features).catch(() => {})
+      return next
+    })
+  }, [])
+
+  // Close perm-mode popover when clicking outside
+  useEffect(() => {
+    if (!showPermModeMenu) return
+    const handler = (e) => {
+      if (permModeRef.current && !permModeRef.current.contains(e.target)) {
+        setShowPermModeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showPermModeMenu])
 
   // This chat's folders. Reloads when the chat or project changes, which is what
   // makes switching chats switch the working folder.
@@ -2087,6 +2114,8 @@ export default function App() {
       setLocaleOverrides(overridesFromPrefs(pref))
       applyDocumentLocale()
       setPrefsState(pref)
+      // Restore saved permission mode
+      if (pref?.features?.permissionMode) setPermissionModeState(pref.features.permissionMode)
     }).catch(() => {})
     refreshToolPrefs()
     refreshKeys()
@@ -7232,6 +7261,51 @@ export default function App() {
                 <Sparkles size={16} />
               </button>
             )}
+            {/* ── Permission Mode Selector ──────────────────────────────── */}
+            <div ref={permModeRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              {showPermModeMenu && (
+                <div className="perm-mode-popover" role="menu">
+                  <div className="perm-mode-header">Local Permissions</div>
+                  {(() => {
+                    const PERM_MODES = [
+                      { id: 'review', label: 'Request Review', desc: 'Every command requires approval.', Icon: ShieldAlert },
+                      { id: 'default', label: 'Default', desc: 'Ask before sensitive operations.', Icon: Shield },
+                      { id: 'auto', label: 'Auto', desc: 'Automatically decide if commands run.', Icon: Shield },
+                      { id: 'turbo', label: 'Turbo', desc: 'Run all commands without restrictions.', Icon: ShieldOff },
+                    ]
+                    return PERM_MODES.map(({ id, label, desc, Icon }) => (
+                      <button
+                        type="button"
+                        key={id}
+                        role="menuitem"
+                        className={`perm-mode-item${permissionMode === id ? ' active' : ''}`}
+                        onClick={() => setPermissionMode(id)}
+                      >
+                        <Icon size={16} className="perm-mode-icon" />
+                        <span className="perm-mode-text">
+                          <span className="perm-mode-label">{label}{id === 'turbo' && <span className="perm-mode-badge">Default</span>}</span>
+                          <span className="perm-mode-desc">{desc}</span>
+                        </span>
+                        {permissionMode === id && <span className="perm-mode-check">✓</span>}
+                      </button>
+                    ))
+                  })()}
+                </div>
+              )}
+              <button
+                type="button"
+                className={`perm-mode-btn perm-mode-btn--${permissionMode}`}
+                onClick={() => setShowPermModeMenu(v => !v)}
+                title={`Permission mode: ${permissionMode}`}
+                aria-label="Permission mode"
+                aria-haspopup="true"
+                aria-expanded={showPermModeMenu}
+              >
+                {permissionMode === 'turbo' ? <ShieldOff size={14} /> : permissionMode === 'review' ? <ShieldAlert size={14} /> : <Shield size={14} />}
+                <span className="perm-mode-btn-label">{permissionMode.charAt(0).toUpperCase() + permissionMode.slice(1)}</span>
+                <ChevronDown size={11} className={`perm-mode-chevron${showPermModeMenu ? ' open' : ''}`} />
+              </button>
+            </div>
             <VoiceDictationButton
               disabled={isStreamingHere}
               onTranscript={(spokenText) => {

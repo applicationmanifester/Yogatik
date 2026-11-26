@@ -205,3 +205,75 @@ describe('dev-tool risk classification', () => {
     expect(r.denied).toBe(true)
   })
 })
+
+describe('permissionMode feature setting', () => {
+  beforeEach(async () => {
+    _resetPermissions()
+    const { setSetting } = await import('./db')
+    await setSetting('chat_prefs', {})
+    await setSetting('prefs', {})
+  })
+
+  it('turbo mode auto-allows writes and terminal_run without prompting', async () => {
+    const { setSetting } = await import('./db')
+    await setSetting('chat_prefs', { features: { permissionMode: 'turbo' } })
+    let prompted = false
+    setPermissionPrompt(async () => { prompted = true; return { outcome: 'deny' } })
+
+    const w = await requestPermission('fs_write', { path: 'a.txt', content: 'hi' }, {})
+    const t = await requestPermission('terminal_run', { command: 'npm test' }, {})
+    expect(w.allowed).toBe(true)
+    expect(t.allowed).toBe(true)
+    expect(prompted).toBe(false)
+  })
+
+  it('turbo mode still prompts for recursive fs_delete', async () => {
+    const { setSetting } = await import('./db')
+    await setSetting('chat_prefs', { features: { permissionMode: 'turbo' } })
+    let prompted = false
+    setPermissionPrompt(async () => { prompted = true; return { outcome: 'deny' } })
+
+    const d = await requestPermission('fs_delete', { path: 'build', recursive: true }, {})
+    expect(d.allowed).toBe(false)
+    expect(prompted).toBe(true)
+  })
+
+  it('auto mode auto-allows writes and terminal_run, but prompts for fs_delete', async () => {
+    const { setSetting } = await import('./db')
+    await setSetting('chat_prefs', { features: { permissionMode: 'auto' } })
+    let promptCount = 0
+    setPermissionPrompt(async () => { promptCount++; return { outcome: 'deny' } })
+
+    expect((await requestPermission('fs_write', { path: 'a.txt' }, {})).allowed).toBe(true)
+    expect((await requestPermission('terminal_run', { command: 'echo ok' }, {})).allowed).toBe(true)
+    expect(promptCount).toBe(0)
+
+    expect((await requestPermission('fs_delete', { path: 'a.txt' }, {})).allowed).toBe(false)
+    expect(promptCount).toBe(1)
+  })
+
+  it('default mode auto-allows writes, but prompts for terminal_run', async () => {
+    const { setSetting } = await import('./db')
+    await setSetting('chat_prefs', { features: { permissionMode: 'default' } })
+    let promptCount = 0
+    setPermissionPrompt(async () => { promptCount++; return { outcome: 'deny' } })
+
+    expect((await requestPermission('fs_write', { path: 'a.txt' }, {})).allowed).toBe(true)
+    expect(promptCount).toBe(0)
+
+    expect((await requestPermission('terminal_run', { command: 'echo ok' }, {})).allowed).toBe(false)
+    expect(promptCount).toBe(1)
+  })
+
+  it('read-only mode denies all writes and terminal_run without prompting', async () => {
+    const { setSetting } = await import('./db')
+    await setSetting('chat_prefs', { features: { permissionMode: 'read-only' } })
+    let prompted = false
+    setPermissionPrompt(async () => { prompted = true; return { outcome: 'allow' } })
+
+    expect((await requestPermission('fs_read', { path: 'a.txt' }, {})).allowed).toBe(true)
+    expect((await requestPermission('fs_write', { path: 'a.txt' }, {})).allowed).toBe(false)
+    expect((await requestPermission('terminal_run', { command: 'echo ok' }, {})).allowed).toBe(false)
+    expect(prompted).toBe(false)
+  })
+})

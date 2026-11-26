@@ -191,7 +191,7 @@ export async function clearPermissionRules() {
 function auditHow(reason = '') {
   const r = String(reason)
   if (/saved rule|read-only/i.test(r)) return 'rule'
-  if (/settings|auto-execution|Autonomous|Read Only/i.test(r)) return 'settings'
+  if (/settings|auto-execution|Autonomous|Read Only|mode —/i.test(r)) return 'settings'
   if (/user/i.test(r)) return 'user'
   if (/approval UI|approval prompt/i.test(r)) return 'fail-closed'
   return 'unknown'
@@ -228,17 +228,62 @@ async function _requestPermission(tool, args, ctx = {}) {
     return { allowed: false, reason: 'Denied: no approval UI is available to confirm this action.' }
   }
 
-  // Check user preference for Terminal Command Auto Execution
+async function loadFeaturePrefs() {
+  try {
+    const chatPrefs = await getSetting('chat_prefs', null)
+    if (chatPrefs?.features) return chatPrefs.features
+    const legacyPrefs = await getSetting('prefs', null)
+    return legacyPrefs?.features || {}
+  } catch {
+    return {}
+  }
+}
+
+  // ── Permission Mode (global override) ──────────────────────────────────────
+  // Modes: 'review' (default) | 'default' | 'auto' | 'turbo' | 'read-only'
+  //   review    → prompt for every non-read tool (original behaviour)
+  //   default   → prompt for destructive; auto-allow write (like prior default)
+  //   auto      → auto-allow write & terminal; prompt only for truly destructive
+  //   turbo     → auto-allow everything except explicitly dangerous destructive
+  //   read-only → deny ALL non-read tools globally
+  try {
+    const features = await loadFeaturePrefs()
+    const mode = features?.permissionMode || 'review'
+    const risk = riskOf(tool)
+
+    if (mode === 'read-only') {
+      if (risk !== 'read') return { allowed: false, reason: 'Read Only mode — all write/terminal operations are disabled.' }
+    } else if (mode === 'turbo') {
+      // Turbo: auto-allow write & terminal, block only fs_delete with recursive flag
+      if (tool === 'fs_delete' && args?.recursive) {
+        // Fall through to prompt — recursive delete is always too dangerous
+      } else if (risk === 'write' || risk === 'destructive') {
+        return { allowed: true, reason: 'Turbo mode — command auto-approved.' }
+      }
+    } else if (mode === 'auto') {
+      // Auto: auto-allow write, auto-allow terminal; still prompt fs_delete
+      if (risk === 'write') return { allowed: true, reason: 'Auto mode — file operation auto-approved.' }
+      if (['terminal_run', 'terminal_exec', 'proc_start'].includes(tool)) {
+        return { allowed: true, reason: 'Auto mode — terminal auto-execution enabled.' }
+      }
+    } else if (mode === 'default') {
+      // Default: same as prior per-tool settings behaviour but unified
+      if (risk === 'write') return { allowed: true, reason: 'Default mode — file write auto-approved.' }
+    }
+    // 'review' mode (or unrecognised) falls through to per-tool checks below
+  } catch {}
+
+  // Check user preference for Terminal Command Auto Execution (legacy prefs)
   if (['terminal_run', 'terminal_exec', 'proc_start'].includes(tool)) {
     try {
-      const prefs = await getSetting('prefs', {})
-      const termSetting = prefs?.features?.terminalApproval
+      const features = await loadFeaturePrefs()
+      const termSetting = features?.terminalApproval
       if (termSetting === 'auto') return { allowed: true, reason: 'Terminal auto-execution enabled in settings.' }
       if (termSetting === 'deny') return { allowed: false, reason: 'Terminal execution disabled in settings (Read Only).' }
     } catch {}
   }
 
-  // Check user preference for File Edit & Write Auto Execution
+  // Check user preference for File Edit & Write Auto Execution (legacy prefs)
   const WRITE_TOOLS = [
     'fs_write', 'fs_edit', 'fs_replace_content', 'fs_multi_replace',
     'fs_batch_replace', 'fs_patch', 'fs_batch_write', 'fs_write_append',
@@ -246,8 +291,8 @@ async function _requestPermission(tool, args, ctx = {}) {
   ]
   if (WRITE_TOOLS.includes(tool)) {
     try {
-      const prefs = await getSetting('prefs', {})
-      const writeSetting = prefs?.features?.fileWriteApproval
+      const features = await loadFeaturePrefs()
+      const writeSetting = features?.fileWriteApproval
       if (writeSetting === 'auto') return { allowed: true, reason: 'Autonomous file write/edit enabled in settings.' }
       if (writeSetting === 'deny') return { allowed: false, reason: 'File modification disabled in settings (Read Only).' }
     } catch {}

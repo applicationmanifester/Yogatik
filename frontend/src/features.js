@@ -140,6 +140,11 @@ export const FEATURES = {
     hint: 'Automatically switch to a vision model when an image is attached',
     default: false,
   },
+  permissionMode: {
+    label: 'Local Permissions Mode',
+    hint: 'Controls how tool calls and shell commands are approved (review, default, auto, turbo, read-only)',
+    default: 'review',
+  },
   terminalApproval: {
     label: 'Terminal Command Auto Execution',
     hint: 'Controls whether terminal commands require your approval before running',
