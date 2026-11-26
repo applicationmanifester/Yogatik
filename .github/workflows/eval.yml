@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci || npm install
 
       # MUST go through scripts/run-vitest.mjs, never `npx vitest`. Vitest has no
       # --configLoader flag here and `test:` inside CLI options is IGNORED, so a
