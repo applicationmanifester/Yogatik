@@ -12,11 +12,17 @@ const { contextBridge, ipcRenderer } = require('electron')
 // whatever shape browser:tab-action's main-process switch expects for that
 // action (a direction string, a find payload object, a download id, or
 // nothing at all).
-const TAB_ID_ACTIONS = new Set(['close', 'select', 'cancel-download', 'open-download', 'show-download', 'toggle-mute'])
+const TAB_ID_ACTIONS = new Set([
+  'close', 'select', 'toggle-mute', 'duplicate-tab', 'toggle-pin', 'close-other-tabs', 'reload-tab',
+  'group-tab', 'ungroup-tab',
+])
 const VALID_ACTIONS = new Set([
   'close', 'select', 'new-tab', 'back', 'forward', 'reload', 'navigate',
   'zoom', 'find', 'find-stop', 'cancel-download', 'open-download', 'show-download',
-  'pip', 'toggle-mute', 'toggle-shield', 'toggle-ai-panel', 'ai-query', 'send-to-main-chat',
+  'pip', 'toggle-mute', 'toggle-shield', 'toggle-site-shield', 'toggle-ai-panel', 'ai-query', 'send-to-main-chat',
+  'take-wheel', 'release-wheel', 'duplicate-tab', 'reopen-closed-tab', 'toggle-pin',
+  'close-other-tabs', 'reload-tab', 'next-tab', 'prev-tab', 'select-index',
+  'restore-session', 'group-tab', 'ungroup-tab',
 ])
 
 contextBridge.exposeInMainWorld('__tabAction', (action, value) => {
@@ -25,13 +31,20 @@ contextBridge.exposeInMainWorld('__tabAction', (action, value) => {
   if (TAB_ID_ACTIONS.has(action)) {
     if (typeof value !== 'string') return
     payload.tabId = value
-  } else if (action === 'navigate' || action === 'zoom') {
+  } else if (
+    action === 'navigate' || action === 'zoom' ||
+    action === 'cancel-download' || action === 'open-download' || action === 'show-download'
+  ) {
     if (typeof value !== 'string' || !value.trim()) return
     payload.arg = value
+  } else if (action === 'select-index') {
+    if (typeof value !== 'number' && typeof value !== 'string') return
+    payload.arg = Number(value)
   } else if (action === 'find' || action === 'ai-query' || action === 'send-to-main-chat') {
     if (!value || typeof value !== 'object') return
     payload.arg = value
   }
-  // 'find-stop', 'toggle-shield', 'toggle-ai-panel', 'pip' carry no argument or optional argument.
+  // 'find-stop', 'toggle-shield', 'toggle-ai-panel', 'pip', 'take-wheel', 'release-wheel',
+  // 'reopen-closed-tab', 'next-tab', 'prev-tab' carry no argument.
   ipcRenderer.send('browser:tab-action', payload)
 })

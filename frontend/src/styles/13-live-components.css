@@ -81,6 +81,17 @@
 }
 .live-ck-pill.model { color: var(--live-text); }
 .live-ck-pill.scene { color: var(--live-text-dim); box-shadow: none; }
+.live-ck-pill-btn {
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out-quint),
+              border-color var(--dur-fast) var(--ease-out-quint),
+              color var(--dur-fast) var(--ease-out-quint);
+}
+.live-ck-pill-btn:hover {
+  background: var(--live-btn-hover);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--live-text);
+}
 .live-ck-muted-btn {
   color: #fbbf24;
   background: rgba(245, 158, 11, 0.15);
@@ -405,6 +416,65 @@
 .live-cockpit-rail .live-artifact-header button:hover { background: var(--live-btn-hover); color: var(--live-text); }
 .live-cockpit-rail .live-artifact-header button:disabled { opacity: .35; cursor: not-allowed; }
 .live-cockpit-rail .live-artifact-header button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
+.live-artifact-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--live-panel-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+.live-artifact-tabs::-webkit-scrollbar { display: none; }
+.live-artifact-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--live-border);
+  background: var(--live-surface);
+  color: var(--live-text-dim);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+.live-artifact-tab:hover {
+  background: var(--live-btn-hover);
+  color: var(--live-text);
+  border-color: var(--live-btn-hborder);
+}
+.live-artifact-tab.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.18));
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #bae6fd;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.18);
+}
+.live-artifact-tab-num {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.live-artifact-tab.active .live-artifact-tab-num {
+  background: rgba(56, 189, 248, 0.28);
+  color: #e0f2fe;
+}
+.live-artifact-tab-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .live-cockpit-rail .live-artifact-content {
   flex: 1;
   min-height: 0;
@@ -436,31 +506,98 @@
 }
 /* Old markup had duplicated filter rows (one in the header, one below);
    the rewrite keeps the single group under the header. */
+.live-transcript-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--live-text-dim);
+  cursor: pointer;
+}
+.live-transcript-search-clear:hover {
+  background: var(--live-btn-hover);
+  color: var(--live-text);
+}
+.live-transcript-copy-all {
+  display: grid;
+  place-items: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border: 1px solid var(--live-border);
+  border-radius: var(--radius-md);
+  background: var(--live-surface);
+  color: var(--live-text-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+.live-transcript-copy-all:hover {
+  background: var(--live-btn-hover);
+  color: var(--live-text);
+}
+.live-transcript-copy-all.copied {
+  color: #4ade80;
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(34, 197, 94, 0.14);
+}
 .live-transcript-filter {
   display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4);
-  border-bottom: 1px solid var(--live-panel-border);
+  align-items: center;
+  gap: 4px;
+  margin: var(--space-2) var(--space-3);
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--live-surface);
+  border: 1px solid var(--live-border);
   flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.live-transcript-filter::-webkit-scrollbar { display: none; }
 .live-filter-btn {
-  height: var(--control-h-sm);
-  padding: 0 var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--live-text-dim);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease-out-quint), color var(--dur-fast) var(--ease-out-quint);
+  white-space: nowrap;
+  transition: all var(--dur-fast) var(--ease-out-quint);
 }
 .live-filter-btn:hover { background: var(--live-btn-hover); color: var(--live-text); }
 .live-filter-btn.active {
-  background: var(--live-btn-bg);
-  border-color: var(--live-btn-border);
-  color: #7dd3fc;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.16));
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
   font-weight: 600;
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.16);
+}
+.live-filter-count {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  opacity: 0.85;
+}
+.live-filter-btn.active .live-filter-count {
+  background: rgba(56, 189, 248, 0.25);
 }
 .live-filter-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
 
@@ -475,6 +612,10 @@
   flex-direction: column;
   gap: var(--space-2);
   animation: transcriptIn var(--dur-normal) var(--ease-out-quint);
+  transition: border-color var(--dur-fast) var(--ease-out-quint), background-color var(--dur-fast) var(--ease-out-quint);
+}
+.live-transcript-item:hover {
+  border-color: var(--live-btn-hborder);
 }
 @keyframes transcriptIn {
   from { opacity: 0; transform: translateY(6px); }
@@ -643,10 +784,11 @@
 }
 .live-settings-seg-btn:hover { background: var(--live-btn-hover); color: var(--live-text); }
 .live-settings-seg-btn.active {
-  background: var(--live-btn-bg);
-  border-color: var(--live-btn-border);
-  color: #7dd3fc;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(99, 102, 241, 0.16));
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
   font-weight: 600;
+  box-shadow: 0 2px 10px rgba(56, 189, 248, 0.15);
 }
 .live-settings-seg-btn:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
 .live-settings-row {
@@ -1254,4 +1396,135 @@
 @media (max-width: 640px) {
   .live-rec-player-body { grid-template-columns: 1fr; }
   .live-rec-stage { min-height: 140px; }
+}
+
+/* Light-theme contrast for active segmented tabs */
+.live-view[data-theme="light"] .live-filter-btn.active,
+.live-view[data-theme="light"] .live-artifact-tab.active,
+.live-view[data-theme="light"] .live-settings-seg-btn.active {
+  color: #0284c7;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(99, 102, 241, 0.1));
+  border-color: rgba(14, 165, 233, 0.42);
+}
+
+/* Point-and-Ask floating bar above the bottom command bar */
+.live-point-ask-bar {
+  position: absolute;
+  bottom: calc(var(--space-5) + 74px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 29;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--live-hud-bg, rgba(15, 23, 42, 0.86));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  box-shadow: var(--shadow-2), 0 0 20px rgba(251, 191, 36, 0.14);
+  max-width: min(94vw, 560px);
+  animation: transcriptIn var(--dur-normal) var(--ease-out-quint);
+}
+.live-point-ask-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fde68a;
+  white-space: nowrap;
+}
+.live-point-ask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--live-btn-border);
+  background: var(--live-btn-bg);
+  color: var(--live-text);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+.live-point-ask-btn:hover {
+  background: var(--live-btn-hover);
+  border-color: var(--live-btn-hborder);
+}
+.live-point-ask-btn.primary {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.24), rgba(99, 102, 241, 0.22));
+  border-color: rgba(56, 189, 248, 0.5);
+  color: #e0f2fe;
+}
+.live-point-ask-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--live-text-dim);
+  cursor: pointer;
+}
+.live-point-ask-close:hover {
+  background: var(--live-btn-hover);
+  color: var(--live-text);
+}
+
+/* Quick text composer inside the Transcript drawer */
+.live-transcript-composer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--live-panel-border);
+  background: var(--live-surface);
+  flex-shrink: 0;
+}
+.live-transcript-composer-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--live-border);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--live-text);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out-quint);
+}
+.live-transcript-composer-input:focus {
+  border-color: rgba(56, 189, 248, 0.6);
+}
+.live-view[data-theme="light"] .live-transcript-composer-input {
+  background: rgba(255, 255, 255, 0.85);
+}
+.live-transcript-composer-send {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(99, 102, 241, 0.22));
+  color: #e0f2fe;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--dur-fast) var(--ease-out-quint);
+}
+.live-transcript-composer-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.live-transcript-composer-send:not(:disabled):hover {
+  transform: scale(1.05);
+  border-color: #38bdf8;
 }

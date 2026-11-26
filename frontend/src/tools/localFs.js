@@ -30,6 +30,7 @@ export const DESKTOP_ONLY_TOOLS = new Set([
   'fs_file_info', 'fs_copy', 'fs_batch_write', 'fs_search', 'fs_find_files', 'fs_codebase_map',
   'fs_delete', 'fs_mkdir', 'fs_move', 'fs_batch_read', 'fs_file_tree', 'fs_undo', 'fs_git',
   'fs_exists', 'fs_write_append', 'fs_compute_hash', 'fs_lock', 'fs_unlock', 'fs_atomic_write', 'fs_ping',
+  'doc_read', 'doc_edit',
   'terminal_run', 'clipboard_access', 'watch_folder', 'system_state', 'process_manager',
   'file_dialog', 'git_status', 'git_log', 'git_diff', 'git_worktree_list', 'git_worktree_add', 'git_worktree_remove', 'git_worktree_prune',
   'proc_start', 'proc_output',
@@ -606,6 +607,10 @@ export const fsReadTool = {
         ? rawContent.split('\n').map((l, i) => `${String(firstLine + i).padStart(padLen, ' ')} | ${l}`).join('\n')
         : undefined)
 
+      const officeHint = res?.binary && /\.(docx|xlsx|xls|pptx|pdf)$/i.test(path)
+        ? ' This is a binary Office/PDF document — use doc_read to extract its readable text, tables, or slides, and doc_edit to modify it.'
+        : ''
+
       return ok({
         tool: 'fs_read',
         path,
@@ -622,7 +627,7 @@ export const fsReadTool = {
         eol: res?.eol,
         hash: res?.hash,
         range: res?.range || (offset || limit || tail ? { offset: offset || 1, limit } : undefined),
-        note: res?.note || undefined,
+        note: (res?.note || officeHint) ? `${res?.note || ''}${officeHint}`.trim() : undefined,
       })
     })
   },

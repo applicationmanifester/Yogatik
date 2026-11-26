@@ -16,6 +16,167 @@ import { addDocument, getSetting } from '../db'
 
 // ─── 1. Word Document (.docx / WordprocessingML) ─────────────────────────────
 
+/**
+ * Generate a genuine OOXML Word (.docx) ZIP package using JSZip.
+ * Opens cleanly in Microsoft Word, LibreOffice, Google Docs, and is re-parseable by extractDocx.
+ */
+export async function generateRealDocx({ title = 'Document', content = '', author = 'Yogatik AI' } = {}) {
+  const JSZip = (await import('jszip')).default || (await import('jszip'))
+  const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const p = (text, style = '') => {
+    const pPr = style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : ''
+    return `<w:p>${pPr}<w:r><w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>`
+  }
+
+  const buildTable = (rows) => {
+    const trs = rows.map((cells, rIdx) => {
+      const tcs = cells.map((cell) => {
+        const shading = rIdx === 0 ? '<w:shd w:val="clear" w:color="auto" w:fill="1E3A8A"/>' : ''
+        const rPr = rIdx === 0 ? '<w:rPr><w:b/><w:color w:val="FFFFFF"/></w:rPr>' : ''
+        return `<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/>${shading}</w:tcPr><w:p><w:r>${rPr}<w:t xml:space="preserve">${esc(cell)}</w:t></w:r></w:p></w:tc>`
+      }).join('')
+      return `<w:tr>${tcs}</w:tr>`
+    }).join('')
+    return `<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:left w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:right w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:insideH w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/></w:tblBorders></w:tblPr>${trs}</w:tbl>`
+  }
+
+  const bodyParts = [p(title, 'Title'), p(`Author: ${author}  |  ${new Date().toLocaleDateString('en-US')}`)]
+  const lines = String(content || '').replace(/\r\n/g, '\n').split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^###\s+/.test(line)) {
+      bodyParts.push(p(line.replace(/^###\s+/, ''), 'Heading3'))
+    } else if (/^##\s+/.test(line)) {
+      bodyParts.push(p(line.replace(/^##\s+/, ''), 'Heading2'))
+    } else if (/^#\s+/.test(line)) {
+      bodyParts.push(p(line.replace(/^#\s+/, ''), 'Heading1'))
+    } else if (/^\s*[-*+]\s+/.test(line)) {
+      bodyParts.push(p(`• ${line.replace(/^\s*[-*+]\s+/, '')}`))
+    } else if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|[-:\s|]+\|\s*$/.test(lines[i + 1] || '')) {
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+      const tableRows = [cells(line)]
+      i += 2
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) tableRows.push(cells(lines[i++]))
+      i--
+      bodyParts.push(buildTable(tableRows))
+    } else if (line.trim()) {
+      bodyParts.push(p(line.trim()))
+    }
+  }
+
+  const zip = new JSZip()
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`)
+  zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`)
+  zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`)
+  zip.file('word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:sz w:val="22"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:rPr><w:b/><w:sz w:val="44"/><w:color w:val="0F172A"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:rPr><w:b/><w:sz w:val="32"/><w:color w:val="1E3A8A"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:rPr><w:b/><w:sz w:val="26"/><w:color w:val="1E40AF"/></w:rPr></w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/><w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="0369A1"/></w:rPr></w:style>
+</w:styles>`)
+  zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${bodyParts.join('')}<w:sectPr/></w:body>
+</w:document>`)
+
+  const base64 = await zip.generateAsync({ type: 'base64' })
+  const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'document'}.docx`
+  const mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  return {
+    success: true,
+    tool: 'docx_generator',
+    format: 'docx',
+    filename,
+    title,
+    size_kb: ((base64.length * 0.75) / 1024).toFixed(2),
+    base64,
+    data_url: `data:${mimeType};base64,${base64}`,
+    download_prompt: `Download Word document: ${filename}`,
+  }
+}
+
+/**
+ * Generate a genuine OOXML Excel (.xlsx) binary workbook using SheetJS.
+ */
+export async function generateRealXlsx({
+  title = 'Workbook',
+  sheets = null,
+  rows = null,
+  columns = null,
+  content = '',
+  filename = '',
+} = {}) {
+  const XLSX = (await import('xlsx')).default || (await import('xlsx'))
+  const cleanTitle = (title || 'Workbook').trim()
+  const outFilename = filename
+    ? (filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`)
+    : `${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'workbook'}.xlsx`
+
+  const wb = XLSX.utils.book_new()
+  let totalRows = 0
+
+  if (Array.isArray(sheets) && sheets.length) {
+    for (const s of sheets) {
+      const aoa = [s.columns || [], ...(s.rows || [])].filter(r => r.length)
+      totalRows += (s.rows || []).length
+      const ws = XLSX.utils.aoa_to_sheet(aoa.length ? aoa : [['Empty']])
+      XLSX.utils.book_append_sheet(wb, ws, String(s.name || 'Sheet').slice(0, 31))
+    }
+  } else {
+    let hdr = Array.isArray(columns) ? columns : []
+    let body = Array.isArray(rows) ? rows : []
+    if (!body.length && content) {
+      const parsed = parseMarkdownTable(content)
+      if (parsed) {
+        hdr = parsed.headers
+        body = parsed.rows
+      }
+    }
+    if (!body.length) {
+      hdr = hdr.length ? hdr : ['Item', 'Value']
+      body = [['Sample', 0]]
+    }
+    if (!hdr.length && body[0] && typeof body[0] === 'object' && !Array.isArray(body[0])) {
+      hdr = Object.keys(body[0])
+      body = body.map(obj => hdr.map(k => obj[k]))
+    }
+    totalRows = body.length
+    const aoa = hdr.length ? [hdr, ...body] : body
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    XLSX.utils.book_append_sheet(wb, ws, cleanTitle.slice(0, 31) || 'Sheet1')
+  }
+
+  const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+  const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  return {
+    success: true,
+    tool: 'excel_workbook',
+    format: 'xlsx',
+    filename: outFilename,
+    title: cleanTitle,
+    rows_count: totalRows,
+    size_kb: ((base64.length * 0.75) / 1024).toFixed(2),
+    base64,
+    data_url: `data:${mimeType};base64,${base64}`,
+    download_prompt: `Download Excel workbook: ${outFilename}`,
+  }
+}
+
 export function generateWordDoc({ title = 'Document', content = '', author = 'Yogatik AI', subject = '', format = 'docx' } = {}) {
   const bodyHtml = mdToHtml(content)
   const escapedTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1163,9 +1324,9 @@ export const documentGeneratorTool = {
       let result = null
 
       if (document_type === 'word_docx') {
-        result = generateWordDoc({ title, content, format: 'docx' })
+        result = await generateRealDocx({ title, content })
       } else if (document_type === 'excel_workbook') {
-        result = generateExcelWorkbook({ title, rows: spreadsheet_rows, content, includeSummary: true })
+        result = await generateRealXlsx({ title, rows: spreadsheet_rows, content })
       } else if (document_type === 'slide_deck') {
         result = generateSlideDeck({ title, slides: content, theme })
       } else if (document_type === 'pptx_presentation') {

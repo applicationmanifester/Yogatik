@@ -12,19 +12,46 @@ const TARGET_RATE = 16000
 
 let lib = null
 let asr = null
+let asrDevice = null
 let loading = null
+let forceWasm = false
 
 export function isWhisperReady() { return !!asr }
 
-async function getASR(onProgress) {
+export function isWebGpuError(err) {
+  const msg = String(err?.message || err || '')
+  return /GPUDevice|GPUBuffer|createBuffer|mappedAtCreation|WebGPU|device lost/i.test(msg)
+}
+
+async function getASR(onProgress, { forceCpu = false } = {}) {
+  if (forceCpu) {
+    forceWasm = true
+    if (asr && asrDevice !== 'wasm') {
+      asr = null
+      asrDevice = null
+    }
+  }
   if (asr) return asr
   if (loading) return loading
   loading = (async () => {
     if (!lib) lib = await import(/* @vite-ignore */ CDN)
-    const device = (await webgpuDevice()) === 'webgpu' ? 'webgpu' : 'wasm'
-    asr = await lib.pipeline('automatic-speech-recognition', MODEL, {
-      device, dtype: device === 'webgpu' ? 'fp32' : 'q8', progress_callback: onProgress,
-    })
+    const preferred = (forceWasm || forceCpu)
+      ? 'wasm'
+      : ((await webgpuDevice()) === 'webgpu' ? 'webgpu' : 'wasm')
+    const loadPipeline = async (dev) => {
+      const pipe = await lib.pipeline('automatic-speech-recognition', MODEL, {
+        device: dev, dtype: dev === 'webgpu' ? 'fp32' : 'q8', progress_callback: onProgress,
+      })
+      asrDevice = dev
+      return pipe
+    }
+    try {
+      asr = await loadPipeline(preferred)
+    } catch (err) {
+      if (preferred !== 'webgpu') throw err
+      forceWasm = true
+      asr = await loadPipeline('wasm')
+    }
     return asr
   })()
   try { return await loading } finally { loading = null }
@@ -54,13 +81,23 @@ let queuePromise = Promise.resolve()
 export function transcribe(blob, { lang, onProgress } = {}) {
   const task = async () => {
     const pcm = await blobToPcm(blob)
-    const engine = await getASR(onProgress)
-    const out = await engine(pcm, {
+    const opts = {
       chunk_length_s: 30,
       stride_length_s: 5,
       language: lang && !/^en/i.test(lang) ? lang.split('-')[0] : undefined,
-    })
-    return (out?.text || '').trim()
+    }
+    let engine = await getASR(onProgress)
+    try {
+      const out = await engine(pcm, opts)
+      return (out?.text || '').trim()
+    } catch (err) {
+      if (asrDevice === 'webgpu' && isWebGpuError(err)) {
+        engine = await getASR(onProgress, { forceCpu: true })
+        const out = await engine(pcm, opts)
+        return (out?.text || '').trim()
+      }
+      throw err
+    }
   }
 
   // Chain sequentially to guarantee ONNX/WebGPU sessions never run concurrently

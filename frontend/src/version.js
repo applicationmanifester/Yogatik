@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '22.1.0'
+export const APP_VERSION = '23.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 22.1.0 — Per-Tool Live Settlement, Terminal Abort/Stdin Reliability & Prompted-Mode Guardrails'
+export const APP_CODENAME = 'Yogatik 23.0.0 — Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,40 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "23.0.0",
+    "title": "Yogatik 23.0.0: Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish",
+    "date": "November 26, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Live Point-and-Ask & Transcript Composer: Tap any detected Object HUD bounding box to ask or read text about it, plus type messages directly in the Transcript drawer",
+      "Multimodal Live Vision Fix & WebGPU-to-WASM Fallback: Fixed array userMessage crash in agent.js and added automatic CPU/WASM fallback for Whisper STT when GPUDevice.createBuffer fails",
+      "Object HUD & Cockpit Polish: Per-class NMS deduplication, single unified telestration layer, interactive top status pills, keyboard shortcuts (M/C/V/Esc), and segmented tab styling"
+    ],
+    "sections": [
+      {
+        "category": "🎙️ Live Multimodal & Vision",
+        "items": [
+          {
+            "title": "Point-and-Ask Object HUD",
+            "description": "Tap any detected object bounding box to highlight it and trigger scoped Ask or Read Text prompts directly in the live session."
+          },
+          {
+            "title": "WebGPU-to-WASM Speech Fallback",
+            "description": "Added an upfront GPUDevice createBuffer probe in gpu.js and automatic WASM fallback in whisper.js so on-device speech never crashes on constrained drivers."
+          },
+          {
+            "title": "Transcript Drawer Tabs & Quick Composer",
+            "description": "Upgraded filter tabs with live item counts, added one-click Copy Full Transcript, and added a bottom text composer for Silent Live and noisy rooms."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "22.1.0",
     "title": "Yogatik 22.1.0: Per-Tool Live Settlement, Terminal Abort/Stdin Reliability & Prompted-Mode Guardrails",
     "date": "November 26, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Per-Tool Live Settlement: Fast tools like fs_read settle immediately in ActivityPanel instead of staying stuck behind slower parallel tools",
       "Terminal Abort & Stdin EOF: Wired AbortSignal into terminal_run and closed stdin immediately in terminalSession so stalled commands never hang",

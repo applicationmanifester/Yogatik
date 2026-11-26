@@ -590,6 +590,17 @@ export async function runAgent({
   onCheckpoint = null,
 }) {
   const executionCtx = { conversationId: conversationId || null, projectId: projectId || null }
+  // Multimodal callers (e.g. Live Cascade with camera/screen frames) pass an
+  // array of content parts `[{ type: 'text', text }, { type: 'image_url', ... }]`.
+  // Extract the plain text once so string helpers never crash with `o.match is not a function`.
+  const userText = typeof userMessage === 'string'
+    ? userMessage
+    : Array.isArray(userMessage)
+      ? userMessage
+          .filter(p => p && p.type === 'text' && typeof p.text === 'string')
+          .map(p => p.text)
+          .join('\n')
+      : String(userMessage ?? '')
   const { getToolSchemas, prioritizeToolSchemas, executeTool } = await toolRegistry()
   // On-device safety screen (crisis + professional-boundary). Pure, zero-latency,
   // offline. Feeds the system prompt and surfaces a resource card to the UI.
@@ -597,7 +608,7 @@ export async function runAgent({
   try {
     // The region decides which helpline is named. Getting this wrong hands
     // someone in crisis a number that does not connect.
-    const verdict = assessSafety(typeof userMessage === 'string' ? userMessage : '',
+    const verdict = assessSafety(userText,
       { region: localeSnapshot().region })
     safetyDirective = verdict.systemDirective
     if (verdict.hasConcern) onSafety?.(verdict, crisisResourceCard(verdict))
@@ -704,7 +715,7 @@ export async function runAgent({
   let mentionedSkillsBlock = ''
   try {
     const { resolveSkillMentions } = await import('./skillsCatalog')
-    const mentions = resolveSkillMentions(userMessage)
+    const mentions = resolveSkillMentions(userText)
     if (mentions.length > 0) {
       mentionedSkillsBlock = '\n\n' + mentions.map(m =>
         `INVOKED SKILL [@${m.id}] — "${m.name}":\n${m.systemPrompt || m.system || ''}\nGuidelines: Apply ${m.name} best practices and domain rules to this turn.`
@@ -733,7 +744,7 @@ export async function runAgent({
   let mcpBlock = ''
   try {
     const configuredServers = await mcpMod.getMcpServers()
-    const need = detectMcpNeed(typeof userMessage === 'string' ? userMessage : '', configuredServers)
+    const need = detectMcpNeed(userText, configuredServers)
     if (need.toEnable.length > 0) {
       const ids = new Set(need.toEnable.map(s => s.id))
       const next = configuredServers.map(s => (ids.has(s.id) ? { ...s, enabled: true } : s))
@@ -762,8 +773,8 @@ export async function runAgent({
   }
 
   const systemBase = (isLocalProvider
-    ? buildLocalSystemPrompt({ persona, workspaceRootInfo }) + skillBlock + agentBlock + styleBlock + projectBlock + taskBlock + mentionedSkillsBlock + capabilityMode + (await memoryBlock(userMessage, projectId))
-    : buildSystemPrompt({ webEnabled: webAvailable, persona, planMode, workspaceRootInfo }) + skillBlock + agentBlock + styleBlock + projectBlock + taskBlock + mentionedSkillsBlock + capabilityMode + (await memoryBlock(userMessage, projectId))
+    ? buildLocalSystemPrompt({ persona, workspaceRootInfo }) + skillBlock + agentBlock + styleBlock + projectBlock + taskBlock + mentionedSkillsBlock + capabilityMode + (await memoryBlock(userText, projectId))
+    : buildSystemPrompt({ webEnabled: webAvailable, persona, planMode, workspaceRootInfo }) + skillBlock + agentBlock + styleBlock + projectBlock + taskBlock + mentionedSkillsBlock + capabilityMode + (await memoryBlock(userText, projectId))
   ) + mcpBlock + safetyDirective + canaryDirective + constitutionBlock
 
   // Use dynamic context limits based on conversation complexity
@@ -868,7 +879,7 @@ export async function runAgent({
     }
   }
 
-  const isAskingTime = /time|date|clock|day is it|what hour|timezone|current year/i.test(userMessage || '')
+  const isAskingTime = /time|date|clock|day is it|what hour|timezone|current year/i.test(userText)
   if (isAskingTime) {
     const now = new Date()
     const L = localeSnapshot()
@@ -895,7 +906,7 @@ export async function runAgent({
   try {
     // Pre-fetch YouTube transcript/details when a URL is present so every provider
     // sees the same grounded context instead of guessing from the bare link.
-    const ytMatch = userMessage && userMessage.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+    const ytMatch = userText && userText.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
   if (ytMatch && !resumeCheckpoint) {
     throwIfAborted()
     onStatus?.('Fetching YouTube video details…')
@@ -926,7 +937,7 @@ export async function runAgent({
     }
   }
 
-  if (isPresentationQuery(userMessage)) {
+  if (isPresentationQuery(userText)) {
     messages[0].content += `\n\n[CRITICAL PRESENTATION GENERATION INSTRUCTION]:\n` +
       `The user requested an executive PowerPoint presentation / slide deck.\n` +
       `You MUST format your output with high-density, visually structured markdown slides:\n` +
@@ -943,7 +954,7 @@ export async function runAgent({
       `# Slide 4: ... (Provide at least 6-8 structured slides with deep analytical content)\n\n` +
       `At the end of your answer, include this direct download link:\n` +
       `[Download Presentation (.pptx)](presentation.pptx)\n`
-  } else if (isPdfQuery(userMessage)) {
+  } else if (isPdfQuery(userText)) {
     messages[0].content += `\n\n[CRITICAL PDF PUBLICATION INSTRUCTION]:\n` +
       `The user requested a publication-grade PDF document.\n` +
       `Format your output with executive typography and strict A4 page-break discipline:\n` +
@@ -958,7 +969,7 @@ export async function runAgent({
       `Numbered implementation phases with clear ownership and KPIs.\n\n` +
       `At the end of your answer, include these direct download links:\n` +
       `[Download PDF (.pdf)](document.pdf) · [Download Word Document (.docx)](document.docx)\n`
-  } else if (isDocumentQuery(userMessage)) {
+  } else if (isDocumentQuery(userText)) {
     messages[0].content += `\n\n[CRITICAL EXECUTIVE WORD DOCUMENT INSTRUCTION]:\n` +
       `The user requested a formal Word Document / Whitepaper / Executive Report.\n` +
       `Structure the report with McKinsey/Bain-level quality:\n` +
@@ -974,14 +985,14 @@ export async function runAgent({
       `Actionable mitigation table.\n\n` +
       `At the end of your answer, include these direct download links:\n` +
       `[Download Word Document (.docx)](document.docx) · [Download PDF (.pdf)](document.pdf)\n`
-  } else if (isSpreadsheetQuery(userMessage)) {
+  } else if (isSpreadsheetQuery(userText)) {
     messages[0].content += `\n\n[CRITICAL SPREADSHEET / EXCEL INSTRUCTION]:\n` +
       `The user requested a structured Excel Workbook / Spreadsheet data model.\n` +
       `Provide a comprehensive multi-column Markdown table with at least 5 columns and 8+ realistic data rows.\n` +
       `Include explicit headers, formatted numbers (e.g. currency $ or percentages %), and an accounting **Total** or Summary row at the bottom.\n\n` +
       `At the end of your answer, include these direct download links:\n` +
       `[Download Excel Workbook (.xlsx)](spreadsheet.xlsx) · [Download CSV (.csv)](spreadsheet.csv)\n`
-  } else if (isMarkdownQuery(userMessage)) {
+  } else if (isMarkdownQuery(userText)) {
     messages[0].content += `\n\n[CRITICAL MARKDOWN DOCUMENT INSTRUCTION]:\n` +
       `The user requested a standardized, clean Markdown (.md) document / specification.\n` +
       `Structure the output following strict GitHub-Flavored Markdown best practices:\n` +
@@ -1030,7 +1041,7 @@ export async function runAgent({
   reflexTrack = null
   if (toolsEnabled && !isLocalProvider &&
     typeof window !== 'undefined' && typeof window.__YOGATIK_ACTION_GATE__ !== 'function') {
-    const candidate = detectReflexCandidate(userMessage)
+    const candidate = detectReflexCandidate(userText)
     // The active skill/agent's tool allowlist (effectiveDisabled) is resolved
     // further below; checking the raw disabledTools here is deliberately
     // looser — every whitelisted tool is side-effect-free by construction, so
@@ -1046,17 +1057,17 @@ export async function runAgent({
     }
   }
 
-  if (webAvailable && userMessage && !resumeCheckpoint) {
-    if (isSocialQuery(userMessage)) {
+  if (webAvailable && userText && !resumeCheckpoint) {
+    if (isSocialQuery(userText)) {
       throwIfAborted()
       onStatus?.('Searching social media for live posts…')
       try {
-        const socialRes = await executeTool('social_search', { query: userMessage }, { signal, ctx: executionCtx })
+        const socialRes = await executeTool('social_search', { query: userText }, { signal, ctx: executionCtx })
         throwIfAborted()
         if (socialRes?.results?.length) {
           toolResults['social_search'] = socialRes
-          traceRef.push({ tool: 'social_search', args: { query: userMessage }, status: 'done' })
-          onToolStart?.('social_search', { query: userMessage })
+          traceRef.push({ tool: 'social_search', args: { query: userText }, status: 'done' })
+          onToolStart?.('social_search', { query: userText })
           onToolResult?.('social_search', socialRes)
           const topResults = socialRes.results.slice(0, 6).map(r => `${r.title} (${r.url}): ${r.snippet}`).join('\n\n')
           messages[0].content += `\n\nREAL-TIME SOCIAL MEDIA SEARCH RESULTS (GROUND TRUTH):\n${topResults}\n\nCRITICAL: Provide direct clickable markdown links [Title](URL) for the social posts found above. Never say you cannot access social posts.`
@@ -1068,16 +1079,16 @@ export async function runAgent({
       } catch (e) {
         if (e.name === 'AbortError' || signal?.aborted) throw e
       }
-    } else if (isResearchQuery(userMessage) && !disabledTools.includes('deep_research')) {
+    } else if (isResearchQuery(userText) && !disabledTools.includes('deep_research')) {
       throwIfAborted()
       onStatus?.('Conducting deep research across web sources…')
       try {
-        const researchRes = await executeTool('deep_research', { query: userMessage, depth: 3 }, { signal, ctx: executionCtx })
+        const researchRes = await executeTool('deep_research', { query: userText, depth: 3 }, { signal, ctx: executionCtx })
         throwIfAborted()
         if (researchRes?.pages?.length || researchRes?.sources?.length) {
           toolResults['deep_research'] = researchRes
-          traceRef.push({ tool: 'deep_research', args: { query: userMessage, depth: 3 }, status: 'done' })
-          onToolStart?.('deep_research', { query: userMessage, depth: 3 })
+          traceRef.push({ tool: 'deep_research', args: { query: userText, depth: 3 }, status: 'done' })
+          onToolStart?.('deep_research', { query: userText, depth: 3 })
           onToolResult?.('deep_research', researchRes)
           const synthesis = researchRes.executive_summary ||
             (researchRes.pages || []).slice(0, 4).map(p => `[${p.n}] ${p.title} (${p.url}):\n${p.content?.slice(0, 1500)}`).join('\n\n')
@@ -1091,16 +1102,16 @@ export async function runAgent({
       } catch (e) {
         if (e.name === 'AbortError' || signal?.aborted) throw e
       }
-    } else if (isLocalProvider || isRealtimeOrSearchQuery(userMessage)) {
+    } else if (isLocalProvider || isRealtimeOrSearchQuery(userText)) {
       throwIfAborted()
       onStatus?.('Searching the web for latest information…')
       try {
-        const searchRes = await executeTool('web_search', { query: userMessage, fast: true }, { signal, ctx: executionCtx })
+        const searchRes = await executeTool('web_search', { query: userText, fast: true }, { signal, ctx: executionCtx })
         throwIfAborted()
         if (searchRes?.results?.length) {
           toolResults['web_search'] = searchRes
-          traceRef.push({ tool: 'web_search', args: { query: userMessage }, status: 'done' })
-          onToolStart?.('web_search', { query: userMessage })
+          traceRef.push({ tool: 'web_search', args: { query: userText }, status: 'done' })
+          onToolStart?.('web_search', { query: userText })
           onToolResult?.('web_search', searchRes)
           const topResults = searchRes.results.slice(0, 6).map(r => `${r.title} (${r.url}): ${r.snippet}`).join('\n\n')
           messages[0].content += `\n\nREAL-TIME WEB SEARCH RESULTS (GROUND TRUTH — fetched live):\n${topResults}\n\nCRITICAL: Base your answer directly on the verified real-time search results above. Cite facts, dates, names, critic ratings, and reviews accurately. Never claim a movie, company, product, or release mentioned above does not exist or that your training cutoff prevents answering.`
@@ -1139,7 +1150,7 @@ export async function runAgent({
     || /(:11434|:1234|1b|2b|3b|7b|8b|mini|nano)/i.test(String(model || ''))
   const optimalToolLimit = isHighCapModel && !isLocalOrSmall ? 96 : (isLocalOrSmall ? 24 : 48)
   const activeWorkspaceMode = chatPrefs?.workspace_mode || chatPrefs?.workspaceMode || 'omni'
-  const schemas = rawSchemas ? prioritizeToolSchemas(rawSchemas, userMessage || '', { limit: optimalToolLimit, persona, agent: activeAgent?.id, workspaceMode: activeWorkspaceMode }) : rawSchemas
+  const schemas = rawSchemas ? prioritizeToolSchemas(rawSchemas, userText, { limit: optimalToolLimit, persona, agent: activeAgent?.id, workspaceMode: activeWorkspaceMode }) : rawSchemas
 
   // 'native' → OpenAI-style tools array. 'prompted' → JSON protocol in the
   // system prompt, for models that 400 on a tools array or providers that lack native tool support (e.g. NVIDIA, local).
@@ -1364,10 +1375,11 @@ function safelyParseToolArgs(raw) {
     }
 
     if (toolMode === 'prompted') {
-      if (text && (!malformed || promptedRepairTried)) {
+      const safeText = malformed ? stripToolCallSyntax(text) : text
+      if (safeText && (!malformed || promptedRepairTried)) {
         // Genuine prose (or repair fallback): release it to the UI.
-        fullContent += text
-        onToken?.(text)
+        fullContent += safeText
+        onToken?.(safeText)
       }
       if (malformed && !promptedRepairTried) return true
     }
@@ -1596,7 +1608,7 @@ function safelyParseToolArgs(raw) {
           try {
             let args = tc.parsedArgs || {}
             if ((tc.name === 'web_search' || tc.name === 'deep_research') && (!args.query && !args.q && !args.search_query && !args.keyword && !args.text)) {
-              args = { query: userMessage, ...args }
+              args = { query: userText, ...args }
             }
             // A model that re-issues a call it already made this turn is stuck,
             // not making progress: running it again costs a round, can cost
@@ -1656,9 +1668,9 @@ function safelyParseToolArgs(raw) {
         try {
           const predictedConfidence = await estimateConfidence(tc.name, tc.parsedArgs, {
             recentErrors: Array.from(executionTracker?.history || []).slice(-5).map(h => ({ tool: h.action, error: h.error, errorSignature: h.error })).filter(h => h.error),
-            userIntent: userMessage,
+            userIntent: userText,
           })
-          await recordConfidenceOutcome(tc.name, predictedConfidence, !result?.error, { error: result?.error, context: { userMessage } })
+          await recordConfidenceOutcome(tc.name, predictedConfidence, !result?.error, { error: result?.error, context: { userMessage: userText } })
         } catch { /* calibration must never block a turn */ }
 
         // Circuit breaker: track consecutive tool failures to stop repetitive hallucination loops
@@ -1962,7 +1974,7 @@ function safelyParseToolArgs(raw) {
     while (true) {
       throwIfAborted()
       const watchdogVerdict = assessResponse(cleanedContent, {
-        userMessage,
+        userMessage: userText,
         rounds,
         maxRounds,
         forcedFinal,

@@ -37,11 +37,11 @@ export function LiveArtifactStage({
           >
             <Layers size={13} />
           </span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#f1f5f9' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--live-text)' }}>
             Live Spatial Canvas
           </span>
           {artifacts.length > 1 && (
-            <span style={{ fontSize: '11px', color: '#64748b' }}>
+            <span style={{ fontSize: '11px', color: 'var(--live-text-dim)', fontVariantNumeric: 'tabular-nums' }}>
               ({activeIndex + 1}/{artifacts.length})
             </span>
           )}
@@ -76,6 +76,30 @@ export function LiveArtifactStage({
           </button>
         </div>
       </div>
+
+      {/* Quick-jump artifact tabs when multiple items exist */}
+      {artifacts.length > 1 && (
+        <div className="live-artifact-tabs" role="tablist" aria-label="Artifacts">
+          {artifacts.map((art, i) => {
+            const label = art.name || art.title || `Item ${i + 1}`
+            const isActive = i === activeIndex
+            return (
+              <button
+                key={art.id || i}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`live-artifact-tab${isActive ? ' active' : ''}`}
+                onClick={() => onSelectIndex?.(i)}
+                title={label}
+              >
+                <span className="live-artifact-tab-num">{i + 1}</span>
+                <span className="live-artifact-tab-name">{label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Main card content */}
       <div className="live-artifact-content">

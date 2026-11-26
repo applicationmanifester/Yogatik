@@ -12,6 +12,7 @@ import {
   fitInferenceDimensions,
   downscaleForInference,
   summariseDetections,
+  deduplicateDetections,
   INFERENCE_MAX_EDGE,
 } from './detect'
 
@@ -91,5 +92,27 @@ describe('summariseDetections', () => {
 
   it('is empty for no detections', () => {
     expect(summariseDetections([])).toBe('')
+  })
+})
+
+describe('deduplicateDetections', () => {
+  it('suppresses overlapping same-label boxes while keeping the highest confidence', () => {
+    const out = deduplicateDetections([
+      { label: 'couch', score: 0.87, box: { xmin: 0.1, ymin: 0.5, xmax: 0.5, ymax: 0.9 } },
+      { label: 'couch', score: 0.89, box: { xmin: 0.11, ymin: 0.51, xmax: 0.52, ymax: 0.91 } },
+      { label: 'couch', score: 0.72, box: { xmin: 0.15, ymin: 0.55, xmax: 0.45, ymax: 0.85 } },
+      { label: 'person', score: 0.95, box: { xmin: 0.3, ymin: 0.2, xmax: 0.7, ymax: 0.95 } },
+    ])
+    expect(out).toHaveLength(2)
+    expect(out[0]).toMatchObject({ label: 'person', score: 0.95 })
+    expect(out[1]).toMatchObject({ label: 'couch', score: 0.89 })
+  })
+
+  it('keeps distinct non-overlapping objects of the same class', () => {
+    const out = deduplicateDetections([
+      { label: 'chair', score: 0.9, box: { xmin: 0.05, ymin: 0.4, xmax: 0.25, ymax: 0.8 } },
+      { label: 'chair', score: 0.85, box: { xmin: 0.7, ymin: 0.4, xmax: 0.9, ymax: 0.8 } },
+    ])
+    expect(out).toHaveLength(2)
   })
 })

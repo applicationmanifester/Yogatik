@@ -293,11 +293,12 @@ export function parseToolCalls(reply = '') {
     }
   }
 
-  // 6. Detect corrupted/unclosed tool-call prefixes (e.g. `{"``````````json` or unclosed ```json {"tool_calls":...)
+  // 6. Detect corrupted/unclosed tool-call prefixes (e.g. `{"``````````json`, `{"tool_c```json`, or unclosed ```json {"tool_calls":...)
   // so harvestOrRepair can reprompt instead of leaking raw garbage into the chat bubble.
   if (!found.length && !attempted) {
     if (
       /\{\s*["“]?\s*`{3,}\s*(?:json)?/i.test(clean) ||
+      /\{\s*["“]?tool_c[a-z_]*["“]?\s*(?:`{2,}|:|$)/i.test(clean) ||
       /```(?:json)?\s*\{\s*["“]?(?:tool_calls|name|tool|function)\b/i.test(clean) ||
       /\{\s*["“]tool_calls["”]\s*:/i.test(clean)
     ) {
@@ -336,8 +337,12 @@ export function stripToolCallSyntax(text) {
     !text.includes('<|python_tag|>') &&
     !text.includes('Action:') &&
     !text.includes('tool_calls') &&
+    !text.includes('tool_c') &&
     !text.includes('tool') &&
     !text.includes('{"name":') &&
+    !text.includes('think>') &&
+    !text.includes('think&gt;') &&
+    !/`{3,}\s*json/i.test(text) &&
     !/\{\s*["“]?\s*`{3,}/.test(text) &&
     !/\{\s*["“]?(?:tool|name|function)/i.test(text)
   ) {
@@ -351,10 +356,15 @@ export function stripToolCallSyntax(text) {
     .replace(/```(?:json)?\s*\[\s*\{\s*["“](?:name|tool|function)[\s\S]*?```/gi, '')
     .replace(/(?:\s*\{)+\s*["“]tool_calls["”]\s*:\s*\[[\s\S]*?\](?:\s*\})*/gi, '')
     .replace(/(?:\s*\{)+\s*["“](?:name|tool|function)["”]\s*:\s*["“][^"”]+["”]\s*,\s*["“](?:arguments|args|parameters)["”]\s*:\s*[\s\S]*?\}+/gi, '')
-    // Stuttered / malformed tool call fragments (e.g. "{\n{\n{\n{\n\"tool{\n\"{\n")
+    // Stuttered / malformed tool call fragments (e.g. "{\n{\n{\n{\n\"tool{\n\"{\n", `{"tool_c```json`, `json {"tool_c`)
     .replace(/(?:^|\n)\s*(?:\{\s*)+(?:["“]?tool\b[^:\n]*\{?[\s\S]*?["“]?\{?\s*)(?=[A-Za-z]|$)/gi, '\n')
-    // Broken aborted code blocks and leading JSON stubs (e.g. "{\n```json\n{\n" or `{"``````````json`)
+    .replace(/(?:\bjson\s*)?\{\s*["“]?tool_c[a-z_]*["“]?(?:\s*`+\s*(?:json)?)*\s*/gi, '')
+    // Broken aborted code blocks and leading JSON stubs (e.g. "{\n```json\n{\n", `{"``````````json`, `json `````json`)
     .replace(/^\s*(?:\{\s*["“]?\s*)+`{3,}\s*(?:json)?\s*(?:\{\s*)*/gi, '')
+    .replace(/(?:^|\n)\s*(?:\{\s*["“]?\s*)*`{3,}\s*(?:json)?\s*(?:\{\s*)?(?=\r?\n|$)/gi, '\n')
+    .replace(/\bjson\s*`{3,}\s*(?:json)?/gi, '')
+    .replace(/`{3,}\s*json\s*(?=\r?\n|$)/gi, '')
+    .replace(/(?:^|\n)\s*think(?:>|&gt;)\s*/gi, '\n')
     .replace(/^\s*(?:\{\s*)*```(?:json)?\s*(?:\{\s*)*/gi, '')
     .replace(/(?:^|\n)\s*(?:\{\s*["“]?\s*)*`{3,}\s*(?:json)?\s*(?:\{\s*)?(?=(?:I have completed|###|\*\*|\[Tool|Here is|To |Let's|We |I |The |$))/gi, '\n')
     // XML formats

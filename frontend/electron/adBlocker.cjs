@@ -610,12 +610,27 @@ function getAdShieldStats() {
   }
 }
 
+function extractHost(urlOrHost) {
+  if (!urlOrHost) return ''
+  try {
+    return new URL(urlOrHost).hostname.toLowerCase()
+  } catch {
+    return String(urlOrHost).toLowerCase().trim()
+  }
+}
+
+function isSiteAllowed(urlOrHost) {
+  const host = extractHost(urlOrHost)
+  return !!host && userAllowHosts.has(host)
+}
+
 function injectAdShield(wc) {
   if (!wc || typeof wc.on !== 'function') return
   wc.on('did-finish-load', () => {
     if (wc.isDestroyed() || !isAdShieldEnabled()) return
-    wc.insertCSS(COSMETIC_AD_CSS).catch(() => {})
     const url = (typeof wc.getURL === 'function' ? wc.getURL() : '') || ''
+    if (isSiteAllowed(url)) return
+    wc.insertCSS(COSMETIC_AD_CSS).catch(() => {})
     if (url.includes('youtube.com')) {
       wc.executeJavaScript(YOUTUBE_AD_SKIP_SCRIPT).catch(() => {})
     }
@@ -657,6 +672,7 @@ module.exports = {
   addUserAllowHost,
   removeUserBlockHost,
   removeUserAllowHost,
+  isSiteAllowed,
   getStats,
   resetStats,
   clearCaches,

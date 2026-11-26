@@ -12,9 +12,10 @@
 // Sessions are keyed by conversationId: a logged-in tab must not follow the user
 // into an unrelated chat.
 
-const { BrowserWindow, WebContentsView, ipcMain, session: electronSession, shell } = require('electron')
+const { app, BrowserWindow, WebContentsView, ipcMain, session: electronSession, shell } = require('electron')
 const { enableHTTPSUpgrade } = require('./httpsUpgrade.cjs')
-const { injectFingerprintProtection } = require('./fingerprintProtection.cjs')
+const { applyFingerprintProtection } = require('./fingerprintProtection.cjs')
+const fs = require('fs')
 const path = require('path')
 const { pathToFileURL } = require('url')
 const { safeSend } = require('./safeWindow.cjs')
@@ -23,7 +24,10 @@ const {
   normalizeAddressInput, stepZoom,
   findRelocationMatch, relocateScanSource, relocateResolverSource,
 } = require('./browserTree.cjs')
-const { injectAdShield, getAdShieldStats, isAdShieldEnabled, setAdShieldEnabled } = require('./adBlocker.cjs')
+const {
+  injectAdShield, getAdShieldStats, isAdShieldEnabled, setAdShieldEnabled,
+  addUserAllowHost, removeUserAllowHost, isSiteAllowed,
+} = require('./adBlocker.cjs')
 const CONFIG = require('./browserConfig.cjs')
 const { applyRestoreState } = require('./browserRestoreState.cjs')
 
@@ -212,6 +216,7 @@ function ensureSession(conversationId, mode) {
       // Tab groups / workspaces
       tabGroups: new Map(), // groupId -> { id, label, tabIds: [] }
       nextGroupId: 1,
+      closedTabs: [], // stack of { url, title } for Ctrl+Shift+T reopen
       // AI panel state
       aiPanelOpen: false,
       aiPanelWidth: CONFIG.ui?.aiPanelWidth || 340,
@@ -227,12 +232,82 @@ function ensureSession(conversationId, mode) {
   return s
 }
 
+const GROUP_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#a855f7']
+
 // ===== TAB GROUPS / WORKSPACES =====
 function createTabGroup(s, label = 'New Group') {
-  const groupId = `group-${s.nextGroupId++}`
-  const group = { id: groupId, label, tabIds: [], createdAt: Date.now() }
+  const idx = s.nextGroupId++
+  const groupId = `group-${idx}`
+  const color = GROUP_COLORS[(idx - 1) % GROUP_COLORS.length]
+  const group = { id: groupId, label, color, tabIds: [], createdAt: Date.now() }
   s.tabGroups.set(groupId, group)
   return group
+}
+
+function getSessionFilePath() {
+  try {
+    return path.join(app.getPath('userData'), 'yogatik-browser-session.json')
+  } catch {
+    return null
+  }
+}
+
+function saveBrowserSession(s) {
+  if (!s || s.key !== '__default__') return
+  const filePath = getSessionFilePath()
+  if (!filePath) return
+  try {
+    const items = []
+    let activeIndex = 0
+    for (const [tabId, t] of s.tabs.entries()) {
+      const rawUrl = t.hibernated
+        ? t.hibernationState?.url
+        : safe(() => t.view.webContents.getURL(), '')
+      if (!rawUrl || isNewTabUrl(rawUrl) || !/^https?:/.test(rawUrl)) continue
+      if (tabId === s.activeTabId) activeIndex = items.length
+      items.push({
+        url: rawUrl,
+        title: t.hibernated ? (t.hibernationState?.title || rawUrl) : (safe(() => t.view.webContents.getTitle(), '') || rawUrl),
+        pinned: !!t.pinned,
+      })
+    }
+    if (items.length > 0) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true })
+      fs.writeFileSync(filePath, JSON.stringify({ tabs: items, activeIndex, savedAt: Date.now() }))
+    }
+  } catch { /* ignore */ }
+}
+
+function loadSavedSession() {
+  const filePath = getSessionFilePath()
+  if (!filePath) return null
+  try {
+    if (!fs.existsSync(filePath)) return null
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    if (data && Array.isArray(data.tabs) && data.tabs.length > 0) return data
+  } catch { /* ignore */ }
+  return null
+}
+
+function restoreSavedSession(s) {
+  const saved = loadSavedSession()
+  if (!saved) return 0
+  let restored = 0
+  let targetActiveId = null
+  for (let i = 0; i < saved.tabs.length; i++) {
+    const entry = saved.tabs[i]
+    if (!entry?.url || !/^https?:/.test(entry.url)) continue
+    const id = createTab(s, entry.url)
+    const tab = s.tabs.get(id)
+    if (tab && entry.pinned) tab.pinned = true
+    if (i === saved.activeIndex || !targetActiveId) targetActiveId = id
+    restored++
+  }
+  if (targetActiveId) {
+    s.activeTabId = targetActiveId
+    showActive(s)
+  }
+  return restored
 }
 
 function moveTabToGroup(s, tabId, groupId) {
@@ -309,14 +384,23 @@ function tabFor(s, tabId) {
 }
 
 function listTabs(s) {
-  return [...s.tabs.entries()].map(([tabId, t]) => {
+  const entries = [...s.tabs.entries()]
+  // Show pinned tabs first while preserving creation order within each group
+  entries.sort((a, b) => (b[1].pinned ? 1 : 0) - (a[1].pinned ? 1 : 0))
+  return entries.map(([tabId, t]) => {
     const rawUrl = safe(() => t.view.webContents.getURL(), '')
     const isHome = isNewTabUrl(rawUrl)
+    const group = t.groupId ? s.tabGroups.get(t.groupId) : null
     return {
       tabId,
       url: isHome ? '' : rawUrl,
       title: isHome ? 'New Tab' : (safe(() => t.view.webContents.getTitle(), '') || 'New Tab'),
       active: tabId === s.activeTabId,
+      loading: safe(() => t.view.webContents.isLoading(), false),
+      pinned: !!t.pinned,
+      groupId: t.groupId || null,
+      groupColor: group?.color || null,
+      groupLabel: group?.label || null,
       audible: safe(() => t.view.webContents.isCurrentlyAudible(), false),
       muted: safe(() => t.view.webContents.isAudioMuted(), false),
     }
@@ -335,6 +419,7 @@ function createWindowSurface(s) {
     width: 1100,
     height: 800,
     show: true,
+    autoHideMenuBar: true,
     title: 'Yogatik Browser',
     backgroundColor: '#0a0e14',
     icon: path.join(__dirname, 'icon.ico'),
@@ -460,11 +545,18 @@ function syncTabBar(s) {
     const snap = navSnapshot(s)
     const payload = JSON.stringify(snap.tabs)
     const active = JSON.stringify(snap.activeTabId)
+    const siteHost = safe(() => new URL(snap.url).hostname, '')
     const navPayload = JSON.stringify({
+      activeTabId: snap.activeTabId,
       url: snap.url, canGoBack: snap.canGoBack, canGoForward: snap.canGoForward,
       loading: snap.loading, zoomPercent: snap.zoomPercent,
-      shield: snap.shield, aiPanelOpen: snap.aiPanelOpen,
+      shield: snap.shield,
+      siteHost,
+      siteAllowed: siteHost ? isSiteAllowed(siteHost) : false,
+      aiPanelOpen: snap.aiPanelOpen,
       humanControl: snap.humanControl, helpRequested: snap.helpRequested,
+      canReopen: (s.closedTabs?.length || 0) > 0,
+      hasSavedSession: !!loadSavedSession(),
     })
     s.win.webContents
       .executeJavaScript(`window.__setTabs && window.__setTabs(${payload}, ${active}, ${navPayload})`)
@@ -529,7 +621,14 @@ function createTab(s, url, opts = {}) {
 
   const wc = view.webContents
   injectAdShield(wc)
-  injectFingerprintProtection(view)
+  if (CONFIG.fingerprint?.enabled !== false) {
+    applyFingerprintProtection(wc, s.key, CONFIG.fingerprint)
+    wc.on('dom-ready', () => {
+      if (CONFIG.fingerprint?.enabled !== false) {
+        applyFingerprintProtection(wc, s.key, CONFIG.fingerprint)
+      }
+    })
+  }
   try {
     const defaultUA = wc.getUserAgent()
     const cleanedUA = defaultUA
@@ -692,12 +791,33 @@ function createTab(s, url, opts = {}) {
       return
     }
 
+    // Ctrl/Cmd+Shift+T: Reopen last closed tab
+    if (mod && input.shift && !input.alt && key === 't') {
+      event.preventDefault()
+      reopenClosedTab(s)
+      return
+    }
+
     // Ctrl/Cmd+T: New Tab
-    if (mod && !input.alt && key === 't') {
+    if (mod && !input.shift && !input.alt && key === 't') {
       event.preventDefault()
       const id = createTab(s, null)
       s.activeTabId = id
       showActive(s)
+      return
+    }
+
+    // Ctrl+Tab / Ctrl+Shift+Tab: Cycle tabs
+    if (input.control && !input.alt && key === 'tab') {
+      event.preventDefault()
+      cycleTab(s, input.shift ? -1 : 1)
+      return
+    }
+
+    // Ctrl/Cmd+1..9: Switch tab by index
+    if (mod && !input.alt && !input.shift && /^[1-9]$/.test(key)) {
+      event.preventDefault()
+      selectTabByIndex(s, Number(key))
       return
     }
 
@@ -885,10 +1005,23 @@ function closeTab(s, tabId) {
       s.win.webContents.executeJavaScript('document.body.classList.remove("fullscreen-mode")').catch(() => {})
     }
   }
+  // Record closed tab URL for Ctrl+Shift+T reopen
+  const closedUrl = t.hibernated
+    ? t.hibernationState?.url
+    : safe(() => t.view.webContents.getURL(), '')
+  if (closedUrl && !isNewTabUrl(closedUrl)) {
+    if (!s.closedTabs) s.closedTabs = []
+    const closedTitle = t.hibernated
+      ? (t.hibernationState?.title || closedUrl)
+      : (safe(() => t.view.webContents.getTitle(), '') || closedUrl)
+    s.closedTabs.push({ url: closedUrl, title: closedTitle })
+    if (s.closedTabs.length > 20) s.closedTabs.shift()
+  }
   const h = host(s)
   if (h && !h.isDestroyed() && h.contentView.children.includes(t.view)) {
     h.contentView.removeChildView(t.view)
   }
+  if (s.tabs.size === 1) saveBrowserSession(s)
   safe(() => t.view.webContents.close())
   s.tabs.delete(tabId)
   if (s.activeTabId === tabId) s.activeTabId = [...s.tabs.keys()][0] || null
@@ -899,9 +1032,42 @@ function closeTab(s, tabId) {
   return { success: true, tabs: listTabs(s) }
 }
 
+function reopenClosedTab(s) {
+  if (!s.closedTabs || !s.closedTabs.length) return null
+  const entry = s.closedTabs.pop()
+  const id = createTab(s, entry.url)
+  s.activeTabId = id
+  showActive(s)
+  return id
+}
+
+function orderedTabIds(s) {
+  return listTabs(s).map(t => t.tabId)
+}
+
+function cycleTab(s, delta) {
+  const ids = orderedTabIds(s)
+  if (ids.length < 2) return
+  const idx = Math.max(0, ids.indexOf(s.activeTabId))
+  const next = (idx + delta + ids.length) % ids.length
+  s.activeTabId = ids[next]
+  showActive(s)
+}
+
+function selectTabByIndex(s, oneBased) {
+  const ids = orderedTabIds(s)
+  if (!ids.length) return
+  const idx = oneBased === 9 ? ids.length - 1 : Math.min(oneBased - 1, ids.length - 1)
+  if (idx >= 0 && ids[idx]) {
+    s.activeTabId = ids[idx]
+    showActive(s)
+  }
+}
+
 function destroySession(key) {
   const s = sessions.get(key)
   if (!s) return
+  saveBrowserSession(s)
   for (const [, t] of s.tabs) safe(() => t.view.webContents.close())
   s.tabs.clear()
   if (s.win && !s.win.isDestroyed()) {
@@ -2457,6 +2623,49 @@ function registerBrowserControl(getMainWindow) {
         showActive(s)
         break
       }
+      case 'duplicate-tab': {
+        const targetTab = (typeof tabId === 'string' && s.tabs.get(tabId)) || t
+        const dupUrl = targetTab
+          ? (targetTab.hibernated ? targetTab.hibernationState?.url : safe(() => targetTab.view.webContents.getURL(), ''))
+          : null
+        const id = createTab(s, dupUrl && !isNewTabUrl(dupUrl) ? dupUrl : null)
+        s.activeTabId = id
+        showActive(s)
+        break
+      }
+      case 'reopen-closed-tab':
+        reopenClosedTab(s)
+        break
+      case 'toggle-pin':
+        if (typeof tabId === 'string' && s.tabs.has(tabId)) {
+          const tab = s.tabs.get(tabId)
+          if (tab) { tab.pinned = !tab.pinned; syncTabBar(s) }
+        }
+        break
+      case 'close-other-tabs':
+        if (typeof tabId === 'string' && s.tabs.has(tabId)) {
+          for (const [id, tab] of [...s.tabs.entries()]) {
+            if (id !== tabId && !tab.pinned) closeTab(s, id)
+          }
+          s.activeTabId = tabId
+          showActive(s)
+        }
+        break
+      case 'reload-tab':
+        if (typeof tabId === 'string' && s.tabs.has(tabId)) {
+          const tab = s.tabs.get(tabId)
+          if (tab) { tab.view.webContents.reloadIgnoringCache(); tab.refEpoch++ }
+        }
+        break
+      case 'next-tab':
+        cycleTab(s, 1)
+        break
+      case 'prev-tab':
+        cycleTab(s, -1)
+        break
+      case 'select-index':
+        if (Number.isFinite(arg)) selectTabByIndex(s, Number(arg))
+        break
       case 'back':
         if (t?.view.webContents.navigationHistory.canGoBack()) t.view.webContents.navigationHistory.goBack()
         break
@@ -2532,6 +2741,40 @@ function registerBrowserControl(getMainWindow) {
       case 'toggle-shield':
         setAdShieldEnabled(!isAdShieldEnabled())
         syncTabBar(s)
+        break
+      case 'toggle-site-shield': {
+        const curUrl = t ? safe(() => t.view.webContents.getURL(), '') : ''
+        const host = curUrl ? safe(() => new URL(curUrl).hostname, '') : ''
+        if (host) {
+          if (isSiteAllowed(host)) removeUserAllowHost(host)
+          else addUserAllowHost(host)
+          t.view.webContents.reload()
+          syncTabBar(s)
+        }
+        break
+      }
+      case 'restore-session':
+        restoreSavedSession(s)
+        break
+      case 'group-tab':
+        if (typeof tabId === 'string' && s.tabs.has(tabId)) {
+          const tab = s.tabs.get(tabId)
+          const g = createTabGroup(s, `Group ${s.tabGroups.size + 1}`)
+          moveTabToGroup(s, tabId, g.id)
+          if (tab) tab.groupId = g.id
+          syncTabBar(s)
+        }
+        break
+      case 'ungroup-tab':
+        if (typeof tabId === 'string' && s.tabs.has(tabId)) {
+          const tab = s.tabs.get(tabId)
+          for (const g of s.tabGroups.values()) {
+            const idx = g.tabIds.indexOf(tabId)
+            if (idx >= 0) g.tabIds.splice(idx, 1)
+          }
+          if (tab) tab.groupId = null
+          syncTabBar(s)
+        }
         break
       case 'take-wheel':
         if (t) {

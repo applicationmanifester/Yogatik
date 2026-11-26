@@ -4,8 +4,14 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import { LiveView } from './LiveView'
 
 // Mock dependencies that require full browser APIs
+const mockSendText = vi.fn()
 vi.mock('../live/session', () => ({
-  createLiveSession: vi.fn().mockReturnValue({ start: vi.fn().mockReturnValue(Promise.resolve()), stop: vi.fn() }),
+  createLiveSession: vi.fn().mockReturnValue({
+    start: vi.fn().mockReturnValue(Promise.resolve()),
+    stop: vi.fn(),
+    setMuted: vi.fn(),
+    sendText: (...args) => mockSendText(...args),
+  }),
 }))
 vi.mock('../live/cascade', () => ({
   createCascadeSession: vi.fn().mockReturnValue({ start: vi.fn().mockReturnValue(Promise.resolve()), stop: vi.fn() }),
@@ -134,5 +140,39 @@ describe('LiveView cockpit', () => {
     await waitFor(() => expect(document.getElementById('live-transcript-drawer')).toBeNull())
     // …and focus lands back on the command-bar hub
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'More live controls' })))
+  })
+
+  it('toggles microphone mute with the M keyboard shortcut', () => {
+    render(<LiveView {...baseProps} />)
+    const micBtn = screen.getByRole('button', { name: 'Mute microphone' })
+    expect(micBtn).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'm' })
+    expect(screen.getByRole('button', { name: 'Unmute microphone' })).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'M' })
+    expect(screen.getByRole('button', { name: 'Mute microphone' })).toBeTruthy()
+  })
+
+  it('opens Live settings when clicking the top model pill', async () => {
+    render(<LiveView {...baseProps} />)
+    const modelPill = screen.getByRole('button', { name: /gemini-2\.5-flash/i })
+    fireEvent.click(modelPill)
+    await waitFor(() => {
+      expect(screen.getByText(/Live Settings/i)).toBeTruthy()
+    })
+  })
+
+  it('sends a typed message from the transcript drawer composer', async () => {
+    render(<LiveView {...baseProps} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More live controls' }))
+    fireEvent.click(screen.getByRole('button', { name: /Transcript & activity/i }))
+
+    const input = await waitFor(() => screen.getByLabelText('Type a message to Live'))
+    fireEvent.change(input, { target: { value: 'Summarize what you see' } })
+    fireEvent.submit(input.closest('form'))
+
+    expect(mockSendText).toHaveBeenCalledWith('Summarize what you see')
+    expect(input.value).toBe('')
   })
 })

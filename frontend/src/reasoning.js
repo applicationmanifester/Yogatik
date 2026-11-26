@@ -193,6 +193,12 @@ export function createReasoningTagger() {
         return prefix + '\n\n*(…repetitive filler loop truncated)*'
       }
 
+      // Break degenerate repeated malformed tool-call stubs even when they contain ``` or {
+      if (/(?:\{\s*["“]?(?:tool_c|`{3,})[^\n]{0,40}\s*){3,}/i.test(contentTail)) {
+        contentLoopSuppressed = true
+        return prefix + '\n\n*(…repetitive malformed tool output truncated)*'
+      }
+
       // Check if the tail contains a 4x repeating pattern of significant length (min 24 chars)
       // Skip entirely when the tail is dominated by markdown table content or code blocks
       const hasTableContent = (contentTail.match(/\|/g) || []).length > 6

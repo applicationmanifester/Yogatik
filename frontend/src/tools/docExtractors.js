@@ -63,52 +63,134 @@ export async function extractPdf(file) {
   }
 }
 
-/** Extract text from Word (.docx) files */
-export async function extractDocx(file) {
-  const JSZip = await loadScript([
-    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-    'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'
-  ], 'JSZip')
+async function getJsZip() {
+  try {
+    const mod = await import('jszip')
+    return mod.default || mod
+  } catch {
+    return loadScript([
+      'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+      'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+      'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'
+    ], 'JSZip')
+  }
+}
 
-  const arrayBuffer = await readBlobAsArrayBuffer(file)
+async function getXlsx() {
+  try {
+    const mod = await import('xlsx')
+    return mod.default || mod
+  } catch {
+    return loadScript([
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+    ], 'XLSX')
+  }
+}
+
+function parseXml(xmlText) {
+  if (typeof DOMParser !== 'undefined') {
+    return new DOMParser().parseFromString(xmlText, 'text/xml')
+  }
+  throw new Error('XML parser (DOMParser) is unavailable in this environment.')
+}
+
+function extractParagraphText(p) {
+  const texts = p.getElementsByTagName('w:t')
+  let line = ''
+  for (let j = 0; j < texts.length; j++) {
+    line += texts[j].textContent || ''
+  }
+  return line.trim()
+}
+
+function headingPrefixFor(p) {
+  const styles = p.getElementsByTagName('w:pStyle')
+  if (!styles.length) return ''
+  const val = styles[0].getAttribute('w:val') || styles[0].getAttribute('val') || ''
+  const m = val.match(/^Heading([1-6])$/i)
+  return m ? `${'#'.repeat(Number(m[1]))} ` : ''
+}
+
+function extractTableMarkdown(tbl) {
+  const rows = []
+  const trs = tbl.getElementsByTagName('w:tr')
+  for (let r = 0; r < trs.length; r++) {
+    const tcs = trs[r].getElementsByTagName('w:tc')
+    const cells = []
+    for (let c = 0; c < tcs.length; c++) {
+      const ps = tcs[c].getElementsByTagName('w:p')
+      const parts = []
+      for (let k = 0; k < ps.length; k++) {
+        const t = extractParagraphText(ps[k])
+        if (t) parts.push(t)
+      }
+      cells.push(parts.join(' ').replace(/\|/g, '\\|'))
+    }
+    if (cells.some(Boolean)) rows.push(cells)
+  }
+  if (!rows.length) return ''
+  const cols = Math.max(...rows.map(r => r.length))
+  const pad = (r) => {
+    const out = r.slice()
+    while (out.length < cols) out.push('')
+    return `| ${out.join(' | ')} |`
+  }
+  const sep = `| ${Array(cols).fill('---').join(' | ')} |`
+  return [pad(rows[0]), sep, ...rows.slice(1).map(pad)].join('\n')
+}
+
+/** Extract structured text, headings, and tables from a Word (.docx) ArrayBuffer */
+export async function extractDocxFromBuffer(arrayBuffer) {
+  const JSZip = await getJsZip()
   const zip = await JSZip.loadAsync(arrayBuffer)
   const docXml = zip.file('word/document.xml')
   if (!docXml) throw new Error('Invalid Word document: word/document.xml not found')
 
-  const xmlText = await docXml.async('text')
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xmlText, 'text/xml')
-  const paragraphs = doc.getElementsByTagName('w:p')
-  const lines = []
+  const doc = parseXml(await docXml.async('text'))
+  const body = doc.getElementsByTagName('w:body')[0] || doc.documentElement
+  const blocks = []
 
-  for (let i = 0; i < paragraphs.length; i++) {
-    const p = paragraphs[i]
-    const texts = p.getElementsByTagName('w:t')
-    let line = ''
-    for (let j = 0; j < texts.length; j++) {
-      line += texts[j].textContent || ''
+  const children = body?.childNodes || []
+  for (let i = 0; i < children.length; i++) {
+    const node = children[i]
+    const name = node.nodeName || node.tagName || ''
+    if (name === 'w:p') {
+      const text = extractParagraphText(node)
+      if (text) blocks.push(`${headingPrefixFor(node)}${text}`)
+    } else if (name === 'w:tbl') {
+      const mdTable = extractTableMarkdown(node)
+      if (mdTable) blocks.push(mdTable)
     }
-    if (line.trim()) lines.push(line.trim())
   }
 
-  const result = lines.join('\n\n')
+  // Fallback if document.xml used a non-standard body wrapper
+  if (!blocks.length) {
+    const paragraphs = doc.getElementsByTagName('w:p')
+    for (let i = 0; i < paragraphs.length; i++) {
+      const text = extractParagraphText(paragraphs[i])
+      if (text) blocks.push(`${headingPrefixFor(paragraphs[i])}${text}`)
+    }
+  }
+
+  const result = blocks.join('\n\n')
   if (!result.trim()) {
     throw new Error('Word document contains no readable text.')
   }
   return result
 }
 
-/** Extract structured tables/data from Excel (.xlsx, .xls) */
-export async function extractXlsx(file) {
-  const XLSX = await loadScript([
-    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
-  ], 'XLSX')
+/** Extract text from Word (.docx) files */
+export async function extractDocx(file) {
+  return extractDocxFromBuffer(await readBlobAsArrayBuffer(file))
+}
 
-  const arrayBuffer = await readBlobAsArrayBuffer(file)
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+/** Extract structured tables/data from an Excel (.xlsx, .xls) ArrayBuffer */
+export async function extractXlsxFromBuffer(arrayBuffer) {
+  const XLSX = await getXlsx()
+  const data = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer)
+  const workbook = XLSX.read(data, { type: 'array' })
   const sections = []
 
   for (const sheetName of workbook.SheetNames) {
@@ -125,6 +207,63 @@ export async function extractXlsx(file) {
     throw new Error('Spreadsheet appears to be empty.')
   }
   return result
+}
+
+/** Extract structured tables/data from Excel (.xlsx, .xls) */
+export async function extractXlsx(file) {
+  return extractXlsxFromBuffer(await readBlobAsArrayBuffer(file))
+}
+
+/** Extract slides and speaker notes from a PowerPoint (.pptx) ArrayBuffer */
+export async function extractPptxFromBuffer(arrayBuffer) {
+  const JSZip = await getJsZip()
+  const zip = await JSZip.loadAsync(arrayBuffer)
+  const slideNames = Object.keys(zip.files)
+    .filter(n => /^ppt\/slides\/slide\d+\.xml$/i.test(n))
+    .sort((a, b) => Number(a.match(/(\d+)\.xml$/)[1]) - Number(b.match(/(\d+)\.xml$/)[1]))
+
+  if (!slideNames.length) {
+    throw new Error('Invalid PowerPoint file: no slides found in ppt/slides/.')
+  }
+
+  const slidesOut = []
+  for (const slidePath of slideNames) {
+    const slideNum = slidePath.match(/(\d+)\.xml$/)[1]
+    const xml = await zip.file(slidePath).async('text')
+    const doc = parseXml(xml)
+    const texts = doc.getElementsByTagName('a:t').length
+      ? doc.getElementsByTagName('a:t')
+      : doc.getElementsByTagNameNS('*', 't')
+    const lines = []
+    for (let i = 0; i < texts.length; i++) {
+      const t = (texts[i].textContent || '').trim()
+      if (t) lines.push(t)
+    }
+    const notesPath = `ppt/notesSlides/notesSlide${slideNum}.xml`
+    let notesText = ''
+    if (zip.file(notesPath)) {
+      const nDoc = parseXml(await zip.file(notesPath).async('text'))
+      const nTexts = nDoc.getElementsByTagName('a:t').length
+        ? nDoc.getElementsByTagName('a:t')
+        : nDoc.getElementsByTagNameNS('*', 't')
+      const nLines = []
+      for (let i = 0; i < nTexts.length; i++) {
+        const t = (nTexts[i].textContent || '').trim()
+        if (t && t !== slideNum) nLines.push(t)
+      }
+      if (nLines.length) notesText = `\n\n> Notes: ${nLines.join(' ')}`
+    }
+    slidesOut.push(`## Slide ${slideNum}\n${lines.join('\n')}${notesText}`.trim())
+  }
+
+  const result = slidesOut.join('\n\n')
+  if (!result.trim()) throw new Error('PowerPoint presentation contains no readable text.')
+  return result
+}
+
+/** Extract slides and notes from PowerPoint (.pptx) files */
+export async function extractPptx(file) {
+  return extractPptxFromBuffer(await readBlobAsArrayBuffer(file))
 }
 
 /** Extract text and layout signals from images via OCR */
@@ -264,6 +403,12 @@ export async function extractFileText(file) {
       mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
       mime === 'application/vnd.ms-excel') {
     return extractXlsx(file)
+  }
+
+  // 3b. PowerPoint presentation (.pptx)
+  if (name.endsWith('.pptx') ||
+      mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+    return extractPptx(file)
   }
 
   // 4. Image file (PNG, JPG, WEBP, BMP, TIFF) via OCR

@@ -31,6 +31,7 @@ import { diffTool } from './diff'
 import { unitConvertTool } from './unitConvert'
 import { ipLookupTool } from './ipLookup'
 import { mdToPdfTool } from './mdToPdf'
+import { docReadTool, docEditTool } from './docOps'
 import { webExtractTool } from './webExtract'
 // web_search is registered as localSearchTool, which uses the desktop search
 // sidecar when it is running and delegates to webSearchTool everywhere else —
@@ -361,6 +362,8 @@ const ALL_TOOLS = {
   query_refine: queryRefineTool,
   doc_export: docExportTool,
   doc_enhance: docEnhanceTool,
+  doc_read: docReadTool,
+  doc_edit: docEditTool,
   // Social Media & Career Intelligence Tools
   social_search: socialSearchTool,
   job_search: jobSearchTool,
@@ -1360,9 +1363,11 @@ export function prioritizeToolSchemas(schemas = [], userMessage = '', { limit = 
     scores['link_preview'] = 120
     scores['web_search'] = 100
   }
-  if (/\b(ppt|pptx|powerpoint|slides?|presentation|document|doc|docx|csv|export|download)\b/i.test(text)) {
+  if (/\b(ppt|pptx|powerpoint|slides?|presentation|document|doc|docx|xlsx?|excel|spreadsheet|csv|export|download)\b/i.test(text)) {
     scores['doc_export'] = 200
     scores['doc_enhance'] = 180
+    scores['doc_read'] = 170
+    scores['doc_edit'] = 170
     scores['pdf_extract'] = 120
     scores['data_convert'] = 100
   }

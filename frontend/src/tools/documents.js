@@ -31,10 +31,22 @@ export function invalidateDocIndex(id) {
   else indexCache.delete(id)
 }
 
+function inferPassageLocation(passage = '') {
+  const sheet = passage.match(/===\s*Sheet:\s*([^=\n]+?)(?:\s*\(\d+\s*rows\))?\s*===/i)
+  if (sheet) return `Sheet: ${sheet[1].trim()}`
+  const slide = passage.match(/^##\s+(Slide\s+\d+)/m)
+  if (slide) return slide[1]
+  const page = passage.match(/(?:^|\n)\[?Page\s+(\d+)\]?/i)
+  if (page) return `Page ${page[1]}`
+  const heading = passage.match(/^(#{1,3})\s+([^\n]+)/m)
+  if (heading) return heading[2].trim().slice(0, 60)
+  return undefined
+}
+
 export const docSearchTool = {
   schema: {
     description:
-      'Search the documents the user has uploaded in this app (PDF, text, markdown, CSV, JSON). ' +
+      'Search the documents the user has uploaded in this app (PDF, DOCX, XLSX, PPTX, text, markdown, CSV, JSON). ' +
       'Use whenever the user refers to "the document", "my file", "the PDF", "the attachment", or asks a question ' +
       'that the uploaded material would answer. Returns the most relevant passages with their document names.',
     parameters: {
@@ -93,6 +105,7 @@ export const docSearchTool = {
       documents_searched: docs.map(d => d.name),
       passages: hits.slice(0, k).map(({ semanticScore, text, ...rest }, i) => ({
         ...rest,
+        location: inferPassageLocation(rest.passage),
         // Inline citations: each result block carries its bracketed citation
         // number so the model can cite it naturally (citations.js parses
         // `[1]`/`[2,3]`/`[citation:1]` back out of the finished answer).

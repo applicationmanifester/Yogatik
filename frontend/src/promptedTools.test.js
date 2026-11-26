@@ -113,6 +113,22 @@ describe('stripToolCallSyntax', () => {
     expect(stripToolCallSyntax(broken)).toBe('')
   })
 
+  it('strips repeated {"tool_c```json and stray think> stutter loops', () => {
+    const junk = [
+      'json {"tool_c json {"tool_c json `````json json {"tool_c```json`````json',
+      '{"```json',
+      'think&gt;Let me also check the main entry point to see how the application is bootstrapped.```json',
+      '{"tool_c```json',
+      '{"tool_c```json',
+      '{"tool_c`````json```json',
+    ].join('\n')
+    expect(parseToolCalls(junk).malformed).toBe(true)
+    const stripped = stripToolCallSyntax(junk)
+    expect(stripped).not.toContain('tool_c')
+    expect(stripped).not.toContain('```json')
+    expect(stripped).not.toContain('think&gt;')
+  })
+
   it('leaves ordinary prose and code alone', () => {
     const prose = 'Use `<function>` in a type signature, and `a < b` compares numbers.'
     expect(stripToolCallSyntax(prose)).toBe(prose)

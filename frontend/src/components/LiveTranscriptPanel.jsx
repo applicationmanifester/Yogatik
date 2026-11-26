@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react'
-import { Wrench, Copy, Zap, Brain, Activity, Search, Cpu, CheckCircle2, AlertCircle, Loader2, X, ChevronDown, Layers } from 'lucide-react'
+import { Wrench, Copy, Check, Zap, Brain, Activity, Search, Cpu, CheckCircle2, AlertCircle, Loader2, X, ChevronDown, Layers, Send } from 'lucide-react'
 
 /**
  * Live Transcript Drawer — the AI transparency surface.
@@ -63,10 +63,37 @@ export function LiveTranscriptPanel({
   activeProvider,
   activeModel,
   artifacts = [],
+  onSendText,
 }) {
   const bodyRef = useRef(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState('all') // 'all' | 'user' | 'assistant' | 'tool' | 'status'
+  const [copiedAll, setCopiedAll] = useState(false)
+  const [draftText, setDraftText] = useState('')
+
+  const filterCounts = useMemo(() => {
+    const counts = { all: transcript.length, user: 0, assistant: 0, tool: 0, status: 0 }
+    for (const item of transcript) {
+      if (item.role === 'user') counts.user++
+      else if (item.role === 'assistant') counts.assistant++
+      if (item.type === 'tool' || item.type === 'toolResult') counts.tool++
+      if (item.type === 'status') counts.status++
+    }
+    return counts
+  }, [transcript])
+
+  const handleCopyAll = () => {
+    const text = transcript
+      .filter(item => (item.role === 'user' || item.role === 'assistant') && item.text)
+      .map(item => `${item.role === 'user' ? 'You' : 'Assistant'}: ${item.text}`)
+      .join('\n\n')
+    if (!text) return
+    try {
+      navigator.clipboard?.writeText(text)
+      setCopiedAll(true)
+      setTimeout(() => setCopiedAll(false), 1800)
+    } catch {}
+  }
 
   // Auto-scroll to bottom on new entries (unless user scrolled up)
   const [userScrolledUp, setUserScrolledUp] = useState(false)
@@ -146,7 +173,7 @@ export function LiveTranscriptPanel({
       tabIndex={-1}
     >
       <div className="live-transcript-header">
-        <span className="live-transcript-title" style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9', flexShrink: 0 }}>
+        <span className="live-transcript-title" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--live-text)', flexShrink: 0 }}>
           Transcript
         </span>
         {artifacts.length > 0 && (
@@ -159,14 +186,36 @@ export function LiveTranscriptPanel({
           </span>
         )}
         <div className="live-transcript-search">
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#64748b', pointerEvents: 'none' }} />
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--live-text-faint)', pointerEvents: 'none' }} />
           <input
             type="text"
             placeholder="Search transcript…"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              className="live-transcript-search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              title="Clear search"
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
+        {transcript.some(item => (item.role === 'user' || item.role === 'assistant') && item.text) && (
+          <button
+            type="button"
+            className={`live-transcript-copy-all${copiedAll ? ' copied' : ''}`}
+            onClick={handleCopyAll}
+            title="Copy full conversation transcript"
+            aria-label="Copy full transcript"
+          >
+            {copiedAll ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        )}
         <button
           type="button"
           className="live-transcript-close"
@@ -177,12 +226,28 @@ export function LiveTranscriptPanel({
           <X size={16} />
         </button>
       </div>
-      <div className="live-transcript-filter" role="group" aria-label="Filter transcript by type">
-        <button className={`live-filter-btn ${filterType === 'all' ? 'active' : ''}`} onClick={() => setFilterType('all')}>All</button>
-        <button className={`live-filter-btn ${filterType === 'user' ? 'active' : ''}`} onClick={() => setFilterType('user')}>You</button>
-        <button className={`live-filter-btn ${filterType === 'assistant' ? 'active' : ''}`} onClick={() => setFilterType('assistant')}>AI</button>
-        <button className={`live-filter-btn ${filterType === 'tool' ? 'active' : ''}`} onClick={() => setFilterType('tool')}>Tools</button>
-        <button className={`live-filter-btn ${filterType === 'status' ? 'active' : ''}`} onClick={() => setFilterType('status')}>Status</button>
+      <div className="live-transcript-filter" role="tablist" aria-label="Filter transcript by type">
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'user', label: 'You' },
+          { id: 'assistant', label: 'AI' },
+          { id: 'tool', label: 'Tools' },
+          { id: 'status', label: 'Status' },
+        ].map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={filterType === id}
+            className={`live-filter-btn ${filterType === id ? 'active' : ''}`}
+            onClick={() => setFilterType(id)}
+          >
+            <span>{label}</span>
+            {filterCounts[id] > 0 && (
+              <span className="live-filter-count">{filterCounts[id]}</span>
+            )}
+          </button>
+        ))}
       </div>
       <div className="live-transcript-body" ref={bodyRef} onScroll={handleScroll}>
         {windowItems.map(({ item, idx, isLastEntry }) => (
@@ -286,6 +351,36 @@ export function LiveTranscriptPanel({
           <ChevronDown size={13} />
           Jump to live
         </button>
+      )}
+      {typeof onSendText === 'function' && (
+        <form
+          className="live-transcript-composer"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const msg = draftText.trim()
+            if (!msg) return
+            onSendText(msg)
+            setDraftText('')
+          }}
+        >
+          <input
+            type="text"
+            className="live-transcript-composer-input"
+            placeholder="Type a message to Live…"
+            aria-label="Type a message to Live"
+            value={draftText}
+            onChange={(e) => setDraftText(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="live-transcript-composer-send"
+            disabled={!draftText.trim()}
+            aria-label="Send message"
+            title="Send message"
+          >
+            <Send size={14} />
+          </button>
+        </form>
       )}
     </div>
   )

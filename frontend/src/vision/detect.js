@@ -215,6 +215,54 @@ export async function classifyZeroShot(image, labels = DEFAULT_LABELS, opts = {}
     .sort((a, b) => b.score - a.score)
 }
 
+function boxArea(box) {
+  if (!box) return 0
+  return Math.max(0, (box.xmax ?? 0) - (box.xmin ?? 0)) * Math.max(0, (box.ymax ?? 0) - (box.ymin ?? 0))
+}
+
+function boxOverlap(a, b) {
+  if (!a || !b) return { iou: 0, containment: 0 }
+  const ix1 = Math.max(a.xmin ?? 0, b.xmin ?? 0)
+  const iy1 = Math.max(a.ymin ?? 0, b.ymin ?? 0)
+  const ix2 = Math.min(a.xmax ?? 0, b.xmax ?? 0)
+  const iy2 = Math.min(a.ymax ?? 0, b.ymax ?? 0)
+  const inter = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1)
+  if (inter <= 0) return { iou: 0, containment: 0 }
+  const areaA = boxArea(a)
+  const areaB = boxArea(b)
+  const union = areaA + areaB - inter
+  const minArea = Math.min(areaA, areaB)
+  return {
+    iou: union > 0 ? inter / union : 0,
+    containment: minArea > 0 ? inter / minArea : 0,
+  }
+}
+
+/**
+ * Per-class Non-Maximum Suppression (NMS) for DETR detections.
+ * Suppresses overlapping or nested duplicate boxes for the same label so the
+ * Object HUD never stacks 3-4 identical "COUCH" tags on one object.
+ */
+export function deduplicateDetections(objects = [], { iouThreshold = 0.45, containmentThreshold = 0.8, maxDetections = 8 } = {}) {
+  if (!Array.isArray(objects) || objects.length === 0) return []
+  const sorted = [...objects].sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0))
+  const kept = []
+  for (const det of sorted) {
+    if (!det || !det.box) continue
+    const label = String(det.label || '').toLowerCase()
+    const duplicate = kept.some((existing) => {
+      if (String(existing.label || '').toLowerCase() !== label) return false
+      const { iou, containment } = boxOverlap(existing.box, det.box)
+      return iou >= iouThreshold || containment >= containmentThreshold
+    })
+    if (!duplicate) {
+      kept.push(det)
+      if (kept.length >= maxDetections) break
+    }
+  }
+  return kept
+}
+
 /**
  * "What is in it, and where?"
  * @returns {Promise<Array<{label, score, box}>>}
@@ -224,11 +272,12 @@ export async function detectObjects(image, { threshold = 0.5, ...opts } = {}) {
   // Downscale first: boxes are percentages, so they still map to the full frame.
   const prepared = await downscaleForInference(image)
   const out = await pipe(prepared, { threshold, percentage: true })
-  return (Array.isArray(out) ? out : []).map(r => ({
+  const mapped = (Array.isArray(out) ? out : []).map(r => ({
     label: r.label,
     score: Number(r.score),
     box: r.box,
   }))
+  return deduplicateDetections(mapped)
 }
 
 /** Group detections into "3 people, 1 laptop" — what a person would say. */

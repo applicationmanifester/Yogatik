@@ -110,13 +110,21 @@ function registerFsBridge() {
   // and returned the fragment with nothing to mark it — the model could not
   // tell a whole file from its first 500KB, and rewrote files from the half it
   // had seen. `offset`/`limit` are the supported way to page through a big one.
-  ipcMain.handle('fs_read', async (_e, { ctx, path: rel, maxBytes = 100_000_000, offset = 0, limit = 0, tail = 0, find = '', surround = 10, lineNumbers = false }) => {
+  ipcMain.handle('fs_read', async (_e, { ctx, path: rel, maxBytes = 100_000_000, offset = 0, limit = 0, tail = 0, find = '', surround = 10, lineNumbers = false, encoding = null }) => {
     const file = resolvePath(ctx, rel)
+    if (encoding === 'base64') {
+      const stat = await fs.promises.stat(file)
+      if (stat.size > maxBytes) {
+        throw new Error(`${path.basename(file)} is ${stat.size} bytes, exceeding maxBytes (${maxBytes}).`)
+      }
+      const buf = await fs.promises.readFile(file)
+      return { path: file, base64: buf.toString('base64'), bytes: buf.length, hash: hashContent(buf), encoding: 'base64' }
+    }
     const res = await readFileSmart(file, { maxBytes, offset, limit, tail, find, surround, lineNumbers })
     return { path: file, ...res }
   })
 
-  ipcMain.handle('fs_write', async (_e, { ctx, path: rel, content, expectedHash = null, keepEol = true, dryRun = false, backup = false }) => {
+  ipcMain.handle('fs_write', async (_e, { ctx, path: rel, content, expectedHash = null, keepEol = true, dryRun = false, backup = false, encoding = null }) => {
     const { absolutePath: file, rootPath } = resolvePathWithRoot(ctx, rel)
     if (isImmutablePath(file, rootPath)) {
       const err = new Error(`Cannot write to ${rel}: Path is in an immutable protected zone.`)
@@ -135,6 +143,28 @@ function registerFsBridge() {
     // the journal below snapshots the CURRENT bytes first, so whatever the
     // other program wrote is recoverable with fs_undo rather than gone.
     const stale = !!(expectedHash && prior && prior.hash !== expectedHash)
+
+    if (encoding === 'base64') {
+      const bytes = Buffer.from(String(content ?? ''), 'base64')
+      if (dryRun) {
+        return { path: file, dry_run: true, bytes: bytes.length, encoding: 'base64' }
+      }
+      if (backup && prior) {
+        await createBackupSnapshot(file, rootPath)
+      }
+      snapshot(ctx, 'fs_write', file)
+      await writeFileAtomic(file, bytes, { mode: await existingMode(file) })
+      return {
+        path: file,
+        bytes: bytes.length,
+        stale,
+        hash: hashContent(bytes),
+        encoding: 'base64',
+        warning: stale
+          ? 'This file changed on disk after it was read — your write was applied on top. The previous content was journalled; fs_undo restores it.'
+          : null,
+      }
+    }
 
     // A model emits '\n' whatever it was handed. Writing that into a CRLF file
     // rewrites every line and turns a one-line change into a whole-file diff.

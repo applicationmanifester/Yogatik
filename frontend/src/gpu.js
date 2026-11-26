@@ -17,9 +17,31 @@ export async function webgpuDevice() {
   try {
     if (typeof navigator !== 'undefined' && navigator.gpu) {
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })
-      if (adapter) cached = 'webgpu'
+      if (adapter) {
+        if (typeof adapter.requestDevice === 'function') {
+          const dev = await adapter.requestDevice()
+          try {
+            // Probe mappedAtCreation buffer allocation: some Electron/driver
+            // implementations expose an adapter but fail createBuffer(16384).
+            if (typeof dev?.createBuffer === 'function' && typeof GPUBufferUsage !== 'undefined') {
+              const testBuf = dev.createBuffer({
+                size: 16384,
+                usage: GPUBufferUsage.COPY_SRC,
+                mappedAtCreation: true,
+              })
+              testBuf?.unmap?.()
+              testBuf?.destroy?.()
+            }
+            cached = 'webgpu'
+          } finally {
+            dev?.destroy?.()
+          }
+        } else {
+          cached = 'webgpu'
+        }
+      }
     }
-  } catch { /* no adapter: wasm it is */ }
+  } catch { /* no adapter or unusable WebGPU device: wasm it is */ }
   return cached
 }
 

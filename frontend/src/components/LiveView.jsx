@@ -6,7 +6,7 @@ import {
   Aperture, Volume2, VolumeX, Scan, ScanEye,
   RefreshCw, SwitchCamera, Settings2, Camera, Search,
   ChevronDown, ChevronUp, Check, Zap, Layers, PictureInPicture2, Maximize2, Square,
-  Sun, Moon, Copy, Bot, Brain, Sparkles, MoreVertical, Captions, X,
+  Sun, Moon, Copy, Bot, Brain, Sparkles, MoreVertical, Captions, X, Target,
   Flashlight, ZoomIn,   // [live-capture]
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -219,6 +219,7 @@ export function LiveView({
   const [deviceIds, setDeviceIds] = useState({ cameraId: '', micId: '' })
   const [showDevices, setShowDevices] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [activeHudTargetId, setActiveHudTargetId] = useState(null)
   const [hudNotice, setHudNotice] = useState('')
   const [shutterFlash, setShutterFlash] = useState(false)
   const hudNoticeTimerRef = useRef(null)
@@ -1165,12 +1166,19 @@ export function LiveView({
     return () => clearInterval(frameTimerRef.current)
   }, [camOn, screenOn])
 
+  // Keep a ref to busy state so Auto-Scan never interrupts or queues on top of an active turn
+  const liveBusyRef = useRef(false)
+  useEffect(() => {
+    liveBusyRef.current = Boolean(thinking || speaking)
+  }, [thinking, speaking])
+
   // Periodic Auto-Scan vision timer
   useEffect(() => {
     let timer = null
     // Only run auto-scan when vision is not disabled (off)
     if (visionState.autoScan && visionMode !== 'off' && (camOn || screenOn) && state === 'live') {
       timer = setInterval(() => {
+        if (liveBusyRef.current) return
         // The session grabs its own frame: it owns the stream, applies the
         // capture profile, and skips frames identical to the last one.
         sessionRef.current?.watch?.()
@@ -1302,7 +1310,7 @@ export function LiveView({
   const toggleMute = () => {
     const v = !muted
     setState({ muted: v })
-    sessionRef.current?.setMuted(v)
+    sessionRef.current?.setMuted?.(v)
     // Haptic on mobile
     buzz(features, 30)
   }
@@ -1671,6 +1679,48 @@ export function LiveView({
     }, 2500)
   }, [showHudNotice])
 
+  // Global Live keyboard shortcuts when no text input or modal overlay is active:
+  // M = mute/unmute mic, C = toggle camera, V = toggle AI voice (Silent Live),
+  // Escape = stop an in-flight turn when no overlay/sheaf is open.
+  const shortcutRef = useRef(null)
+  shortcutRef.current = {
+    toggleMute,
+    toggleCam,
+    toggleSpeaker,
+    handleStopTurn,
+    thinking,
+    blocked: Boolean(
+      playingRecording || visionState.open || sheafOpen ||
+      showSettings || showDevices || showModelSearch ||
+      showTranscript || showArtifactStage
+    ),
+  }
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return
+      const cur = shortcutRef.current
+      if (!cur || cur.blocked) return
+      const k = e.key?.toLowerCase()
+      if (k === 'm') {
+        e.preventDefault()
+        cur.toggleMute()
+      } else if (k === 'c') {
+        e.preventDefault()
+        cur.toggleCam()
+      } else if (k === 'v') {
+        e.preventDefault()
+        cur.toggleSpeaker()
+      } else if (e.key === 'Escape' && cur.thinking) {
+        e.preventDefault()
+        cur.handleStopTurn()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
   const handleEnd = useCallback(() => {
     // The reason matters more than the duration. "Hung up after two turns" and
     // "the socket died" are indistinguishable in a length histogram and mean
@@ -1763,25 +1813,51 @@ export function LiveView({
   const breathingScale = useMemo(() => 1 + Math.sin(breathingPhase) * 0.02, [breathingPhase])
 
   const telestrationTargets = useMemo(() => {
+    const mirrorCamera = camOn && !screenOn
     return (detections || []).map((d, i) => {
       const b = d.box || {}
       const xmin = Math.max(0, Math.min(1, b.xmin ?? 0))
       const xmax = Math.max(0, Math.min(1, b.xmax ?? 0))
       const ymin = Math.max(0, Math.min(1, b.ymin ?? 0))
       const ymax = Math.max(0, Math.min(1, b.ymax ?? 0))
+      const w = Math.max(0.05, xmax - xmin)
       return {
         id: `det-${i}-${d.label}`,
         label: `${(d.label || 'target').toUpperCase()}${d.score ? ` (${Math.round(d.score * 100)}%)` : ''}`,
         score: d.score,
         box: {
-          x: 1 - xmax, // mirrored compensation for .live-self
+          x: mirrorCamera ? Math.max(0, 1 - xmax) : xmin,
           y: ymin,
-          w: Math.max(0.05, xmax - xmin),
+          w,
           h: Math.max(0.05, ymax - ymin),
         },
       }
     })
-  }, [detections])
+  }, [detections, camOn, screenOn])
+
+  const activeHudTarget = useMemo(
+    () => (objectDetect && (camOn || screenOn) ? telestrationTargets.find(t => t.id === activeHudTargetId) || null : null),
+    [objectDetect, camOn, screenOn, telestrationTargets, activeHudTargetId]
+  )
+
+  useEffect(() => {
+    if ((!objectDetect || !(camOn || screenOn)) && activeHudTargetId) {
+      setActiveHudTargetId(null)
+    }
+  }, [objectDetect, camOn, screenOn, activeHudTargetId])
+
+  const askAboutTarget = useCallback((promptText) => {
+    const send = sessionRef.current?.sendText
+    if (typeof send === 'function') {
+      send(promptText)
+      setActiveHudTargetId(null)
+      buzz(features, 30)
+      return
+    }
+    setActiveHudTargetId(null)
+    setVision({ open: true, q: promptText })
+    askVision(promptText)
+  }, [features])
 
   return (
     <div className={`live-view ${viewMode === 'dock' ? 'mode-dock' : ''} ${(showTranscript || showArtifactStage) ? 'has-side-panel' : ''}${showTranscript ? ' live-drawer-open' : ''}${showArtifactStage && artifacts.length > 0 ? ' live-rail-open' : ''}`} data-theme={theme} role="dialog" aria-modal="true" aria-label="Live conversation">
@@ -1892,49 +1968,16 @@ export function LiveView({
         </div>
       )}
 
-      {/* Augmented Reality / Neon Telestration Laser Focus Overlay */}
-      {(camOn || screenOn) && (
+      {/* Augmented Reality / Neon Telestration Laser Focus Overlay (single unified HUD layer) */}
+      {(camOn || screenOn) && objectDetect && telestrationTargets.length > 0 && (
         <LiveTelestration
           targets={telestrationTargets}
+          activeTarget={telestrationTargets.find(t => t.id === activeHudTargetId) || null}
           onTargetClick={(target) => {
+            setActiveHudTargetId(prev => (prev === target.id ? null : target.id))
             showHudNotice(`Target focus: ${target.label}`)
           }}
         />
-      )}
-      {/* Object-detection boxes */}
-      {objectDetect && detections.length > 0 && (
-        <div className="live-detect-layer" aria-hidden="true">
-          {detections.map((d, i) => {
-            const b = d.box || {}
-            const xmin = Math.max(0, Math.min(1, b.xmin ?? 0))
-            const xmax = Math.max(0, Math.min(1, b.xmax ?? 0))
-            const ymin = Math.max(0, Math.min(1, b.ymin ?? 0))
-            const ymax = Math.max(0, Math.min(1, b.ymax ?? 0))
-            return (
-              <div
-                key={i}
-                className="live-detect-box"
-                style={{
-                  left: `${(1 - xmax) * 100}%`,
-                  top: `${ymin * 100}%`,
-                  width: `${Math.max(0, xmax - xmin) * 100}%`,
-                  height: `${Math.max(0, ymax - ymin) * 100}%`,
-                }}
-              >
-                <div className="live-detect-corner tl" />
-                <div className="live-detect-corner tr" />
-                <div className="live-detect-corner bl" />
-                <div className="live-detect-corner br" />
-                <div className="live-detect-crosshair" />
-                <div className="live-detect-tag">
-                  <span className="live-detect-dot" />
-                  <span className="live-detect-label">{d.label?.toUpperCase()}</span>
-                  {d.score ? <span className="live-detect-score">{Math.round(d.score * 100)}%</span> : null}
-                </div>
-              </div>
-            )
-          })}
-        </div>
       )}
 
       <LiveSettings
@@ -1998,28 +2041,48 @@ export function LiveView({
           />
           <span>{allProviders[curProvider]?.name || curProvider}</span>
         </span>
-        <span className="live-ck-pill model" title="Active model">
+        <button
+          type="button"
+          className="live-ck-pill model live-ck-pill-btn"
+          onClick={() => setShowSettings(true)}
+          title="Active model — click to open Live settings"
+        >
           {(activeProvider.model || model || '').split('/').pop()}
-        </span>
+        </button>
 
-        {/* Scene watching badges — verbatim copies from the retired badges row */}
+        {/* Scene watching badges — interactive quick-toggle pills */}
         {screenOn && (
           <span className="live-ck-pill scene" title="Screen sharing is on"><Monitor size={12} /> Screen</span>
         )}
         {visionMode === 'always' && (
-          <span className="live-ck-pill scene" title="AI inspects camera feed on every turn">
+          <button
+            type="button"
+            className="live-ck-pill scene live-ck-pill-btn"
+            onClick={toggleVision}
+            title="AI inspects camera feed on every turn — click to cycle mode"
+          >
             <Eye size={12} /> Watching Live
-          </span>
+          </button>
         )}
         {autoScan && (
-          <span className="live-ck-pill scene" title="Auto-scan capturing feed every 10s">
+          <button
+            type="button"
+            className="live-ck-pill scene live-ck-pill-btn"
+            onClick={toggleAutoScan}
+            title="Auto-scan capturing feed every 10s — click to turn off"
+          >
             <Scan size={12} /> Auto-Scan 10s
-          </span>
+          </button>
         )}
         {objectDetect && (
-          <span className="live-ck-pill scene" title="On-device neural object detection HUD">
+          <button
+            type="button"
+            className="live-ck-pill scene live-ck-pill-btn"
+            onClick={toggleObjectDetect}
+            title="On-device neural object detection HUD — click to hide"
+          >
             <ScanEye size={12} /> Object HUD {detections.length > 0 ? `(${detections.length})` : ''}
-          </span>
+          </button>
         )}
         {/* A11y fix: this used to be a clickable <span> — now a real button.
             The same toggle also lives in the Sound & captions section. */}
@@ -2711,40 +2774,42 @@ export function LiveView({
         </aside>
       )}
 
-      {/* Center Stage: Mascot + Waveform + Active AI Response Card + Activity HUD */}
-      <div className={`live-center-arena ${latestAssistantMsg?.text ? 'has-response' : ''}`}>
+      {/* Center Stage: Mascot (hidden when camera/screen is active so viewfinder stays clear) + Waveform + Active AI Response Card + Activity HUD */}
+      <div className={`live-center-arena ${latestAssistantMsg?.text ? 'has-response' : ''}${(camOn || screenOn) ? ' has-visual-feed' : ''}`}>
         <div className="live-orb-wrap">
-          <div className="live-orb-rings">
-            <div
-              className={`live-ring ring-3 ${speaking ? 'active' : ''}`}
-              style={{ transform: `scale(${ring3Scale})` }}
-            />
-            <div
-              className={`live-ring ring-2 ${speaking ? 'active' : ''}`}
-              style={{ transform: `scale(${ring2Scale})` }}
-            />
-            <div
-              className={`live-mascot ${speaking ? 'speaking' : ''} ${state === 'connecting' ? 'pending' : ''} ${thinking ? 'thinking' : ''} ${!speaking && !thinking && state === 'live' ? 'breathing' : ''}`}
-              style={{ transform: `scale(${speaking ? orbScale : breathingScale})` }}
-            >
-              <svg viewBox="0 0 512 512" className="live-mascot-svg" aria-hidden="true">
-                {/* Head */}
-                <circle cx="256" cy="256" r="110" fill="none" stroke="currentColor" strokeWidth="14" />
-                {/* Eyes */}
-                <circle cx="220" cy="236" r="14" fill="currentColor" className="live-eye left-eye" />
-                <circle cx="292" cy="236" r="14" fill="currentColor" className="live-eye right-eye" />
-                {/* Mouth — opens wider with audio level */}
-                <path
-                  d={speaking
-                    ? `M208 280 q48 ${Math.round(30 + assistantLevel * 50)} 96 0`
-                    : 'M208 280 q48 30 96 0'
-                  }
-                  fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round"
-                  className="live-mouth"
-                />
-              </svg>
+          {!(camOn || screenOn) && (
+            <div className="live-orb-rings">
+              <div
+                className={`live-ring ring-3 ${speaking ? 'active' : ''}`}
+                style={{ transform: `scale(${ring3Scale})` }}
+              />
+              <div
+                className={`live-ring ring-2 ${speaking ? 'active' : ''}`}
+                style={{ transform: `scale(${ring2Scale})` }}
+              />
+              <div
+                className={`live-mascot ${speaking ? 'speaking' : ''} ${state === 'connecting' ? 'pending' : ''} ${thinking ? 'thinking' : ''} ${!speaking && !thinking && state === 'live' ? 'breathing' : ''}`}
+                style={{ transform: `scale(${speaking ? orbScale : breathingScale})` }}
+              >
+                <svg viewBox="0 0 512 512" className="live-mascot-svg" aria-hidden="true">
+                  {/* Head */}
+                  <circle cx="256" cy="256" r="110" fill="none" stroke="currentColor" strokeWidth="14" />
+                  {/* Eyes */}
+                  <circle cx="220" cy="236" r="14" fill="currentColor" className="live-eye left-eye" />
+                  <circle cx="292" cy="236" r="14" fill="currentColor" className="live-eye right-eye" />
+                  {/* Mouth — opens wider with audio level */}
+                  <path
+                    d={speaking
+                      ? `M208 280 q48 ${Math.round(30 + assistantLevel * 50)} 96 0`
+                      : 'M208 280 q48 30 96 0'
+                    }
+                    fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round"
+                    className="live-mouth"
+                  />
+                </svg>
+              </div>
             </div>
-          </div>
+          )}
           {/* Dynamic Soundwave / Audio Bar Visualizer - Dual mode for user/assistant */}
           <div className={`live-soundwave ${speaking || assistantLevel > 0.02 ? 'active assistant' : ''} ${!speaking && userLevel > 0.02 ? 'active user' : ''}`}>
             {[0.6, 1.2, 0.9, 1.4, 0.7].map((factor, idx) => (
@@ -2848,6 +2913,30 @@ export function LiveView({
                 </div>
 
                 <div className="live-center-response-actions">
+                  {latestAssistantMsg?.text && /Auto-Pick Fastest/i.test(latestAssistantMsg.text) && (
+                    <button
+                      type="button"
+                      className="live-center-action-btn"
+                      onClick={handleAutoPickFastest}
+                      disabled={isAutoPickingFastest}
+                      title="Auto-select the fastest ready model"
+                      style={{ color: '#fbbf24', borderColor: 'rgba(251, 191, 36, 0.35)' }}
+                    >
+                      <Zap size={13} className={isAutoPickingFastest ? 'spin' : ''} />
+                      <span>{isAutoPickingFastest ? 'Testing…' : 'Auto-Pick Fastest'}</span>
+                    </button>
+                  )}
+                  {latestAssistantMsg?.text && /Authentication failed/i.test(latestAssistantMsg.text) && (
+                    <button
+                      type="button"
+                      className="live-center-action-btn"
+                      onClick={() => setShowSettings(true)}
+                      title="Open Live settings to check provider or model"
+                    >
+                      <Settings2 size={13} />
+                      <span>Settings</span>
+                    </button>
+                  )}
                   {latestAssistantMsg?.text && (
                     <button
                       type="button"
@@ -2979,6 +3068,46 @@ export function LiveView({
       {/* Shutter Camera Flash Effect */}
       {shutterFlash && <div className="live-shutter-flash" aria-hidden="true" />}
 
+      {/* Point-and-Ask quick action bar when user taps an Object HUD target */}
+      {activeHudTarget && (
+        <div className="live-point-ask-bar" role="region" aria-label="Point and ask target actions">
+          <span className="live-point-ask-tag">
+            <Target size={13} />
+            <span>{activeHudTarget.label}</span>
+          </span>
+          <button
+            type="button"
+            className="live-point-ask-btn primary"
+            onClick={() => {
+              const name = activeHudTarget.label.replace(/\s*\(\d+%\)$/, '').toLowerCase()
+              askAboutTarget(`Look at the ${name} in the frame. What is it and tell me about it?`)
+            }}
+          >
+            <Sparkles size={12} />
+            <span>Ask about this</span>
+          </button>
+          <button
+            type="button"
+            className="live-point-ask-btn"
+            onClick={() => {
+              const name = activeHudTarget.label.replace(/\s*\(\d+%\)$/, '').toLowerCase()
+              askAboutTarget(`Read any text, label, or details on the ${name} in the frame.`)
+            }}
+          >
+            <Eye size={12} />
+            <span>Read text</span>
+          </button>
+          <button
+            type="button"
+            className="live-point-ask-close"
+            onClick={() => setActiveHudTargetId(null)}
+            aria-label="Clear target selection"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* [live-redesign] Bottom command bar — the ONE place the call is driven
           from: mic, camera, screen, stop (when the model is active), end, and
           the ⋯ hub that opens the sheaf. Everything else moved to the sheaf or
@@ -3101,6 +3230,13 @@ export function LiveView({
         artifacts={artifacts}
         activeArtifactIdx={activeArtifactIdx}
         onSelectArtifactIndex={setActiveArtifactIdx}
+        onSendText={(text) => {
+          const send = sessionRef.current?.sendText
+          if (typeof send === 'function') {
+            send(text)
+            buzz(features, 20)
+          }
+        }}
       />
 
       {/* Vision Modal - using extracted component */}

@@ -53,6 +53,11 @@ export function LiveTelestration({
           const w = box.w < 1 ? box.w * videoWidth : box.w
           const h = box.h < 1 ? box.h * videoHeight : box.h
           const corner = Math.min(16, Math.min(w, h) / 3)
+          const isFocused = Boolean(activeTarget && t.id === activeTarget.id)
+          const stroke = isFocused ? '#fbbf24' : 'url(#telestrationGlow)'
+          const labelWidth = t.label ? Math.max(60, t.label.length * 8 + 14) : 0
+          const labelX = Math.max(4, Math.min(x, Math.max(4, videoWidth - labelWidth - 4)))
+          const labelY = Math.max(20, y - 6)
 
           return (
             <g
@@ -65,52 +70,52 @@ export function LiveTelestration({
               <path
                 d={`M ${x} ${y + corner} L ${x} ${y} L ${x + corner} ${y}`}
                 fill="none"
-                stroke="url(#telestrationGlow)"
-                strokeWidth="2.5"
+                stroke={stroke}
+                strokeWidth={isFocused ? '3' : '2.5'}
                 filter="url(#neonBlur)"
               />
               {/* Top-Right */}
               <path
                 d={`M ${x + w - corner} ${y} L ${x + w} ${y} L ${x + w} ${y + corner}`}
                 fill="none"
-                stroke="url(#telestrationGlow)"
-                strokeWidth="2.5"
+                stroke={stroke}
+                strokeWidth={isFocused ? '3' : '2.5'}
                 filter="url(#neonBlur)"
               />
               {/* Bottom-Right */}
               <path
                 d={`M ${x + w} ${y + h - corner} L ${x + w} ${y + h} L ${x + w - corner} ${y + h}`}
                 fill="none"
-                stroke="url(#telestrationGlow)"
-                strokeWidth="2.5"
+                stroke={stroke}
+                strokeWidth={isFocused ? '3' : '2.5'}
                 filter="url(#neonBlur)"
               />
               {/* Bottom-Left */}
               <path
                 d={`M ${x + corner} ${y + h} L ${x} ${y + h} L ${x} ${y + h - corner}`}
                 fill="none"
-                stroke="url(#telestrationGlow)"
-                strokeWidth="2.5"
+                stroke={stroke}
+                strokeWidth={isFocused ? '3' : '2.5'}
                 filter="url(#neonBlur)"
               />
 
               {/* Label banner */}
               {t.label && (
-                <g transform={`translate(${x}, ${Math.max(16, y - 6)})`}>
+                <g transform={`translate(${labelX}, ${labelY})`}>
                   <rect
                     x="0"
                     y="-16"
-                    width={Math.max(60, t.label.length * 8 + 14)}
+                    width={labelWidth}
                     height="18"
                     rx="4"
-                    fill="rgba(15, 23, 42, 0.8)"
-                    stroke="rgba(56, 189, 248, 0.4)"
+                    fill={isFocused ? 'rgba(120, 53, 15, 0.88)' : 'rgba(15, 23, 42, 0.8)'}
+                    stroke={isFocused ? 'rgba(251, 191, 36, 0.7)' : 'rgba(56, 189, 248, 0.4)'}
                     strokeWidth="1"
                   />
                   <text
                     x="7"
                     y="-3"
-                    fill="#38bdf8"
+                    fill={isFocused ? '#fde68a' : '#38bdf8'}
                     fontSize="11"
                     fontFamily="monospace"
                     fontWeight="bold"

@@ -1,5 +1,15 @@
 # Changelog
 
+## [23.0.0] — 2026-11-26: Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish
+
+Major Live multimodal, stability, and UI/UX release delivering interactive Point-and-Ask on Object HUD targets, automatic WebGPU-to-WASM fallback for on-device speech, multimodal `agent.js` vision fixes, and cohesive segmented-tab aesthetics.
+
+### 🚀 Highlights
+- **Live Point-and-Ask & Quick Composer (`LiveView.jsx`, `LiveTranscriptPanel.jsx`)**: Tap any detected Object HUD bounding box to ask or read text about that target, and type follow-ups directly in the Transcript drawer composer.
+- **Multimodal Vision Fix & WebGPU-to-WASM Fallback (`agent.js`, `gpu.js`, `whisper.js`)**: Fixed `o.match is not a function` when Live sends multimodal arrays to `runAgent`, and added upfront `createBuffer` probing plus automatic WASM fallback for Whisper STT.
+- **Object HUD & Cockpit Polish (`detect.js`, `LiveTelestration.jsx`, `LiveArtifactStage.jsx`, `13-live-components.css`)**: Added per-class NMS deduplication, unified the HUD onto one telestration layer, made top status pills interactive, added `M`/`C`/`V`/`Esc` shortcuts, and upgraded filter/artifact/settings tabs.
+- **Multi-Platform Deployment & CI/CD**: Unified version 23.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [22.1.0] — 2026-11-26: Per-Tool Live Settlement, Terminal Abort/Stdin Reliability & Prompted-Mode Guardrails
 
 Reliability and agent-loop polish release fixing tool-status stalls, terminal stdin hangs, corrupted prompted-mode JSON prefixes, and hardcoded fallback replies.

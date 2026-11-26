@@ -1219,3 +1219,29 @@ describe('hasUnexecutedToolIntent', () => {
   })
 })
 
+describe('multimodal userMessage handling (Live Cascade)', () => {
+  it('handles array content parts without throwing userMessage.match is not a function', async () => {
+    scriptRounds([{ tokens: ['I see a person at a desk.'] }])
+    const onDone = vi.fn()
+    const onError = vi.fn()
+    const multimodalContent = [
+      { type: 'text', text: 'What do you see right now?' },
+      { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,/9j/4AAQ' } },
+    ]
+    await runAgent({
+      ...base,
+      provider: 'nvidia',
+      model: 'nvidia/nemotron-3.5-super-vl-120b-a12b',
+      modelCanSee: true,
+      userMessage: multimodalContent,
+      onDone,
+      onError,
+    })
+
+    expect(onError).not.toHaveBeenCalled()
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+      content: 'I see a person at a desk.',
+    }))
+  })
+})
+

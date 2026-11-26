@@ -1245,9 +1245,12 @@ export function createCascadeSession({
     const friendlyError = isAuth
       ? `Authentication failed for ${active.provider || 'the provider'}. Please check or update your API key in Settings.`
       : `Unable to complete response using ${active.model || active.provider || 'the model'}: ${failure}. Tap "⚡ Auto-Pick Fastest" to switch to a ready model.`
+    const spokenError = isAuth
+      ? `Authentication failed for ${active.provider || 'this provider'}. Please check your API key in Settings.`
+      : 'I ran into an issue with that model. You can tap Auto-Pick Fastest to switch.'
     emit({ type: 'transcript', role: 'assistant', text: friendlyError })
     emit({ type: 'warning', message: failure })
-    speak(friendlyError)
+    speak(spokenError)
   }
 
   // ─── Input: continuous recognition ───
