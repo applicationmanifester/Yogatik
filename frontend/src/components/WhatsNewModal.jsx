@@ -31,8 +31,38 @@ export function WhatsNewModal({ onClose, onOpenSettings }) {
       title="What's New & Updates"
       icon={<Gift size={16} style={{ color: 'var(--accent, #ff6b35)' }} />}
       onClose={handleClose}
+      className="modal-md"
+      footer={(
+        <div
+          className="modal-footer"
+          style={{
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Build: {BUILD_DATE} · Version {APP_VERSION}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {onOpenSettings && (
+              <button
+                className="settings-btn secondary sm"
+                onClick={() => {
+                  handleClose()
+                  onOpenSettings()
+                }}
+              >
+                Settings &amp; Keys
+              </button>
+            )}
+            <button className="settings-btn primary sm" onClick={handleClose}>
+              Got It
+            </button>
+          </div>
+        </div>
+      )}
     >
-      <div className="whats-new-modal-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="modal-body whats-new-modal-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Header Hero Banner */}
         <div
           style={{
@@ -137,7 +167,7 @@ export function WhatsNewModal({ onClose, onOpenSettings }) {
         )}
 
         {/* Detailed Sections */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {currentRelease.sections?.map((sec, sIdx) => (
             <div key={sIdx} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -166,39 +196,6 @@ export function WhatsNewModal({ onClose, onOpenSettings }) {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Footer Actions */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-            borderTop: '1px solid var(--border-color, rgba(255, 255, 255, 0.08))',
-            flexWrap: 'wrap',
-            gap: 10,
-          }}
-        >
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            Build: {BUILD_DATE} · Version {APP_VERSION}
-          </span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {onOpenSettings && (
-              <button
-                className="settings-btn secondary sm"
-                onClick={() => {
-                  handleClose()
-                  onOpenSettings()
-                }}
-              >
-                Settings &amp; Keys
-              </button>
-            )}
-            <button className="settings-btn primary sm" onClick={handleClose}>
-              Got It
-            </button>
-          </div>
         </div>
       </div>
     </Modal>
