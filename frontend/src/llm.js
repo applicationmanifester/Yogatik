@@ -1366,6 +1366,14 @@ export async function fetchLiveModels(providerId, apiKey) {
       }
 
       // Use a short timeout for local daemons — fail fast if Ollama isn't running
+      // On hosted HTTPS pages (non-localhost), avoid spamming CORS-blocked localhost probes
+      // repeatedly by caching a failed Ollama probe for 30s.
+      const isHostedHttps = typeof window !== 'undefined'
+        && window.location?.protocol === 'https:'
+        && !['localhost', '127.0.0.1'].includes(window.location?.hostname || '')
+      if (isOllamaLike && isHostedHttps && fetchLiveModels._ollamaCooldownUntil > Date.now()) {
+        return []
+      }
       const timeoutMs = isKeyless ? 4000 : 20000
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -1375,6 +1383,11 @@ export async function fetchLiveModels(providerId, apiKey) {
       let resp
       try {
         resp = await smartFetch(targetUrl, { method: 'GET', headers, signal: controller.signal }, prov)
+      } catch (fetchErr) {
+        if (isOllamaLike && isHostedHttps) {
+          fetchLiveModels._ollamaCooldownUntil = Date.now() + 30000
+        }
+        throw fetchErr
       } finally {
         clearTimeout(timer)
       }

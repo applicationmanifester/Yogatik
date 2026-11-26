@@ -34,11 +34,6 @@ export function preconnectProvider(baseUrl = '') {
     dnsPrefetch.rel = 'dns-prefetch'
     dnsPrefetch.href = origin
     document.head.appendChild(dnsPrefetch)
-
-    // Dispatches keep-alive probe if fetch is available
-    if (typeof fetch === 'function') {
-      fetch(`${origin}/favicon.ico`, { mode: 'no-cors', keepalive: true, cache: 'no-store' }).catch(() => {})
-    }
   } catch {
     // Non-fatal if invalid URL
   }
