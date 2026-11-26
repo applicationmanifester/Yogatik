@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '23.0.0'
+export const APP_VERSION = '23.1.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 23.0.0 — Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish'
+export const APP_CODENAME = 'Yogatik 23.1.0 — Chatbox Local Permissions Mode Selector & Console Hygiene'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,36 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "23.1.0",
+    "title": "Yogatik 23.1.0: Chatbox Local Permissions Mode Selector & Console Hygiene",
+    "date": "November 26, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Chatbox Local Permissions Selector: Toggle Request Review, Default, Auto, and Turbo modes directly from the composer bar",
+      "Persistent Mode Enforcement: Permissions broker enforces per-mode rules for file writes, terminal commands, and recursive deletes",
+      "Console & Network Hygiene: Cleaned up CSP meta directive, eliminated API favicon 404 probes, and added Ollama CORS probe cooldown"
+    ],
+    "sections": [
+      {
+        "category": "🛡️ Permissions & Composer",
+        "items": [
+          {
+            "title": "Inline Local Permissions Mode Selector",
+            "description": "Switch between Request Review, Default, Auto, and Turbo modes directly in the chatbox composer without opening Settings."
+          },
+          {
+            "title": "Broker Enforcement & Audit Trail",
+            "description": "Enforces permissionMode in permissions.js with fail-closed defaults and recursive delete protection even in Turbo mode."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "23.0.0",
     "title": "Yogatik 23.0.0: Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish",
     "date": "November 26, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Live Point-and-Ask & Transcript Composer: Tap any detected Object HUD bounding box to ask or read text about it, plus type messages directly in the Transcript drawer",
       "Multimodal Live Vision Fix & WebGPU-to-WASM Fallback: Fixed array userMessage crash in agent.js and added automatic CPU/WASM fallback for Whisper STT when GPUDevice.createBuffer fails",

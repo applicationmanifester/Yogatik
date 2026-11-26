@@ -1,5 +1,14 @@
 # Changelog
 
+## [23.1.0] — 2026-11-26: Chatbox Local Permissions Mode Selector (Review / Default / Auto / Turbo) & Console Hygiene
+
+Usability, security, and polish release introducing an inline Local Permissions mode selector directly in the chat composer, persistent permission mode enforcement, and cleaner browser console / network behavior.
+
+### 🚀 Highlights
+- **Chatbox Local Permissions Mode Selector (`App.jsx`, `permissions.js`)**: Switch between `Request Review`, `Default`, `Auto`, and `Turbo` (plus `Read Only` support) right from the composer bar, persisted in `chat_prefs.features.permissionMode`.
+- **Console & Network Hygiene (`index.html`, `llm.js`, `api.js`)**: Removed invalid `<meta>` `frame-ancestors` CSP directive (enforced via HTTP headers), eliminated remote `/favicon.ico` 404 probes, and added a cooldown for local Ollama CORS probes.
+- **Multi-Platform Deployment & CI/CD**: Unified version 23.1.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [23.0.0] — 2026-11-26: Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish
 
 Major Live multimodal, stability, and UI/UX release delivering interactive Point-and-Ask on Object HUD targets, automatic WebGPU-to-WASM fallback for on-device speech, multimodal `agent.js` vision fixes, and cohesive segmented-tab aesthetics.

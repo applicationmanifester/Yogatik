@@ -685,11 +685,36 @@
     (function () {
       var RELEASES = [
   {
+    "version": "23.1.0",
+    "title": "Yogatik 23.1.0: Chatbox Local Permissions Mode Selector & Console Hygiene",
+    "date": "November 26, 2026",
+    "codename": "Chatbox Local Permissions Mode Selector & Console Hygiene",
+    "isLatest": true,
+    "highlights": [
+      [
+        "Chatbox Local Permissions Selector",
+        "Switch between Request Review, Default, Auto, and Turbo modes directly from the chat composer bar"
+      ],
+      [
+        "Persistent Broker Enforcement",
+        "Enforces permissionMode in permissions.js across file writes and terminal commands while protecting recursive deletes"
+      ],
+      [
+        "Console & Network Hygiene",
+        "Cleaned up CSP meta directive, removed remote API favicon 404 probes, and added Ollama CORS probe cooldown"
+      ],
+      [
+        "Multi-Platform 23.1.0 Synchronized Suite",
+        "Coordinated release binaries across Web, Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa)"
+      ]
+    ]
+  },
+  {
     "version": "23.0.0",
     "title": "Yogatik 23.0.0: Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish",
     "date": "November 26, 2026",
     "codename": "Live Point-and-Ask, WebGPU-to-WASM Speech Fallback & Multimodal HUD Polish",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       [
         "Live Point-and-Ask & Quick Composer",
