@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '22.0.0'
+export const APP_VERSION = '22.1.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 22.0.0 — On-Device Object Detection, Chromium Privacy Stack & PDF/Theme Polish'
+export const APP_CODENAME = 'Yogatik 22.1.0 — Per-Tool Live Settlement, Terminal Abort/Stdin Reliability & Prompted-Mode Guardrails'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,40 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "22.1.0",
+    "title": "Yogatik 22.1.0: Per-Tool Live Settlement, Terminal Abort/Stdin Reliability & Prompted-Mode Guardrails",
+    "date": "November 26, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Per-Tool Live Settlement: Fast tools like fs_read settle immediately in ActivityPanel instead of staying stuck behind slower parallel tools",
+      "Terminal Abort & Stdin EOF: Wired AbortSignal into terminal_run and closed stdin immediately in terminalSession so stalled commands never hang",
+      "Prompted-Mode & Watchdog Guardrails: Flagged/stripped corrupted JSON fences and removed hardcoded non-LLM fallback replies"
+    ],
+    "sections": [
+      {
+        "category": "⚡ Agent Loop & Tool Reliability",
+        "items": [
+          {
+            "title": "Per-Tool Live Settlement",
+            "description": "Each tool in a parallel round settles its status and result as soon as it finishes rather than waiting for the slowest tool in Promise.all."
+          },
+          {
+            "title": "Terminal Abort & Stdin EOF",
+            "description": "Added AbortSignal racing to terminal_run and stdio: ['ignore', 'pipe', 'pipe'] in Electron terminalSession so interactive prompts never hang."
+          },
+          {
+            "title": "Prompted-Mode & Watchdog Cleanup",
+            "description": "Detected and stripped malformed backtick JSON prefixes and removed hardcoded non-LLM automatic fallback replies."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "22.0.0",
     "title": "Yogatik 22.0.0: On-Device Object Detection, Chromium Privacy Stack & PDF/Theme Polish",
     "date": "November 25, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "On-Device Semantic Object Detection (`detect_objects`): Integrated DETR bounding-box detection, optional CLIP zero-shot classification, and Tesseract OCR into a unified lazy-loaded tool",
       "Chromium Privacy Stack in Yogatik Browser: Added Encrypted DNS (DoH + ECH), opt-in CSP injection, isolated container sessions, and per-origin storage audit & wipe",

@@ -107,6 +107,12 @@ describe('stripToolCallSyntax', () => {
     expect(stripToolCallSyntax(broken)).toBe('Based on the repository, OpenViking provides memory.')
   })
 
+  it('flags and strips corrupted backtick JSON prefixes like {"``````````json', () => {
+    const broken = '{"``````````json'
+    expect(parseToolCalls(broken).malformed).toBe(true)
+    expect(stripToolCallSyntax(broken)).toBe('')
+  })
+
   it('leaves ordinary prose and code alone', () => {
     const prose = 'Use `<function>` in a type signature, and `a < b` compares numbers.'
     expect(stripToolCallSyntax(prose)).toBe(prose)

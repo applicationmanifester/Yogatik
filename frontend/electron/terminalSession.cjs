@@ -178,6 +178,9 @@ function runBlock({ ctx, command, cwd, author, timeout = 30000, env: extraEnv, s
       child = spawn(shellInfo.cmd, shellInfo.args, {
         cwd: workingDir,
         windowsHide: true,
+        // Close stdin immediately so commands/prompts waiting on stdin get EOF
+        // instead of hanging for the full 5-minute timeout.
+        stdio: ['ignore', 'pipe', 'pipe'],
         // POSIX: its own process GROUP, so the whole tree can be killed.
         detached: !isWin,
         env: {

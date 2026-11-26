@@ -1266,6 +1266,7 @@ function safelyParseToolArgs(raw) {
                 /^\s*<(?:tool_call|function_call|function=|invoke\s|action:)/i.test(nonThinking)
               || /^\s*```(?:json)?\s*\{\s*["\u201c]tool_calls/i.test(nonThinking)
               || /^\s*\{\s*["\u201c]tool_calls["\u201d]\s*:/i.test(nonThinking)
+              || /^\s*\{\s*["\u201c]?\s*`{3,}\s*(?:json)?/i.test(nonThinking)
               || /^\s*\[TOOL_CALL/i.test(nonThinking)
             )
             if (!looksLikeToolCall) {
@@ -1571,10 +1572,27 @@ function safelyParseToolArgs(raw) {
 
       // Independent calls run concurrently — a 3-page research round finishes in
       // the time of its slowest fetch instead of the sum of all of them.
+      // Settle each tool as soon as it finishes so fast tools (e.g. fs_read)
+      // turn green immediately instead of staying stuck spinning behind a
+      // slower tool (e.g. terminal_run).
       // Race the round against Stop: the tools' own fetches are aborted through
       // the ambient signal, and the loop does not wait for the stragglers.
+      const settledIndices = new Set()
+      const settleOne = (i, tc, rawResult) => {
+        const result = enrichToolError(tc.name, tc.parsedArgs, rawResult)
+        if (!settledIndices.has(i)) {
+          settledIndices.add(i)
+          toolResults[tc.name] = result
+          settleTool(statusIds[i], result)
+          onToolResult?.(tc.name, result)
+          const step = [...traceRef].reverse().find(s => s.tool === tc.name && s.status === 'running')
+          if (step) step.status = result?.error ? 'error' : 'done'
+        }
+        return result
+      }
+
       const results = await Promise.race([
-        Promise.all(round.map(async (tc) => {
+        Promise.all(round.map(async (tc, i) => {
           try {
             let args = tc.parsedArgs || {}
             if ((tc.name === 'web_search' || tc.name === 'deep_research') && (!args.query && !args.q && !args.search_query && !args.keyword && !args.text)) {
@@ -1587,13 +1605,13 @@ function safelyParseToolArgs(raw) {
             const sig = callSignature(tc.name, args)
             if (seenCalls.has(sig)) {
               const prev = seenCalls.get(sig)
-              return {
+              return settleOne(i, tc, {
                 ...prev,
                 repeated: true,
                 note: `You already called ${tc.name} with exactly these arguments in this turn. ` +
                   'This is the result you were given. Do not call it again — use it, try ' +
                   'materially different arguments, or answer with what you have.',
-              }
+              })
             }
             const decision = await gateAllows(tc.name, args, executionCtx.initiator || 'person')
             if (!decision.allowed) {
@@ -1603,7 +1621,7 @@ function safelyParseToolArgs(raw) {
                 error: `Not run — the user did not approve this action. ${decision.reason || ''}`.trim(),
               }
               seenCalls.set(sig, blocked)
-              return blocked
+              return settleOne(i, tc, blocked)
             }
             // The model's real decision matches what Reflex Prefetch started
             // speculatively before the model was even asked (see above) —
@@ -1622,9 +1640,9 @@ function safelyParseToolArgs(raw) {
                 ...(executionCtx.conversationId || executionCtx.projectId ? { ctx: executionCtx } : {})
               })
             seenCalls.set(sig, result)
-            return result
+            return settleOne(i, tc, result)
           } catch (e) {
-            return { error: e?.message || String(e) }
+            return settleOne(i, tc, { error: e?.message || String(e) })
           }
         })),
         whenAborted(),
@@ -1632,13 +1650,7 @@ function safelyParseToolArgs(raw) {
 
       for (let i = 0; i < round.length; i++) {
         const tc = round[i]
-        const rawResult = results[i]
-        const result = enrichToolError(tc.name, tc.parsedArgs, rawResult)
-        toolResults[tc.name] = result
-        settleTool(statusIds[i], result)
-        onToolResult?.(tc.name, result)
-        const step = [...traceRef].reverse().find(s => s.tool === tc.name && s.status === 'running')
-        if (step) step.status = result?.error ? 'error' : 'done'
+        const result = settledIndices.has(i) ? results[i] : settleOne(i, tc, results[i])
 
         // Meta-cognition: record calibration outcome
         try {
@@ -1924,39 +1936,18 @@ function safelyParseToolArgs(raw) {
         } else {
           const { reasoning } = splitReasoning(fullContent || roundContent)
           const gathered = summariseToolResults(toolResults)
-          const thinkBlock = reasoning ? `<think>${reasoning}</think>\n\n` : ''
-          const fallback = gathered
-            ? `${thinkBlock}### Summary of Actions & Findings (tool results)\n\n${gathered}`
-            : `${thinkBlock}I have finished inspecting the files and applying the requested changes.`
-          fullContent = fallback
-          onToken?.(fallback)
+          if (gathered) {
+            const thinkBlock = reasoning ? `<think>${reasoning}</think>\n\n` : ''
+            const summary = `${thinkBlock}### Summary of Actions & Findings (tool results)\n\n${gathered}`
+            fullContent = summary
+            onToken?.(summary)
+          }
         }
       }
     }
 
     throwIfAborted()
     let cleanedContent = stripToolCallSyntax(fullContent)
-
-    if (!visibleAnswer(cleanedContent)) {
-      const { reasoning } = splitReasoning(fullContent || roundContent)
-      const hasExecutedActions = rounds > 0 || Object.keys(toolResults).length > 0
-      if (hasExecutedActions) {
-        const gathered = summariseToolResults(toolResults)
-        const thinkBlock = reasoning ? `<think>${reasoning}</think>\n\n` : ''
-        const fallback = gathered
-          ? `${thinkBlock}### Summary of Actions & Findings (tool results)\n\n${gathered}`
-          : `${thinkBlock}I have finished inspecting the workspace and analyzing the requested task.`
-        cleanedContent = fallback
-        onToken?.(fallback)
-      } else if (reasoning) {
-        cleanedContent = `<think>${reasoning}</think>\n\nI have analyzed the request and prepared the following plan:\n\n${reasoning.slice(0, 800)}${reasoning.length > 800 ? '…' : ''}\n\n*Click **Continue** below or confirm to execute these actions.*`
-        onToken?.(cleanedContent)
-      } else {
-        const fallback = 'I have finished inspecting the workspace and analyzing the requested task.'
-        cleanedContent = fallback
-        onToken?.(fallback)
-      }
-    }
 
     // ── Response Quality Watchdog ─────────────────────────────────────
     // Runs AFTER the existing auto-continuation loop and canary check, but
@@ -2056,22 +2047,14 @@ function safelyParseToolArgs(raw) {
 
     if (!visibleAnswer(cleanedContent)) {
       const { reasoning } = splitReasoning(fullContent || roundContent)
-      const hasExecutedActions = rounds > 0 || Object.keys(toolResults).length > 0
-      if (hasExecutedActions) {
-        const gathered = summariseToolResults(toolResults)
+      const gathered = (rounds > 0 || Object.keys(toolResults).length > 0) ? summariseToolResults(toolResults) : ''
+      if (gathered) {
         const thinkBlock = reasoning ? `<think>${reasoning}</think>\n\n` : ''
-        const fallback = gathered
-          ? `${thinkBlock}### Summary of Actions & Findings (tool results)\n\n${gathered}`
-          : `${thinkBlock}I have finished inspecting the workspace and analyzing the requested task.`
-        cleanedContent = fallback
-        onToken?.(fallback)
-      } else if (reasoning) {
-        cleanedContent = `<think>${reasoning}</think>\n\nI have analyzed the request and prepared the following plan:\n\n${reasoning.slice(0, 800)}${reasoning.length > 800 ? '…' : ''}\n\n*Click **Continue** below or confirm to execute these actions.*`
-        onToken?.(cleanedContent)
-      } else {
-        const fallback = 'I have finished inspecting the workspace and analyzing the requested task.'
-        cleanedContent = fallback
-        onToken?.(fallback)
+        const summary = `${thinkBlock}### Summary of Actions & Findings (tool results)\n\n${gathered}`
+        cleanedContent = summary
+        onToken?.(summary)
+      } else if (reasoning && !cleanedContent.includes('<think>')) {
+        cleanedContent = `<think>${reasoning}</think>`
       }
     }
 

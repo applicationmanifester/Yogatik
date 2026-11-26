@@ -1,5 +1,15 @@
 # Changelog
 
+## [22.1.0] — 2026-11-26: Per-Tool Live Settlement, Terminal Abort/Stdin Reliability & Prompted-Mode Guardrails
+
+Reliability and agent-loop polish release fixing tool-status stalls, terminal stdin hangs, corrupted prompted-mode JSON prefixes, and hardcoded fallback replies.
+
+### 🚀 Highlights
+- **Per-Tool Live Settlement (`agent.js`)**: Tools in a parallel round settle immediately as each completes instead of waiting on `Promise.all` for slower commands like `terminal_run`.
+- **Terminal Abort & Stdin EOF (`terminalRun.js`, `terminalSession.cjs`)**: Wired `AbortSignal` into `terminal_run` and closed `stdin` (`stdio: ['ignore', 'pipe', 'pipe']`) in Electron `runBlock` so child processes reading stdin never hang.
+- **Prompted-Mode & Watchdog Cleanup (`promptedTools.js`, `agent.js`, `responseWatchdog.js`)**: Flagged and stripped corrupted backtick JSON prefixes (e.g. `{"``````````json`), respected `forcedFinal` in `assessResponse`, and removed hardcoded non-LLM automatic fallback replies.
+- **Multi-Platform Deployment & CI/CD**: Unified version 22.1.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [22.0.0] — 2026-11-25: On-Device Object Detection, Chromium Privacy Stack & PDF/Theme Polish
 
 Major capability and privacy release introducing on-device semantic object detection (`detect_objects`), a full Chromium privacy & network stack in Yogatik Browser, clean PDF/document generation, and synchronized light/dark theme polish across all platforms.

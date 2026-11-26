@@ -293,6 +293,18 @@ export function parseToolCalls(reply = '') {
     }
   }
 
+  // 6. Detect corrupted/unclosed tool-call prefixes (e.g. `{"``````````json` or unclosed ```json {"tool_calls":...)
+  // so harvestOrRepair can reprompt instead of leaking raw garbage into the chat bubble.
+  if (!found.length && !attempted) {
+    if (
+      /\{\s*["“]?\s*`{3,}\s*(?:json)?/i.test(clean) ||
+      /```(?:json)?\s*\{\s*["“]?(?:tool_calls|name|tool|function)\b/i.test(clean) ||
+      /\{\s*["“]tool_calls["”]\s*:/i.test(clean)
+    ) {
+      attempted = true
+    }
+  }
+
   return { calls: found, text: text.trim(), malformed: attempted && found.length === 0 }
 }
 
@@ -326,6 +338,7 @@ export function stripToolCallSyntax(text) {
     !text.includes('tool_calls') &&
     !text.includes('tool') &&
     !text.includes('{"name":') &&
+    !/\{\s*["“]?\s*`{3,}/.test(text) &&
     !/\{\s*["“]?(?:tool|name|function)/i.test(text)
   ) {
     return text
@@ -340,9 +353,10 @@ export function stripToolCallSyntax(text) {
     .replace(/(?:\s*\{)+\s*["“](?:name|tool|function)["”]\s*:\s*["“][^"”]+["”]\s*,\s*["“](?:arguments|args|parameters)["”]\s*:\s*[\s\S]*?\}+/gi, '')
     // Stuttered / malformed tool call fragments (e.g. "{\n{\n{\n{\n\"tool{\n\"{\n")
     .replace(/(?:^|\n)\s*(?:\{\s*)+(?:["“]?tool\b[^:\n]*\{?[\s\S]*?["“]?\{?\s*)(?=[A-Za-z]|$)/gi, '\n')
-    // Broken aborted code blocks and leading JSON stubs (e.g. "{\n```json\n{\n")
+    // Broken aborted code blocks and leading JSON stubs (e.g. "{\n```json\n{\n" or `{"``````````json`)
+    .replace(/^\s*(?:\{\s*["“]?\s*)+`{3,}\s*(?:json)?\s*(?:\{\s*)*/gi, '')
     .replace(/^\s*(?:\{\s*)*```(?:json)?\s*(?:\{\s*)*/gi, '')
-    .replace(/(?:^|\n)\s*(?:\{\s*)*```(?:json)?\s*(?:\{\s*)?(?=(?:I have completed|###|\*\*|\[Tool|Here is|To |Let's|We |I |The ))/gi, '\n')
+    .replace(/(?:^|\n)\s*(?:\{\s*["“]?\s*)*`{3,}\s*(?:json)?\s*(?:\{\s*)?(?=(?:I have completed|###|\*\*|\[Tool|Here is|To |Let's|We |I |The |$))/gi, '\n')
     // XML formats
     .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
     .replace(/<function_call>[\s\S]*?<\/function_call>/gi, '')

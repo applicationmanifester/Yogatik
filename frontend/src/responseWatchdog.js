@@ -211,7 +211,7 @@ export function assessResponse(content, meta = {}) {
 
   // ── 1. Empty / blank check ─────────────────────────────────────────
   if (!visible) {
-    if (regenerations >= maxRegens) {
+    if (forcedFinal || regenerations >= maxRegens) {
       return verdict('failed', 'accept_partial', 'Response is empty after all retry attempts.', 'high', 'empty')
     }
     return verdict('failed', 'regenerate', 'Response is empty — no visible content after stripping reasoning.', 'critical', 'empty')

@@ -144,4 +144,15 @@ describe('terminalRunTool — pre-flight failure vs. force-killed-unconfirmed', 
     expect(res.error).toMatch(/still.*running/i)
     expect(res.killed).toBe(true)
   })
+
+  it('aborts promptly when opts.signal fires', async () => {
+    const exec = vi.fn(() => new Promise(() => {}))
+    stubDesktop(exec)
+    const ac = new AbortController()
+    const promise = terminalRunTool.execute({ command: 'npm test' }, { signal: ac.signal })
+    ac.abort()
+    const res = await promise
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/aborted/i)
+  })
 })

@@ -78,6 +78,10 @@ export const terminalRunTool = {
       return { success: false, error: 'Terminal bridge is unavailable in this environment.' }
     }
 
+    if (opts?.signal?.aborted) {
+      return { success: false, error: 'Command aborted.', aborted: true }
+    }
+
     // An explicit timeout from the model always wins — it may deliberately
     // want to wait longer (or, after being told about the shorter default
     // below, shorter still). Only when NOTHING was specified do we shorten
@@ -89,8 +93,9 @@ export const terminalRunTool = {
     const looksPersistent = !explicitTimeout && LONG_RUNNING_RE.test(command)
     const waitMs = explicitTimeout || (looksPersistent ? 12000 : 300000)
     const startedAt = Date.now()
+    let onAbort
     try {
-      const res = await bridge.exec(command, {
+      const execPromise = bridge.exec(command, {
         cwd,
         timeout: waitMs,
         shell,
@@ -104,6 +109,15 @@ export const terminalRunTool = {
         ctx: getWorkspaceCtx(opts?.ctx),
         env: { ...NON_INTERACTIVE_ENV, ...(env && typeof env === 'object' ? env : {}) },
       })
+      const res = opts?.signal
+        ? await Promise.race([
+          execPromise,
+          new Promise((_, reject) => {
+            onAbort = () => reject(new Error('Command aborted.'))
+            opts.signal.addEventListener('abort', onAbort, { once: true })
+          }),
+        ])
+        : await execPromise
       // A PRE-FLIGHT failure (no working folder bound, bad cwd, spawn error) —
       // the command never ran at all. The bridge's `terminal:exec` handler
       // reports this via `error`, with exitCode left `null`, NOT `-1` (that
@@ -169,6 +183,8 @@ export const terminalRunTool = {
       }
     } catch (e) {
       return { success: false, error: e?.message || String(e) }
+    } finally {
+      if (onAbort && opts?.signal) opts.signal.removeEventListener('abort', onAbort)
     }
   },
 }
