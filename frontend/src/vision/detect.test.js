@@ -13,6 +13,9 @@ import {
   downscaleForInference,
   summariseDetections,
   deduplicateDetections,
+  normalizeBox,
+  smoothDetections,
+  isWebGpuError,
   INFERENCE_MAX_EDGE,
 } from './detect'
 
@@ -114,5 +117,41 @@ describe('deduplicateDetections', () => {
       { label: 'chair', score: 0.85, box: { xmin: 0.7, ymin: 0.4, xmax: 0.9, ymax: 0.8 } },
     ])
     expect(out).toHaveLength(2)
+  })
+})
+
+describe('normalizeBox & smoothDetections', () => {
+  it('normalizes 0..100 percentage boxes to clamped 0..1 coordinates', () => {
+    expect(normalizeBox({ xmin: 10, ymin: 20, xmax: 80, ymax: 110 })).toEqual({
+      xmin: 0.1, ymin: 0.2, xmax: 0.8, ymax: 1,
+    })
+    expect(normalizeBox({ xmin: 0.1, ymin: 0.2, xmax: 0.5, ymax: 0.9 })).toEqual({
+      xmin: 0.1, ymin: 0.2, xmax: 0.5, ymax: 0.9,
+    })
+  })
+
+  it('smooths jittering boxes and holds a briefly missed detection for 1 tick', () => {
+    const prev = [
+      { label: 'laptop', score: 0.9, box: { xmin: 0.2, ymin: 0.2, xmax: 0.6, ymax: 0.6 }, _missed: 0 },
+      { label: 'cup', score: 0.8, box: { xmin: 0.7, ymin: 0.5, xmax: 0.85, ymax: 0.75 }, _missed: 0 },
+    ]
+    const next = [
+      { label: 'laptop', score: 0.92, box: { xmin: 0.3, ymin: 0.2, xmax: 0.7, ymax: 0.6 } },
+    ]
+    const out = smoothDetections(prev, next, { alpha: 0.5, maxMissed: 1 })
+    expect(out).toHaveLength(2)
+    const laptop = out.find(d => d.label === 'laptop')
+    const cup = out.find(d => d.label === 'cup')
+    expect(laptop.box.xmin).toBeCloseTo(0.25, 4)
+    expect(cup._missed).toBe(1)
+
+    // Second consecutive miss drops the held cup
+    const out2 = smoothDetections(out, next, { alpha: 0.5, maxMissed: 1 })
+    expect(out2.find(d => d.label === 'cup')).toBeUndefined()
+  })
+
+  it('detects WebGPU buffer errors for WASM fallback', () => {
+    expect(isWebGpuError(new Error("Failed to execute 'createBuffer' on 'GPUDevice'"))).toBe(true)
+    expect(isWebGpuError(new Error('network timeout'))).toBe(false)
   })
 })

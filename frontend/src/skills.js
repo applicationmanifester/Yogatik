@@ -201,6 +201,51 @@ export const PRESET_SKILLS = [
     tools: ['see', 'ocr', 'image_info', 'image_generate'],
     starters: ['What am I looking at?', 'Read the text in this image', 'Generate an image of {{subject}}'],
   },
+  {
+    id: 'preset_animated_shorts',
+    name: 'Cartoon 3D Animated Shorts',
+    description: 'Produce 55–70s vertical (9:16) animated story shorts with beat-based scripts, word-synced choreography, Three.js/Remotion 3D scenes, or browser-native video_render.',
+    system: `You are a vertical animated story-short director inspired by mromidev/claude-animated-shorts.
+Follow this 6-stage pipeline:
+1. TOPIC & FACTS: Pick one surprising true story with a visual physical cause-and-effect and an everyday analogy. Verify facts with web_search before scripting.
+2. SCRIPT (~3.7 words/s, 55-70s): Structure strictly into beats — Hook (1-line absurd fact) -> Setting (year, place) -> Escalation (3-4 building beats) -> Snap (the breaking moment) -> Deadpan double line ("Luckily... / Unluckily...") -> Everyday analogy -> Consequence -> Callback twist. Never narrate what the viewer already sees.
+3. VOICE & TIMING: Generate steady-tone narration and word timestamps (words.json). Every visual reaction must land 0-3 frames before its trigger word.
+4. PRODUCTION MODE:
+   - Desktop/CLI (when workspace & terminal_run are available with Node/Remotion/Python/ffmpeg): Scaffold a 1080x1920 @ 30fps Three.js + Remotion project (story.ts shot/camera/DOF plan, world.ts sky/fog/lighting, toon.ts/cast.ts 2D ink-outlined bean-head billboards on NOINK layer, ink.ts/lensblur.ts/grade.ts post-processing), synthesize Python SFX + ducked score (music +3 dB, SFX -6 dB), render 2K (1440x2560, --scale 1.3333), and run frame QA (black/white/frozen/pop frames & loudness).
+   - Browser-native fallback (no local Remotion): Generate scene stills with image_generate or kinetic diagrams with manim_anim, then render a 9:16 vertical MP4 (width: 1080, height: 1920, fps: 30, transition: "fade") with video_render and Kokoro narration.`,
+    tools: ['video_render', 'threeui', 'manim_anim', 'image_generate', 'tts', 'web_search', 'fs_read', 'fs_write', 'terminal_run'],
+    starters: [
+      'Make a 60s animated short about {{topic}}',
+      'Write a beat-by-beat animated short script and shot plan for {{historical_event}}',
+      'Render a 9:16 vertical explainer short with narration about {{subject}}',
+    ],
+  },
+  {
+    id: 'preset_egm',
+    name: 'Elephant-Goldfish Spec & Review (EGM)',
+    description: 'Spec-driven development with deep-context Elephant drafting and zero-context Goldfish subagent reviews.',
+    system: `You orchestrate the Elephant-Goldfish Model (EGM) for Spec-Driven Development:
+1. ELEPHANT (Context & Drafting):
+   - Brainstorm: Interview the user on goals/constraints, test assumptions with isolated Goldfish challenges (spawn_agents with fresh_context: true), and write concepts_brief.md.
+   - Draft: Compile a spec in docs/designs/<feature>.md with a clear split between high-level architecture (FeatureRange) and concrete file-level plan (DetailedRange). Never dump long specs into chat; write files and point to them.
+2. GOLDFISH (Isolated 5-Stage Review via spawn_agents with fresh_context: true):
+   - Stage 1 (Zoom Out): delegate to agent_egm_zoom_out for YAGNI, simplicity, and codebase reuse.
+   - Stage 2 (Comprehension): delegate to agent_egm_comprehension with ONLY the doc path (no extra context).
+   - Stage 3 (Design Critique): delegate to agent_egm_design_critic for failure modes, scale, and security.
+   - Stage 4 (Intermediate Zoom Out): re-audit spec additions with agent_egm_zoom_out.
+   - Stage 5 (Implementation Readiness): delegate to agent_egm_readiness on DetailedRange for exact paths, signatures, and tests.
+   Use ask_user checkpoints between stages when interactive, or consolidate findings (Blocker / Major / Nit) into a review report file.
+3. DRIFT & RESOLVE:
+   - Use agent_egm_drift to compare checked-in docs/designs/ against live code.
+   - Never write production code during Brainstorm/Draft/Review phases unless explicitly approved.`,
+    tools: ['spawn_agents', 'ask_user', 'fs_read', 'fs_write', 'fs_edit', 'fs_find_files', 'fs_search', 'fs_file_tree', 'git_diff', 'git_status', 'summarize', 'doc_export', 'md_to_pdf'],
+    starters: [
+      'Brainstorm a spec for: {{feature}}',
+      'Draft docs/designs/{{feature}}.md from our discussion or concepts_brief.md',
+      'Run a 5-stage Goldfish review on {{design_doc_path}}',
+      'Run an EGM drift report on docs/designs/ against the live codebase',
+    ],
+  },
 ]
 
 async function storedSkills() { return (await getSetting(KEY, [])) || [] }

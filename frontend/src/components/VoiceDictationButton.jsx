@@ -12,6 +12,7 @@ export function VoiceDictationButton({
   const [isListening, setIsListening] = useState(false)
   const [supported, setSupported] = useState(true)
   const recognitionRef = useRef(null)
+  const finalBufferRef = useRef('')
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -28,19 +29,22 @@ export function VoiceDictationButton({
 
       recognition.onresult = (event) => {
         let interimTranscript = ''
-        let finalTranscript = ''
+        let newFinal = ''
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript
+            newFinal += event.results[i][0].transcript
           } else {
             interimTranscript += event.results[i][0].transcript
           }
         }
 
-        const text = finalTranscript || interimTranscript
-        if (text) {
-          onTranscript?.(text, !!finalTranscript)
+        if (newFinal) {
+          finalBufferRef.current = (finalBufferRef.current + ' ' + newFinal).trim()
+        }
+        const combined = [finalBufferRef.current, interimTranscript.trim()].filter(Boolean).join(' ')
+        if (combined) {
+          onTranscript?.(combined, !!newFinal && !interimTranscript)
         }
       }
 
@@ -75,6 +79,7 @@ export function VoiceDictationButton({
       } catch {}
       setIsListening(false)
     } else {
+      finalBufferRef.current = ''
       try {
         recognitionRef.current?.start()
         setIsListening(true)

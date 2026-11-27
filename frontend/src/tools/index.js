@@ -125,6 +125,7 @@ import { socialPostTool } from './socialPost'
 import { autoSkillsTool } from './autoSkills'
 import { actionJournalTool } from './actionJournalTool'
 import { agentSwarmTool } from './agentSwarmTool'
+import { paperclipTool } from './paperclipTool'
 import { subAgentRunnerTool } from './subAgentRunner'
 import { documentGeneratorTool } from './docGenerator'
 import { crewOrchestratorTool } from './crewRunner'
@@ -463,6 +464,8 @@ const ALL_TOOLS = {
   action_journal: actionJournalTool,
   // Sovereign Autonomous Multi-Agent Swarm with Self-Healing
   agent_swarm: agentSwarmTool,
+  // Paperclip Agent Control Plane (Org Chart, Budgets, Goals, Heartbeats, Approvals)
+  paperclip_control: paperclipTool,
   // Sub-Agent Runner (isolated processes + Python RPC)
   sub_agent_runner: subAgentRunnerTool,
   // Multi-agent delegation: hand focused sub-tasks to specialist sub-agents.
@@ -1429,6 +1432,12 @@ export function prioritizeToolSchemas(schemas = [], userMessage = '', { limit = 
   }
   if (/\b(manim|math animation|calculus animation|fourier animation|matrix animation|vector field animation|3b1b|3blue1brown|kinetic math)\b/i.test(text)) {
     scores['manim_anim'] = 260
+  }
+  if (/\b(animated short|story short|cartoon short|remotion|vertical video|9:16|youtube short|tiktok|reel)\b/i.test(text)) {
+    scores['video_render'] = Math.max(scores['video_render'] || 0, 240)
+    scores['image_generate'] = Math.max(scores['image_generate'] || 0, 200)
+    scores['threeui'] = Math.max(scores['threeui'] || 0, 190)
+    scores['tts'] = Math.max(scores['tts'] || 0, 190)
   }
   if (/\b(image|picture|photo|draw|illustration|photorealistic|wallpaper|portrait|painting)\b/i.test(text) && !/\b(diagram|flowchart|lifecycle|architecture|schema)\b/i.test(text)) {
     scores['image_generate'] = 200

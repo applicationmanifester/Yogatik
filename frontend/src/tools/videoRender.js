@@ -130,6 +130,11 @@ export const videoRenderTool = {
         },
         speed: { type: 'number', description: 'Speaking speed 0.6-1.5, default 1' },
         narrate: { type: 'boolean', description: 'Set false to render silent even if scenes have narration' },
+        soundtrack: {
+          type: 'string', enum: ['none', 'ambient', 'march'],
+          description: "Optional procedural background score ('ambient' or 'march'), automatically ducked under narration. Default 'none'.",
+        },
+        sfx: { type: 'boolean', description: 'Add subtle transition chimes on scene cuts. Default false.' },
       },
       required: ['scenes'],
     },
@@ -140,8 +145,10 @@ export const videoRenderTool = {
     // Rendering to a fixed duration and hoping the line fits is how you get a
     // sentence cut in half at the cut.
     // Heavy engines load HERE, on first render — never in the initial bundle.
-    const [{ paintFrame }, { encodeVideo }, { mixPcm, applyEdgeFades, planNarration, captionCues },
-      { synthesize, cleanForSpeech, SAMPLE_RATE }, { saveMedia }] = await Promise.all([
+    const [{ paintFrame }, { encodeVideo }, {
+      mixPcm, applyEdgeFades, planNarration, captionCues,
+      synthesizeBed, synthesizeTransitionSfx, duckPcm,
+    }, { synthesize, cleanForSpeech, SAMPLE_RATE }, { saveMedia }] = await Promise.all([
       import('../video/draw'),
       import('../video/encode'),
       import('../video/audio'),
@@ -193,22 +200,37 @@ export const videoRenderTool = {
     // Subtitles are cued against the scene's final length, so they track the
     // voice even after the scene was stretched to fit it.
     let audio = null
+    const mixClips = []
+    const speechRanges = []
     if (plan) {
       const LEAD = 0.35   // matches planNarration's lead-in
-      const mixClips = []
       spec.scenes.forEach((scene, i) => {
         const clip = clips[i]
         if (!clip?.pcm.length) return
-        mixClips.push({ pcm: clip.pcm, startSec: scene.startFrame / spec.fps + LEAD })
+        const startSec = scene.startFrame / spec.fps + LEAD
+        mixClips.push({ pcm: clip.pcm, startSec })
+        speechRanges.push({ startSec, endSec: startSec + clip.seconds })
         // Cues are scene-relative, and the voice starts after the lead-in.
         scene._cues = captionCues(args.scenes[i].narration, clip.seconds)
           .map(c => ({ ...c, start: c.start + LEAD, end: c.end + LEAD }))
       })
-      if (mixClips.length) {
-        audio = {
-          pcm: mixPcm(mixClips, SAMPLE_RATE, spec.durationSec),
-          sampleRate: SAMPLE_RATE,
-        }
+    }
+    const soundtrack = args.soundtrack && args.soundtrack !== 'none' ? args.soundtrack : null
+    if (soundtrack) {
+      const rawBed = synthesizeBed(spec.durationSec, SAMPLE_RATE, { style: soundtrack })
+      const ducked = duckPcm(rawBed, speechRanges, SAMPLE_RATE)
+      mixClips.push({ pcm: ducked, startSec: 0 })
+    }
+    if (args.sfx && spec.scenes.length > 1) {
+      const chime = synthesizeTransitionSfx(SAMPLE_RATE)
+      for (let i = 1; i < spec.scenes.length; i++) {
+        mixClips.push({ pcm: chime, startSec: spec.scenes[i].startFrame / spec.fps })
+      }
+    }
+    if (mixClips.length) {
+      audio = {
+        pcm: mixPcm(mixClips, SAMPLE_RATE, spec.durationSec),
+        sampleRate: SAMPLE_RATE,
       }
     }
 

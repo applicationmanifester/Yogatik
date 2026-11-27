@@ -1,5 +1,14 @@
 # Changelog
 
+## [24.0.0] — 2026-11-27: Paperclip Agent Control Plane, Org Chart, Budgets & Heartbeats
+
+Major multi-agent governance and orchestration release integrating Paperclip-style Org Chart hierarchies, per-agent USD budget enforcement, scheduled heartbeats, goal-aligned persistent task boards, and human-in-the-loop approvals.
+
+### 🚀 Highlights
+- **Paperclip Control Plane (`paperclipControlPlane.js`, `PaperclipControlPanel.jsx`)**: Added Org Chart (`reportsTo` hierarchy with cycle detection), role-level `standingInstructions`, Goals/OKRs, Heartbeats, and an Approvals & Audit Trail inbox in `AgentsPanel`.
+- **Budget Enforcement & Spend Tracking (`spawnAgents.js`, `crewRunner.js`, `paperclipTool.js`)**: Enforced per-agent spend limits before sub-agent/crew/heartbeat runs, auto-paused over-budget agents, recorded live `streamMessage` token costs, and exposed `paperclip_control` to agents.
+- **Multi-Platform Deployment & CI/CD**: Unified version 24.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [23.1.0] — 2026-11-26: Chatbox Local Permissions Mode Selector (Review / Default / Auto / Turbo) & Console Hygiene
 
 Usability, security, and polish release introducing an inline Local Permissions mode selector directly in the chat composer, persistent permission mode enforcement, and cleaner browser console / network behavior.

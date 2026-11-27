@@ -68,6 +68,12 @@ let lib = null
 const pipes = new Map()
 const loading = new Map()
 let consented = false
+let forceWasm = false
+
+export function isWebGpuError(err) {
+  const msg = String(err?.message || err || '')
+  return /GPUDevice|GPUBuffer|createBuffer|mappedAtCreation|WebGPU|device lost/i.test(msg)
+}
 
 /** App mirrors the `localVision` feature toggle in here, as for the VLM. */
 export function setDetectorConsent(v) { consented = !!v }
@@ -92,9 +98,13 @@ export async function isDetectorCached(key) {
   return false
 }
 
-async function getPipeline(key, { onProgress } = {}) {
+async function getPipeline(key, { onProgress, forceCpu = false } = {}) {
   const spec = DETECTORS[key]
   if (!spec) throw new Error(`Unknown detector: ${key}`)
+  if (forceCpu) {
+    forceWasm = true
+    pipes.delete(key)
+  }
   if (pipes.has(key)) return pipes.get(key)
   if (loading.has(key)) return loading.get(key)
 
@@ -107,15 +117,22 @@ async function getPipeline(key, { onProgress } = {}) {
 
   const job = (async () => {
     const { pipeline } = await getLib()
-    const device = await webgpuDevice()
-    const pipe = await pipeline(spec.task, spec.id, {
-      // wasm is the honest default: requestAdapter() returning null is common
-      // in VMs and on blocklisted drivers, and !!navigator.gpu does not tell
-      // you that (see gpu.js).
-      device: device === 'webgpu' ? 'webgpu' : 'wasm',
-      dtype: 'q8',
+    const preferred = (forceWasm || forceCpu)
+      ? 'wasm'
+      : ((await webgpuDevice()) === 'webgpu' ? 'webgpu' : 'wasm')
+    const load = async (dev) => pipeline(spec.task, spec.id, {
+      device: dev,
+      dtype: dev === 'webgpu' ? 'fp32' : 'q8',
       progress_callback: onProgress,
     })
+    let pipe
+    try {
+      pipe = await load(preferred)
+    } catch (err) {
+      if (preferred !== 'webgpu') throw err
+      forceWasm = true
+      pipe = await load('wasm')
+    }
     pipes.set(key, pipe)
     return pipe
   })()
@@ -264,18 +281,116 @@ export function deduplicateDetections(objects = [], { iouThreshold = 0.45, conta
 }
 
 /**
+ * Normalize a detection bounding box to clamped [0, 1] coordinates.
+ * Handles both 0..1 fractions and 0..100 percentages from Transformers.js.
+ */
+export function normalizeBox(box) {
+  if (!box || typeof box !== 'object') return { xmin: 0, ymin: 0, xmax: 0, ymax: 0 }
+  let { xmin = 0, ymin = 0, xmax = 0, ymax = 0 } = box
+  const maxVal = Math.max(xmin, ymin, xmax, ymax)
+  if (maxVal > 1.05) {
+    xmin /= 100
+    ymin /= 100
+    xmax /= 100
+    ymax /= 100
+  }
+  const clamp = (v) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0))
+  const nx1 = clamp(xmin)
+  const ny1 = clamp(ymin)
+  const nx2 = clamp(xmax)
+  const ny2 = clamp(ymax)
+  return {
+    xmin: Math.min(nx1, nx2),
+    ymin: Math.min(ny1, ny2),
+    xmax: Math.max(nx1, nx2),
+    ymax: Math.max(ny1, ny2),
+  }
+}
+
+/**
+ * Temporal box smoothing + hysteresis for live HUD detections.
+ * Smooths jittering coordinates via EMA and retains briefly missed boxes
+ * for `maxMissed` ticks so the HUD stays steady.
+ */
+export function smoothDetections(
+  prev = [],
+  next = [],
+  { alpha = 0.65, iouThreshold = 0.3, maxMissed = 1 } = {},
+) {
+  const prevList = Array.isArray(prev) ? prev : []
+  const nextList = Array.isArray(next) ? next : []
+  const matchedPrev = new Set()
+  const out = []
+
+  for (const det of nextList) {
+    if (!det || !det.box) continue
+    const label = String(det.label || '').toLowerCase()
+    let bestIdx = -1
+    let bestIou = iouThreshold
+    for (let i = 0; i < prevList.length; i++) {
+      if (matchedPrev.has(i)) continue
+      const p = prevList[i]
+      if (!p?.box || String(p.label || '').toLowerCase() !== label) continue
+      const { iou } = boxOverlap(p.box, det.box)
+      if (iou >= bestIou) {
+        bestIou = iou
+        bestIdx = i
+      }
+    }
+    if (bestIdx !== -1) {
+      matchedPrev.add(bestIdx)
+      const pBox = prevList[bestIdx].box
+      const nBox = det.box
+      out.push({
+        ...det,
+        box: {
+          xmin: pBox.xmin + alpha * (nBox.xmin - pBox.xmin),
+          ymin: pBox.ymin + alpha * (nBox.ymin - pBox.ymin),
+          xmax: pBox.xmax + alpha * (nBox.xmax - pBox.xmax),
+          ymax: pBox.ymax + alpha * (nBox.ymax - pBox.ymax),
+        },
+        _missed: 0,
+      })
+    } else {
+      out.push({ ...det, _missed: 0 })
+    }
+  }
+
+  for (let i = 0; i < prevList.length; i++) {
+    if (matchedPrev.has(i)) continue
+    const p = prevList[i]
+    const missed = (p?._missed || 0) + 1
+    if (p?.box && missed <= maxMissed) {
+      out.push({ ...p, score: (p.score ?? 0.5) * 0.9, _missed: missed })
+    }
+  }
+
+  return deduplicateDetections(out)
+}
+
+/**
  * "What is in it, and where?"
  * @returns {Promise<Array<{label, score, box}>>}
  */
 export async function detectObjects(image, { threshold = 0.5, ...opts } = {}) {
-  const pipe = await getPipeline('detr', opts)
+  let pipe = await getPipeline('detr', opts)
   // Downscale first: boxes are percentages, so they still map to the full frame.
   const prepared = await downscaleForInference(image)
-  const out = await pipe(prepared, { threshold, percentage: true })
+  let out
+  try {
+    out = await pipe(prepared, { threshold, percentage: true })
+  } catch (err) {
+    if (!forceWasm && isWebGpuError(err)) {
+      pipe = await getPipeline('detr', { ...opts, forceCpu: true })
+      out = await pipe(prepared, { threshold, percentage: true })
+    } else {
+      throw err
+    }
+  }
   const mapped = (Array.isArray(out) ? out : []).map(r => ({
     label: r.label,
     score: Number(r.score),
-    box: r.box,
+    box: normalizeBox(r.box),
   }))
   return deduplicateDetections(mapped)
 }
@@ -301,7 +416,7 @@ export function describePosition(box) {
   return v === 'middle' && h === 'centre' ? 'centre' : `${v} ${h}`
 }
 
-export function _resetDetectors() { pipes.clear(); loading.clear(); consented = false }
+export function _resetDetectors() { pipes.clear(); loading.clear(); consented = false; forceWasm = false }
 
 export {
   createSessionObjectMemory,

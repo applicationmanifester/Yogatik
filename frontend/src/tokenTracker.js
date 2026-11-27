@@ -101,12 +101,21 @@ export function extractUsageFromResponse(data, provider) {
     }
   }
 
-  // Ollama format (some versions return usage)
-  if (provider === 'ollama' && data.usage) {
-    return {
-      promptTokens: data.usage.prompt_eval_count || 0,
-      completionTokens: data.usage.eval_count || 0,
-      totalTokens: (data.usage.prompt_eval_count || 0) + (data.usage.eval_count || 0),
+  // Ollama format (top-level prompt_eval_count / eval_count OR nested under usage)
+  if (
+    provider === 'ollama' ||
+    typeof data.prompt_eval_count === 'number' ||
+    typeof data.eval_count === 'number'
+  ) {
+    const src = data.usage && typeof data.usage === 'object' ? data.usage : data
+    const prompt = src.prompt_eval_count || 0
+    const completion = src.eval_count || 0
+    if (prompt > 0 || completion > 0) {
+      return {
+        promptTokens: prompt,
+        completionTokens: completion,
+        totalTokens: prompt + completion,
+      }
     }
   }
 
@@ -123,19 +132,22 @@ export function extractUsageFromResponse(data, provider) {
 export function extractUsageFromStreamChunk(chunk, provider) {
   if (!chunk || typeof chunk !== 'object') return null
 
+  // Anthropic streaming: message_start carries input_tokens on chunk.message.usage
+  if (chunk.type === 'message_start' && chunk.message?.usage) {
+    return extractUsageFromResponse({ usage: chunk.message.usage }, 'anthropic')
+  }
+
+  // Anthropic streaming: message_delta / message_stop / content_block_stop carry usage
+  if (
+    (chunk.type === 'message_delta' || chunk.type === 'message_stop' || chunk.type === 'content_block_stop') &&
+    chunk.usage
+  ) {
+    return extractUsageFromResponse({ usage: chunk.usage }, 'anthropic')
+  }
+
   // OpenAI-compatible streaming: usage in final chunk
   if (chunk.usage) {
     return extractUsageFromResponse(chunk, provider)
-  }
-
-  // Anthropic streaming: message_stop event with usage
-  if (chunk.type === 'message_stop' && chunk.usage) {
-    return extractUsageFromResponse({ usage: chunk.usage }, 'anthropic')
-  }
-
-  // Anthropic streaming: content_block_stop with usage
-  if (chunk.type === 'content_block_stop' && chunk.usage) {
-    return extractUsageFromResponse({ usage: chunk.usage }, 'anthropic')
   }
 
   // Gemini streaming: usageMetadata in final chunk
@@ -292,6 +304,11 @@ export function estimateMessageUsage(message, isAssistant = false) {
   }
 }
 
+/** Format compact input/output token summary, e.g. "1.2k in · 450 out". */
+export function formatInputOutputSummary({ promptTokens = 0, completionTokens = 0 } = {}) {
+  return `${formatTokenCount(Math.max(0, promptTokens))} in · ${formatTokenCount(Math.max(0, completionTokens))} out`
+}
+
 // Default export
 const tokenTracker = {
   extractUsageFromResponse,
@@ -300,6 +317,7 @@ const tokenTracker = {
   createTokenUsageTracker,
   estimateMessageUsage,
   formatTokenCount,
+  formatInputOutputSummary,
 }
 
 export default tokenTracker

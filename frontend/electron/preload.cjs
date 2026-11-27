@@ -604,3 +604,33 @@ contextBridge.exposeInMainWorld('__YOGATIK_TUI__', {
   sendError: (error) => ipcRenderer.send('tui:stream-error', error),
 })
 
+// Local CLI Agent Drivers bridge (claude, codex, grok)
+contextBridge.exposeInMainWorld('__YOGATIK_CLI_DRIVERS__', {
+  detect: () => ipcRenderer.invoke('cli-drivers:detect'),
+  setPath: (engine, binaryPath) => ipcRenderer.invoke('cli-drivers:set-path', { engine, binaryPath }),
+  run: (opts) => ipcRenderer.invoke('cli-drivers:run', opts || {}),
+  stop: (runId) => ipcRenderer.invoke('cli-drivers:stop', runId),
+  list: () => ipcRenderer.invoke('cli-drivers:list'),
+  onEvent: (cb) => {
+    const handler = (_e, data) => { try { cb(data) } catch { /* ignore */ } }
+    ipcRenderer.on('cli-drivers:event', handler)
+    return () => ipcRenderer.removeListener('cli-drivers:event', handler)
+  },
+})
+
+// Local HTTP+SSE Harness & Phone Pairing bridge
+contextBridge.exposeInMainWorld('__YOGATIK_HARNESS__', {
+  start: (opts) => ipcRenderer.invoke('harness:start', opts || {}),
+  stop: () => ipcRenderer.invoke('harness:stop'),
+  status: () => ipcRenderer.invoke('harness:status'),
+  rotatePairing: (opts) => ipcRenderer.invoke('harness:rotate-pairing', opts || {}),
+  publish: (opts) => ipcRenderer.invoke('harness:publish', opts || {}),
+  syncSnapshot: (snapshot) => ipcRenderer.invoke('harness:sync-snapshot', snapshot || {}),
+  readTranscript: (threadId) => ipcRenderer.invoke('harness:read-transcript', threadId),
+  onInbound: (cb) => {
+    const handler = (_e, data) => { try { cb(data) } catch { /* ignore */ } }
+    ipcRenderer.on('harness:inbound', handler)
+    return () => ipcRenderer.removeListener('harness:inbound', handler)
+  },
+})
+

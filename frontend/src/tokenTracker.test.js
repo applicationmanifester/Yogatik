@@ -5,6 +5,7 @@ import {
   TokenUsageAccumulator,
   createTokenUsageTracker,
   estimateMessageUsage,
+  formatInputOutputSummary,
 } from './tokenTracker'
 
 // Mock the tokenEstimator
@@ -75,6 +76,12 @@ describe('tokenTracker — real token usage tracking', () => {
       expect(result).toEqual({ promptTokens: 100, completionTokens: 50, totalTokens: 150 })
     })
 
+    it('extracts usage from Ollama top-level prompt_eval_count / eval_count', () => {
+      const data = { done: true, prompt_eval_count: 240, eval_count: 85 }
+      const result = extractUsageFromResponse(data, 'ollama')
+      expect(result).toEqual({ promptTokens: 240, completionTokens: 85, totalTokens: 325 })
+    })
+
     it('returns null for unknown format', () => {
       const data = { some: 'data' }
       const result = extractUsageFromResponse(data, 'unknown')
@@ -104,6 +111,21 @@ describe('tokenTracker — real token usage tracking', () => {
       const chunk = { type: 'content_block_stop', usage: { input_tokens: 100, output_tokens: 50 } }
       const result = extractUsageFromStreamChunk(chunk, 'anthropic')
       expect(result).toEqual({ promptTokens: 100, completionTokens: 50, totalTokens: 150 })
+    })
+
+    it('extracts from Anthropic message_start and message_delta events', () => {
+      const start = { type: 'message_start', message: { usage: { input_tokens: 320 } } }
+      const delta = { type: 'message_delta', usage: { output_tokens: 95 } }
+      expect(extractUsageFromStreamChunk(start, 'anthropic')).toEqual({
+        promptTokens: 320, completionTokens: 0, totalTokens: 320,
+      })
+      expect(extractUsageFromStreamChunk(delta, 'anthropic')).toEqual({
+        promptTokens: 0, completionTokens: 95, totalTokens: 95,
+      })
+    })
+
+    it('formats compact input/output token summary', () => {
+      expect(formatInputOutputSummary({ promptTokens: 1250, completionTokens: 450 })).toBe('1.3k in · 450 out')
     })
 
     it('extracts from Gemini usageMetadata', () => {

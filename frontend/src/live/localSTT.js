@@ -70,8 +70,24 @@ export function shouldCloseSegment({ speechStarted, silenceMs, segmentMs }) {
 }
 
 /** Worth sending to Whisper, or just a noise blip? */
-export function segmentIsUsable({ segmentMs, peakRms }) {
-  return segmentMs >= MIN_SEGMENT_MS && peakRms >= SILENCE_RMS
+export function segmentIsUsable({ segmentMs, peakRms, noiseFloor = SILENCE_RMS }) {
+  const minPeak = Math.max(SILENCE_RMS, Number.isFinite(noiseFloor) ? noiseFloor : SILENCE_RMS)
+  return segmentMs >= MIN_SEGMENT_MS && peakRms >= minPeak
+}
+
+const HALLUCINATION_RE = /^(?:\[.*\]|\(.*\)|<.*>|thank you\.?|thanks for watching\.?|thanks for listening\.?|you\.?|bye\.?|subtitles by .*|\.+)$/i
+
+/**
+ * Filter common Whisper silence/noise hallucinations and non-speech markers.
+ * Returns cleaned text, or '' if the segment should be discarded.
+ */
+export function filterHallucination(text) {
+  const clean = String(text || '').trim().replace(/\s+/g, ' ')
+  if (!clean) return ''
+  if (HALLUCINATION_RE.test(clean)) return ''
+  // Repeated single-character or 2-char stutters like "aaaaaa" or "ha ha ha ha ha"
+  if (/^(.)\1{5,}$/.test(clean.replace(/\s/g, ''))) return ''
+  return clean
 }
 
 /**
@@ -151,9 +167,8 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
       try {
         const { transcribe } = await import('../whisper')
         const text = await transcribe(blob, { lang })
-        const clean = String(text || '').trim()
-        // Whisper emits bracketed markers for non-speech; they are not words.
-        if (clean && !/^[[(<].*[\])>]$/.test(clean)) onFinal?.(clean)
+        const clean = filterHallucination(text)
+        if (clean) onFinal?.(clean)
       } catch (e) {
         const msg = String(e?.message || e)
         if (!/abort|cancel|closed|already started/i.test(msg)) {
@@ -181,7 +196,7 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
     else { silenceMs = 0; speechStarted = true }
 
     if (shouldCloseSegment({ speechStarted, silenceMs, segmentMs })) {
-      const usable = segmentIsUsable({ segmentMs, peakRms: peak })
+      const usable = segmentIsUsable({ segmentMs, peakRms: peak, noiseFloor: adaptiveFloor })
       if (recorder?.state === 'recording') {
         if (usable) {
           // ─── SNR quality check (warn once per session) ───

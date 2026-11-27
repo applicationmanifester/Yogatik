@@ -35,6 +35,10 @@ export const spawnAgentsTool = {
                 items: { type: 'string' },
                 description: 'Optional list of task IDs that must finish before this task starts, receiving upstream context.',
               },
+              fresh_context: {
+                type: 'boolean',
+                description: 'Goldfish isolation mode: when true, omits shared session blackboard context so the sub-agent reviews with fresh eyes and zero prior conversation bias.',
+              },
             },
             required: ['agent', 'task'],
           },
@@ -43,19 +47,23 @@ export const spawnAgentsTool = {
           type: 'boolean',
           description: 'Give each sub-agent its OWN working-folder binding so parallel agents cannot overwrite one another’s files. Off by default; an isolated agent starts with no folders until one is bound to it.',
         },
+        fresh_context: {
+          type: 'boolean',
+          description: 'Default Goldfish isolation mode for all tasks in this batch (omit shared session blackboard context). Individual tasks can override this.',
+        },
       },
       required: ['tasks'],
     },
   },
 
-  async execute({ tasks, isolate_workspace: isolateWorkspace = false }, opts = {}) {
+  async execute({ tasks, isolate_workspace: isolateWorkspace = false, fresh_context: defaultFreshContext = false }, opts = {}) {
     if (!Array.isArray(tasks) || tasks.length === 0) {
       return { success: false, error: 'Provide a non-empty tasks array.' }
     }
-    const [{ streamMessage }, { getAgentById }, { getToolNames }, { runAgentPool }, isolation, localFs, { getSessionBlackboard }, { resolveTaskWaves, enrichTaskWithUpstream }] = await Promise.all([
+    const [{ streamMessage }, { getAgentById }, { getToolNames }, { runAgentPool }, isolation, localFs, { getSessionBlackboard }, { resolveTaskWaves, enrichTaskWithUpstream }, controlPlane] = await Promise.all([
       import('../api'), import('../agents'), import('./index'), import('../agentPool'),
       import('../agentIsolation'), import('./localFs'), import('../agentBlackboard'),
-      import('./dagResolver'),
+      import('./dagResolver'), import('../paperclipControlPlane'),
     ])
     const allNames = getToolNames()
 
@@ -67,8 +75,20 @@ export const spawnAgentsTool = {
     const plan = isolation.planIsolation(parentId, tasks.map(t => t.agent), { isolate: !!isolateWorkspace })
     const blackboard = getSessionBlackboard(parentId)
 
-    const runOne = async ({ agent, task }, index) => {
+    const runOne = async ({ agent, task, fresh_context: taskFreshContext }, index) => {
       const def = (await getAgentById(agent)) || null
+      const govId = def?.id || agent
+      const budgetCheck = await controlPlane.checkAgentBudget(govId)
+      if (!budgetCheck.allowed) {
+        return {
+          agent: def?.name || agent,
+          role: def?.role || agent,
+          result: `[Governance blocked: ${budgetCheck.reason}]`,
+          durationMs: 0,
+          blocked: true,
+        }
+      }
+      const govProfile = budgetCheck.profile
       // Scope tools to the agent's allowlist and forbid re-delegation.
       const slot = plan[index] || { conversationId: parentId, isolated: false }
       const disabled = new Set(isolation.mergeIsolatedDisabled([], { isolated: slot.isolated }))
@@ -77,12 +97,19 @@ export const spawnAgentsTool = {
         for (const n of allNames) if (!allow.has(n)) disabled.add(n)
       }
 
-      // Inject shared team findings from the blackboard if available
-      const sharedContext = blackboard.formatContextPrompt()
+      // Goldfish isolation: skip shared blackboard context when fresh_context is enabled
+      const isFreshContext = Boolean(taskFreshContext ?? defaultFreshContext)
+      const sharedContext = isFreshContext ? '' : blackboard.formatContextPrompt()
       const enrichedTask = sharedContext ? `${task}\n\n${sharedContext}` : task
+
+      const baseSystem = def?.system || `You are a focused specialist. Complete this sub-task precisely and return only the result.`
+      const systemWithGov = govProfile?.standingInstructions
+        ? `${baseSystem}\n\n[Standing Instructions]\n${govProfile.standingInstructions}`
+        : baseSystem
 
       const startTime = Date.now()
       let text = ''
+      let doneMeta = null
       await new Promise((resolve) => {
         streamMessage(
           {
@@ -90,9 +117,9 @@ export const spawnAgentsTool = {
             messages: [],
             provider: def?.provider || undefined,
             model: def?.model || undefined,
-            system_prompt: def?.system || `You are a focused specialist. Complete this sub-task precisely and return only the result.`,
+            system_prompt: systemWithGov,
             use_tools: true,
-            use_web_search: true,
+            use_web_search: !isFreshContext && (!def?.tools?.length || def.tools.includes('web_search')),
             disabledTools: [...disabled],
             agent_override: def || undefined,
             channel: `subagent-${Math.random().toString(36).slice(2, 8)}`,
@@ -100,7 +127,7 @@ export const spawnAgentsTool = {
           },
           (t) => { text += t },
           null,
-          () => resolve(),
+          (_content, meta) => { doneMeta = meta; resolve() },
           (err) => {
             if (!text.trim()) text = `[Sub-agent error: ${err?.message || err}]`
             resolve()
@@ -108,11 +135,20 @@ export const spawnAgentsTool = {
         )
       })
 
+      if (doneMeta?.telemetry) {
+        await controlPlane.recordAgentSpend(govId, {
+          inputTokens: doneMeta.telemetry.inputTokens || 0,
+          outputTokens: doneMeta.telemetry.outputTokens || 0,
+          provider: doneMeta.provider || def?.provider,
+          model: doneMeta.model || def?.model,
+        })
+      }
+
       const durationMs = Date.now() - startTime
       const trimmedResult = text.trim() || '(no output)'
 
-      // Publish short summary note to the shared blackboard for downstream agents
-      if (trimmedResult.length > 0 && !trimmedResult.startsWith('[Sub-agent error')) {
+      // Publish short summary note to the shared blackboard for downstream agents (unless fresh_context)
+      if (!isFreshContext && trimmedResult.length > 0 && !trimmedResult.startsWith('[Sub-agent error')) {
         const snippet = trimmedResult.slice(0, 240).replace(/\n+/g, ' ')
         blackboard.appendNote(snippet, def?.name || agent)
       }

@@ -51,6 +51,21 @@ export function ContextMeter({
   const limit = useMemo(() => getModelContextLimit(provider, model), [provider, model])
   const percent = calculateUsagePercent(estimatedTokens, limit)
 
+  const { inputTokens, outputTokens } = useMemo(() => {
+    let out = 0
+    for (const m of messages) {
+      if (m?.role === 'assistant') {
+        const text = typeof m.content === 'string' ? m.content : (m.text || '')
+        out += Math.ceil(String(text).length / 3.8)
+      }
+    }
+    const total = historyTokens + estimateConversationTokens({ messages: [], systemPrompt: '', input })
+    return {
+      inputTokens: Math.max(0, total - out),
+      outputTokens: out,
+    }
+  }, [messages, historyTokens, input])
+
   const getColor = () => getUsageColor(percent)
 
   const formatTokens = formatTokenCount
@@ -67,7 +82,7 @@ export function ContextMeter({
           handleClick()
         }
       } : undefined}
-      title={`Estimated Context Window: ${estimatedTokens.toLocaleString()} / ${limit.toLocaleString()} tokens (${percent}% used)${handleClick ? ' — Click to view context usage & token details' : ''}`}
+      title={`Estimated Context Window: ${estimatedTokens.toLocaleString()} / ${limit.toLocaleString()} tokens (${percent}% used · ${formatTokens(inputTokens)} in / ${formatTokens(outputTokens)} out)${handleClick ? ' — Click to view context usage & token details' : ''}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

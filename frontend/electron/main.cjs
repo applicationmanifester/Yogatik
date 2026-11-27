@@ -30,6 +30,8 @@ const { registerNotifications } = require('./notify.cjs')
 const { initAutoUpdate, checkForUpdates } = require('./updater.cjs')
 const { startScheduler, stopScheduler, registerSchedulerIPC } = require('./scheduler.cjs')
 const { registerSubAgentIPC } = require('./subAgentRunner.cjs')
+const { registerCliDriversIpc, killAllCliDrivers } = require('./cliDrivers.cjs')
+const { registerHarnessIpc, stopHarnessServer } = require('./harnessServer.cjs')
 const { registerKeychain } = require('./keychain.cjs')
 const { registerClipboard, stopPolling } = require('./clipboardManager.cjs')
 const { registerWatcher, stopAllWatchers } = require('./watcher.cjs')
@@ -484,6 +486,8 @@ if (!gotLock) {
       registerNotifications(getWindow)
       registerSchedulerIPC({ getWindow })
       registerSubAgentIPC()
+      registerCliDriversIpc(getWindow)
+      registerHarnessIpc(getWindow)
       // Desktop-only capability modules (safeStorage vault, clipboard history,
       // file watcher, power/idle, native dialogs, process manager, PTY).
       registerKeychain()
@@ -1062,6 +1066,8 @@ if (!gotLock) {
     stopAllWatchers()
     stopAllTerminals()
     killAllMcpStdio()
+    killAllCliDrivers()
+    stopHarnessServer()
     destroyAllToolWindows()
     killAllBgProcesses()   // never orphan a background process on quit
     stopAllFsWatchers()

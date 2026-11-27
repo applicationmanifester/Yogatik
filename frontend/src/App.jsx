@@ -518,6 +518,15 @@ export default function App() {
   useEffect(() => { setSemanticConsent(features.semanticSearch) }, [features.semanticSearch])
   // Discover tools from any configured MCP servers once at startup.
   useEffect(() => { import('./mcp').then(m => m.refreshMcpTools()).catch(() => {}) }, [])
+  // Start the Paperclip agent heartbeat scheduler for agents with a non-zero cadence.
+  useEffect(() => {
+    let stop = null
+    let cancelled = false
+    import('./paperclipControlPlane').then(m => {
+      if (!cancelled) stop = m.startHeartbeatScheduler()
+    }).catch(() => {})
+    return () => { cancelled = true; stop?.() }
+  }, [])
   const [localBoot, setLocalBoot] = useState(null)
 
   /**

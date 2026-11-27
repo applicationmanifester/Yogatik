@@ -41,6 +41,8 @@ export function ContextUsageModal({
     toolTokens,
     draftTokens,
     ragTokens,
+    inputTokens,
+    outputTokens,
     totalTokens,
     percent,
     remainingTokens,
@@ -54,18 +56,22 @@ export function ContextUsageModal({
     let aTurns = 0
 
     for (const msg of messages) {
-      const msgTokens = estimateTokensFromMessage(msg)
+      let msgToolTokens = 0
+      if (Array.isArray(msg?.toolResults)) {
+        try {
+          msgToolTokens = Math.ceil(JSON.stringify(msg.toolResults).length / 3.8)
+          tTokens += msgToolTokens
+        } catch {}
+      }
+      // estimateTokensFromMessage already includes msg.toolResults, so subtract
+      // msgToolTokens here to avoid double-counting tool results in totalTokens.
+      const msgTokens = Math.max(0, estimateTokensFromMessage(msg) - msgToolTokens)
       if (msg?.role === 'user') {
         uTokens += msgTokens
         uTurns++
       } else if (msg?.role === 'assistant') {
         aTokens += msgTokens
         aTurns++
-      }
-      if (Array.isArray(msg?.toolResults)) {
-        try {
-          tTokens += Math.ceil(JSON.stringify(msg.toolResults).length / 3.8)
-        } catch {}
       }
     }
 
@@ -75,7 +81,9 @@ export function ContextUsageModal({
     const rChars = (docs || []).reduce((acc, d) => acc + (d.chars || (d.chunks || []).reduce((cAcc, c) => cAcc + (c?.length || 0), 0)), 0)
     const rTokens = Math.ceil(rChars / 3.8)
 
-    const total = sTokens + uTokens + aTokens + tTokens + dTokens
+    const inTokens = sTokens + uTokens + tTokens + dTokens
+    const outTokens = aTokens
+    const total = inTokens + outTokens
     const pct = calculateUsagePercent(total, limit)
     const rem = Math.max(0, limit - total)
 
@@ -86,6 +94,8 @@ export function ContextUsageModal({
       toolTokens: tTokens,
       draftTokens: dTokens,
       ragTokens: rTokens,
+      inputTokens: inTokens,
+      outputTokens: outTokens,
       totalTokens: total,
       percent: pct,
       remainingTokens: rem,
@@ -280,8 +290,10 @@ export function ContextUsageModal({
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))', fontSize: '12px', fontWeight: 600 }}>
-            <span style={{ color: 'var(--text-secondary, #a6adc8)' }}>Total Estimated</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border-color, rgba(255,255,255,0.08))', fontSize: '12px', fontWeight: 600, gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ color: 'var(--text-secondary, #a6adc8)' }}>
+              Total Estimated ({formatTokens(inputTokens)} in · {formatTokens(outputTokens)} out)
+            </span>
             <span style={{ color: 'var(--text-primary, #fff)' }}>{formatTokens(totalTokens)} / {formatTokens(limit)}</span>
           </div>
         </div>

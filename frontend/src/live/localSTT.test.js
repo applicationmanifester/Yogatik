@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  rms, isSilent, shouldCloseSegment, segmentIsUsable,
+  rms, isSilent, shouldCloseSegment, segmentIsUsable, filterHallucination,
   SILENCE_RMS, TRAILING_SILENCE_MS, MAX_SEGMENT_MS, MIN_SEGMENT_MS,
 } from './localSTT'
 import { classifySpeechError, NETWORK_FAILS_BEFORE_LOCAL } from './cascade'
@@ -56,6 +56,25 @@ describe('segmentIsUsable', () => {
 
   it('accepts real speech', () => {
     expect(segmentIsUsable({ segmentMs: 1200, peakRms: 0.2 })).toBe(true)
+  })
+
+  it('respects adaptive noiseFloor when filtering noisy rooms', () => {
+    expect(segmentIsUsable({ segmentMs: 1200, peakRms: 0.03, noiseFloor: 0.05 })).toBe(false)
+    expect(segmentIsUsable({ segmentMs: 1200, peakRms: 0.08, noiseFloor: 0.05 })).toBe(true)
+  })
+})
+
+describe('filterHallucination', () => {
+  it('strips common Whisper silence hallucinations and bracketed markers', () => {
+    expect(filterHallucination('[BLANK_AUDIO]')).toBe('')
+    expect(filterHallucination('(music)')).toBe('')
+    expect(filterHallucination('Thank you.')).toBe('')
+    expect(filterHallucination('Thanks for watching.')).toBe('')
+    expect(filterHallucination('aaaaaaa')).toBe('')
+  })
+
+  it('preserves real spoken transcripts with normalized whitespace', () => {
+    expect(filterHallucination('  hello   world  ')).toBe('hello world')
   })
 })
 

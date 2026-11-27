@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '23.1.0'
+export const APP_VERSION = '24.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 23.1.0 — Chatbox Local Permissions Mode Selector & Console Hygiene'
+export const APP_CODENAME = 'Yogatik 24.0.0 — Paperclip Agent Control Plane, Org Chart, Budgets & Heartbeats'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,36 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "24.0.0",
+    "title": "Yogatik 24.0.0: Paperclip Agent Control Plane, Org Chart, Budgets & Heartbeats",
+    "date": "November 27, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Paperclip Control Plane (Org Chart & Roles): Define reporting hierarchies (reportsTo), standing instructions, and department roles across Yogatik agents",
+      "Per-Agent Budgets & Governance Approvals: Enforce USD spend caps on sub-agent/crew/heartbeat runs with auto-pause and a human-in-the-loop Approvals inbox",
+      "Autonomous Heartbeats & Persistent Goal Board: Schedule or manually pulse agent check-ins over goal-aligned Kanban tasks with an immutable audit trail"
+    ],
+    "sections": [
+      {
+        "category": "🏢 Paperclip Control Plane",
+        "items": [
+          {
+            "title": "Org Chart & Standing Instructions",
+            "description": "Hierarchical agent reporting lines with cycle detection and role-level standing instructions injected into spawn_agents and crew_orchestrator runs."
+          },
+          {
+            "title": "Budgets, Heartbeats & Approvals Inbox",
+            "description": "Real-time per-agent spend accounting, scheduled heartbeat pulses, goal-linked persistent tasks, and governance approval gates."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "23.1.0",
     "title": "Yogatik 23.1.0: Chatbox Local Permissions Mode Selector & Console Hygiene",
     "date": "November 26, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Chatbox Local Permissions Selector: Toggle Request Review, Default, Auto, and Turbo modes directly from the composer bar",
       "Persistent Mode Enforcement: Permissions broker enforces per-mode rules for file writes, terminal commands, and recursive deletes",

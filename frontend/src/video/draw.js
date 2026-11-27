@@ -36,11 +36,12 @@ function background(ctx, W, H, theme, t) {
 }
 
 function drawTitle(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
   const pad = W * 0.1
   const rise = (1 - ease.out(Math.min(1, t * 3))) * H * 0.04
 
   const { size, lines } = fitFont(ctx, scene.text || '', {
-    max: H * 0.13, min: H * 0.06, weight: '700', family: theme.font, maxWidth: W - pad * 2, maxLines: 3,
+    max: S * 0.13, min: S * 0.055, weight: '700', family: theme.font, maxWidth: W - pad * 2, maxLines: 3,
   })
   const lh = size * 1.18
   const subSize = size * 0.36
@@ -53,38 +54,43 @@ function drawTitle(ctx, scene, t, { W, H, theme }) {
   for (const line of lines) { ctx.fillText(line, W / 2, y); y += lh }
 
   if (scene.subtitle) {
+    const sub = fitFont(ctx, scene.subtitle, {
+      max: subSize, min: Math.max(14, S * 0.028), weight: '400', family: theme.font, maxWidth: W - pad * 2, maxLines: 2,
+    })
     ctx.fillStyle = theme.dim
-    ctx.font = `400 ${px(subSize)} ${theme.font}`
-    ctx.fillText(scene.subtitle, W / 2, y + subSize * 0.6)
+    ctx.font = `400 ${px(sub.size)} ${theme.font}`
+    let sy = y + sub.size * 0.6
+    for (const line of sub.lines) { ctx.fillText(line, W / 2, sy); sy += sub.size * 1.25 }
   }
 
   // Accent rule that draws itself in.
   const w = W * 0.18 * ease.out(Math.min(1, t * 2.5))
   ctx.fillStyle = theme.accent
-  ctx.fillRect((W - w) / 2, (H - blockH) / 2 - size * 0.6, w, Math.max(3, H * 0.006))
+  ctx.fillRect((W - w) / 2, (H - blockH) / 2 - size * 0.6, w, Math.max(3, S * 0.006))
 }
 
 function drawText(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
   const pad = W * 0.09
   let y = H * 0.22
 
   if (scene.heading) {
     const { size, lines } = fitFont(ctx, scene.heading, {
-      max: H * 0.09, min: H * 0.05, weight: '700', family: theme.font, maxWidth: W - pad * 2, maxLines: 2,
+      max: S * 0.09, min: S * 0.048, weight: '700', family: theme.font, maxWidth: W - pad * 2, maxLines: 2,
     })
     ctx.textAlign = 'left'
     ctx.fillStyle = theme.fg
     ctx.font = `700 ${px(size)} ${theme.font}`
     for (const line of lines) { ctx.fillText(line, pad, y); y += size * 1.2 }
     ctx.fillStyle = theme.accent
-    ctx.fillRect(pad, y - size * 0.5, W * 0.12, Math.max(3, H * 0.005))
+    ctx.fillRect(pad, y - size * 0.5, W * 0.12, Math.max(3, S * 0.005))
     y += size * 0.5
   }
 
   const items = (Array.isArray(scene.bullets) ? scene.bullets : String(scene.text || '').split('\n'))
     .map(s => String(s).trim()).filter(Boolean)
 
-  const bodySize = Math.min(H * 0.058, (H * 0.62 - (y - H * 0.22)) / Math.max(items.length, 1) * 0.55)
+  const bodySize = Math.min(S * 0.058, (H * 0.62 - (y - H * 0.22)) / Math.max(items.length, 1) * 0.55)
   ctx.font = `400 ${px(bodySize)} ${theme.font}`
 
   items.forEach((item, i) => {
@@ -120,7 +126,8 @@ function drawImage(ctx, scene, t, { W, H, theme }) {
   }
 
   if (scene.caption) {
-    const size = H * 0.048
+    const S = Math.min(W, H)
+    const size = S * 0.048
     const band = size * 3
     const g = ctx.createLinearGradient(0, H - band, 0, H)
     g.addColorStop(0, '#00000000')
@@ -138,6 +145,7 @@ function drawImage(ctx, scene, t, { W, H, theme }) {
 }
 
 function drawBars(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
   const data = scene.data.slice(0, 12).map(d => ({
     label: String(d.label ?? ''),
     value: Number(d.value) || 0,
@@ -153,19 +161,19 @@ function drawBars(ctx, scene, t, { W, H, theme }) {
   if (scene.heading) {
     ctx.textAlign = 'left'
     ctx.fillStyle = theme.fg
-    const size = H * 0.075
+    const size = S * 0.075
     ctx.font = `700 ${px(size)} ${theme.font}`
     ctx.fillText(scene.heading, pad, H * 0.18)
   }
 
   ctx.strokeStyle = `${theme.dim}44`
-  ctx.lineWidth = Math.max(1, H * 0.002)
+  ctx.lineWidth = Math.max(1, S * 0.002)
   ctx.beginPath()
   ctx.moveTo(pad, bottom)
   ctx.lineTo(W - pad, bottom)
   ctx.stroke()
 
-  const labelSize = Math.min(H * 0.038, slot * 0.28)
+  const labelSize = Math.min(S * 0.038, slot * 0.28)
   data.forEach((d, i) => {
     const p = ease.out(stagger(t, i, data.length, { span: 0.5, hold: 0.35 }))
     const h = (Math.abs(d.value) / max) * plotH * 0.92 * p
@@ -192,6 +200,7 @@ function drawBars(ctx, scene, t, { W, H, theme }) {
 }
 
 function drawQuote(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
   const pad = W * 0.12
   const text = scene.quote || scene.text || ''
   const author = scene.author || scene.subtitle || ''
@@ -201,12 +210,12 @@ function drawQuote(ctx, scene, t, { W, H, theme }) {
 
   // Elegant large quotation mark background icon
   ctx.fillStyle = `${theme.accent}1f`
-  ctx.font = `italic 900 ${px(H * 0.38)} serif`
+  ctx.font = `italic 900 ${px(S * 0.38)} serif`
   ctx.textAlign = 'left'
   ctx.fillText('“', pad - W * 0.04, H * 0.38)
 
   const { size, lines } = fitFont(ctx, `"${text}"`, {
-    max: H * 0.08, min: H * 0.042, weight: '500', family: theme.font, maxWidth: W - pad * 2, maxLines: 4,
+    max: S * 0.08, min: S * 0.042, weight: '500', family: theme.font, maxWidth: W - pad * 2, maxLines: 4,
   })
   const lh = size * 1.3
   let y = H * 0.4 - (lines.length * lh) / 2 + size
@@ -226,13 +235,14 @@ function drawQuote(ctx, scene, t, { W, H, theme }) {
 }
 
 function drawMetric(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
   const metric = scene.metric || scene.heading || scene.text || '100%'
   const label = scene.label || scene.subtitle || scene.caption || ''
   const p = ease.out(Math.min(1, t * 2.5))
 
   ctx.textAlign = 'center'
-  const metricSize = H * 0.22
-  const labelSize = H * 0.055
+  const metricSize = S * 0.22
+  const labelSize = S * 0.055
 
   // Metric value with glowing accent
   ctx.globalAlpha = p
@@ -250,7 +260,7 @@ function drawMetric(ctx, scene, t, { W, H, theme }) {
   // Accent underline
   const barW = W * 0.16 * p
   ctx.fillStyle = theme.accent2
-  ctx.fillRect((W - barW) / 2, H * 0.5 + labelSize * 2.2, barW, Math.max(3, H * 0.006))
+  ctx.fillRect((W - barW) / 2, H * 0.5 + labelSize * 2.2, barW, Math.max(3, S * 0.006))
   ctx.globalAlpha = 1
 }
 
@@ -262,7 +272,8 @@ function drawSubtitle(ctx, scene, t, { W, H, theme }) {
   const cue = cueAt(scene._cues, t * scene.seconds)
   if (!cue?.text) return
 
-  const size = Math.max(16, H * 0.045)
+  const S = Math.min(W, H)
+  const size = Math.max(16, S * 0.045)
   ctx.font = `500 ${px(size)} ${theme.font}`
   const lines = wrapText(cue.text, W * 0.8, (s) => ctx.measureText(s).width).slice(0, 3)
   const boxH = lines.length * size * 1.3 + size * 0.7

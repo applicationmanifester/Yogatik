@@ -19,7 +19,7 @@ import { createCascadeSession } from '../live/cascade'
 import { formatLiveSessionRecap } from '../live/sessionHandoff'
 import { captureProfile, describeWithoutModel, getSharedVisualSource, needsMotion } from '../vision/source'
 import { findVisionCandidate } from '../vision/capability'
-import { detectObjects } from '../vision/detect'
+import { detectObjects, smoothDetections } from '../vision/detect'
 import { temporalVideoBuffer } from '../vision/temporalBuffer'
 import { buzz, isEnabled } from '../features'
 import { VisionModal } from './VisionModal'
@@ -1221,7 +1221,12 @@ export function LiveView({
       inFlight = true
       try {
         const objects = await detectObjects(`data:image/jpeg;base64,${frame}`, { threshold: 0.6 })
-        if (!cancelled) setVision({ detections: objects, detectError: '' })
+        if (!cancelled) {
+          setVision(v => ({
+            detections: smoothDetections(v.detections, objects),
+            detectError: '',
+          }))
+        }
       } catch (err) {
         // Most likely: the user turned this on without also turning on
         // "On-device vision" (the shared download consent — see App.jsx).

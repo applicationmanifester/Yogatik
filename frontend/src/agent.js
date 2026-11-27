@@ -713,9 +713,11 @@ export async function runAgent({
 
   // Dynamic @skill mentions in userMessage (AAS Core v16 / Manifest v1 support)
   let mentionedSkillsBlock = ''
+  let mentionedSkills = []
   try {
     const { resolveSkillMentions } = await import('./skillsCatalog')
     const mentions = resolveSkillMentions(userText)
+    mentionedSkills = mentions
     if (mentions.length > 0) {
       mentionedSkillsBlock = '\n\n' + mentions.map(m =>
         `INVOKED SKILL [@${m.id}] — "${m.name}":\n${m.systemPrompt || m.system || ''}\nGuidelines: Apply ${m.name} best practices and domain rules to this turn.`
@@ -1130,14 +1132,16 @@ export async function runAgent({
   // a text observation from the on-device VLM (it cannot), scoped per chat.
   setVisionContext({ modelCanSee, allowLocal: localVisionEnabled }, executionCtx.conversationId || 'default')
 
-  // Fold the active skill's + active agent's tool allowlists into the disabled set.
+  // Fold the active skill's + active agent's + enforced @skill mentions' tool allowlists into the disabled set.
+  const enforcedMentionedSkills = mentionedSkills.filter(m => m.enforceTools && m.tools?.length)
   let effectiveDisabled = disabledTools
-  if (activeSkill?.tools?.length || activeAgent?.tools?.length) {
+  if (activeSkill?.tools?.length || activeAgent?.tools?.length || enforcedMentionedSkills.length) {
     const allToolNames = getToolSchemas([]).map(s => s.function.name)
     effectiveDisabled = [...new Set([
       ...disabledTools,
       ...skillDisabledTools(activeSkill, allToolNames),
       ...agentDisabledTools(activeAgent, allToolNames),
+      ...enforcedMentionedSkills.flatMap(m => skillDisabledTools(m, allToolNames)),
     ])]
   }
   const rawSchemas = toolsEnabled ? getToolSchemas(effectiveDisabled) : null

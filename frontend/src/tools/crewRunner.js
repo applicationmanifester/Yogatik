@@ -15,6 +15,7 @@ import { getToolNames } from './index'
 import { streamMessage } from '../api'
 import { runAgentPool } from '../agentPool'
 import { getSessionBlackboard } from '../agentBlackboard'
+import { checkAgentBudget, recordAgentSpend } from '../paperclipControlPlane'
 
 function findPresetAgent(idOrRole) {
   if (!idOrRole) return null
@@ -31,6 +32,19 @@ async function streamAgent(agentId, prompt, priorContext = '', sessionId = 'defa
   if (!def) {
     try { def = await getAgentById(agentId) } catch { def = null }
   }
+  const govId = def?.id || agentId
+  const budgetCheck = await checkAgentBudget(govId)
+  if (!budgetCheck.allowed) {
+    return {
+      agentId: govId,
+      agentName: def?.name || agentId,
+      role: def?.role || agentId,
+      output: `[Governance blocked: ${budgetCheck.reason}]`,
+      durationMs: 0,
+      blocked: true,
+    }
+  }
+  const govProfile = budgetCheck.profile
   const allNames = getToolNames()
   const blackboard = getSessionBlackboard(sessionId)
 
@@ -51,7 +65,13 @@ async function streamAgent(agentId, prompt, priorContext = '', sessionId = 'defa
     ? `### Prior Context / Input Data:\n${combinedContext}\n\n### Your Specific Task:\n${prompt}`
     : prompt
 
+  const baseSystem = def?.system || `You are an expert specialist agent. Complete your task thoroughly and concisely.`
+  const systemWithGov = govProfile?.standingInstructions
+    ? `${baseSystem}\n\n[Standing Instructions]\n${govProfile.standingInstructions}`
+    : baseSystem
+
   const startTime = Date.now()
+  let doneMeta = null
   await new Promise((resolve) => {
     streamMessage(
       {
@@ -59,7 +79,7 @@ async function streamAgent(agentId, prompt, priorContext = '', sessionId = 'defa
         messages: [],
         provider: def?.provider || undefined,
         model: def?.model || undefined,
-        system_prompt: def?.system || `You are an expert specialist agent. Complete your task thoroughly and concisely.`,
+        system_prompt: systemWithGov,
         use_tools: true,
         use_web_search: true,
         disabledTools: [...disabled],
@@ -68,13 +88,22 @@ async function streamAgent(agentId, prompt, priorContext = '', sessionId = 'defa
       },
       (t) => { text += t },
       null,
-      () => resolve(),
+      (_content, meta) => { doneMeta = meta; resolve() },
       (err) => {
         if (!text.trim()) text = `[Agent execution notice: ${err?.message || err}]`
         resolve()
       },
     )
   })
+
+  if (doneMeta?.telemetry) {
+    await recordAgentSpend(govId, {
+      inputTokens: doneMeta.telemetry.inputTokens || 0,
+      outputTokens: doneMeta.telemetry.outputTokens || 0,
+      provider: doneMeta.provider || def?.provider,
+      model: doneMeta.model || def?.model,
+    })
+  }
 
   const durationMs = Date.now() - startTime
   const trimmed = text.trim() || '(Completed with no output)'

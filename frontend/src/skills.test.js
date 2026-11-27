@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { extractVars, fillTemplate, userVars } from './template'
 import { skillDisabledTools, exportSkill, parseSkill, PRESET_SKILLS } from './skills'
+import { resolveSkillMentions, searchSkillsCatalog, AUTONOMOUS_WORKFLOWS, AWESOME_SKILLS_CATALOG } from './skillsCatalog'
 import { getToolNames } from './tools/index'
 import { workflowVars, runWorkflow } from './workflows'
 
@@ -31,6 +32,12 @@ describe('skills', () => {
       for (const t of p.tools) expect(real.has(t), `${p.name} → ${t}`).toBe(true)
     }
   })
+  it('every catalog skill in AWESOME_SKILLS_CATALOG references only real, registered tools', () => {
+    const real = new Set(getToolNames())
+    for (const s of AWESOME_SKILLS_CATALOG) {
+      for (const t of s.tools || []) expect(real.has(t), `${s.id} → ${t}`).toBe(true)
+    }
+  })
   it('round-trips export/import', () => {
     const s = { name: 'Researcher', description: 'd', system: 'Be rigorous', tools: ['web_search'], starters: ['Research {{topic}}'] }
     const back = parseSkill(exportSkill(s))
@@ -38,6 +45,12 @@ describe('skills', () => {
   })
   it('rejects malformed import', () => {
     expect(() => parseSkill('{"nope":true}')).toThrow()
+  })
+  it('resolves @cartoon-3d-shorts catalog skill and workflow', () => {
+    const mentioned = resolveSkillMentions('Use @cartoon-3d-shorts to make a video')
+    expect(mentioned.map(s => s.id)).toEqual(['cartoon-3d-shorts'])
+    expect(searchSkillsCatalog('remotion', 'frontend').some(s => s.id === 'cartoon-3d-shorts')).toBe(true)
+    expect(AUTONOMOUS_WORKFLOWS.some(w => w.id === 'wf_animated_shorts')).toBe(true)
   })
 })
 

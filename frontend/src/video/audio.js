@@ -90,3 +90,92 @@ export function captionCues(text, seconds) {
 export function cueAt(cues, t) {
   return cues.find(c => t >= c.start && t < c.end) || cues[cues.length - 1] || null
 }
+
+/**
+ * Synthesize a lightweight procedural background music bed (pure Float32 PCM,
+ * no Web Audio). Supports 'ambient' (warm harmonic pad) and 'march' (rhythmic
+ * story-short pulse inspired by claude-animated-shorts).
+ */
+export function synthesizeBed(durationSec, sampleRate, { style = 'ambient', gain = 0.14 } = {}) {
+  const total = Math.max(0, Math.ceil(durationSec * sampleRate))
+  const out = new Float32Array(total)
+  if (!total || !(sampleRate > 0)) return out
+
+  const isMarch = style === 'march'
+  const bpm = isMarch ? 112 : 76
+  const beatSec = 60 / bpm
+  // C major / A minor warm triad progression (Hz)
+  const chords = isMarch
+    ? [[130.81, 196.0, 261.63], [146.83, 220.0, 293.66], [164.81, 246.94, 329.63], [130.81, 196.0, 261.63]]
+    : [[130.81, 164.81, 196.0], [110.0, 164.81, 220.0], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66]]
+
+  for (let i = 0; i < total; i++) {
+    const t = i / sampleRate
+    const barIdx = Math.floor(t / (beatSec * 4)) % chords.length
+    const chord = chords[barIdx]
+    let pad = 0
+    for (let k = 0; k < chord.length; k++) {
+      pad += Math.sin(2 * Math.PI * chord[k] * t) * (k === 0 ? 0.5 : 0.25)
+    }
+    const beatPhase = (t % beatSec) / beatSec
+    const pulse = isMarch
+      ? Math.exp(-beatPhase * 7) * 0.45 + 0.55
+      : 0.78 + 0.22 * Math.sin(2 * Math.PI * (t / (beatSec * 2)))
+    out[i] = pad * pulse * gain
+  }
+  return applyEdgeFades(out, sampleRate, 250)
+}
+
+/**
+ * Synthesize a short, soft transition chime/whoosh for scene cuts.
+ */
+export function synthesizeTransitionSfx(sampleRate, { durationSec = 0.24, gain = 0.16 } = {}) {
+  const n = Math.max(1, Math.round(durationSec * sampleRate))
+  const out = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    const p = i / n
+    const env = Math.sin(Math.PI * p) * (1 - p * 0.4)
+    const freq = 520 + 260 * p
+    out[i] = Math.sin(2 * Math.PI * freq * (i / sampleRate)) * env * gain
+  }
+  return applyEdgeFades(out, sampleRate, 15)
+}
+
+/**
+ * Duck a background PCM bed smoothly during active speech windows.
+ * @param {Float32Array} bed
+ * @param {{startSec:number, endSec:number}[]} speechRanges
+ * @param {number} sampleRate
+ * @param {{duckGain?:number, fadeSec?:number}} opts
+ */
+export function duckPcm(bed, speechRanges, sampleRate, { duckGain = 0.25, fadeSec = 0.18 } = {}) {
+  const out = new Float32Array(bed)
+  if (!out.length || !speechRanges?.length) return out
+
+  const fadeSamples = Math.max(1, Math.round(fadeSec * sampleRate))
+  const gains = new Float32Array(out.length).fill(1)
+
+  for (const { startSec, endSec } of speechRanges) {
+    const s0 = Math.max(0, Math.round(startSec * sampleRate) - fadeSamples)
+    const s1 = Math.max(s0, Math.round(startSec * sampleRate))
+    const e0 = Math.min(out.length, Math.round(endSec * sampleRate))
+    const e1 = Math.min(out.length, e0 + fadeSamples)
+
+    for (let i = s0; i < s1; i++) {
+      const t = (i - s0) / Math.max(1, s1 - s0)
+      const g = 1 - (1 - duckGain) * (0.5 - 0.5 * Math.cos(Math.PI * t))
+      if (g < gains[i]) gains[i] = g
+    }
+    for (let i = s1; i < e0; i++) {
+      if (duckGain < gains[i]) gains[i] = duckGain
+    }
+    for (let i = e0; i < e1; i++) {
+      const t = (i - e0) / Math.max(1, e1 - e0)
+      const g = duckGain + (1 - duckGain) * (0.5 - 0.5 * Math.cos(Math.PI * t))
+      if (g < gains[i]) gains[i] = g
+    }
+  }
+
+  for (let i = 0; i < out.length; i++) out[i] *= gains[i]
+  return out
+}

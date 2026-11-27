@@ -1,12 +1,17 @@
 import React from 'react'
 import {
   Bot, Plus, Trash2, Check, Download, Upload, X, Play, Square,
-  Users, Target, GitBranch, LayoutGrid, CheckCircle2, Clock, PlayCircle, ArrowRight
+  Users, Target, GitBranch, LayoutGrid, CheckCircle2, Clock, PlayCircle, ArrowRight, Building2
 } from 'lucide-react'
 import { Modal } from './Modal'
+import { BotRosterView } from './BotRosterView'
+import { PaperclipControlPanel } from './PaperclipControlPanel'
 import {
   getAgents, upsertAgent, deleteAgent, getActiveAgentId, setActiveAgent, exportAgent, parseAgent,
 } from '../agents'
+import {
+  listBoardTasks, listGoals, upsertBoardTask, moveBoardTask, deleteBoardTask, subscribeControlPlane,
+} from '../paperclipControlPlane'
 import { autonomousAgent } from '../autonomousAgent'
 import { CopyButton } from './ToolResultCard'
 import { subscribeCrewTraces } from '../crewTrace'
@@ -39,14 +44,27 @@ export function AgentsPanel({ onClose, onToast, conversationId = null, embedded 
   const [report, setReport] = React.useState('')
   const abortRef = React.useRef(null)
 
-  // Kanban board tasks state
-  const [customTasks, setCustomTasks] = React.useState([
-    { id: 't_init_1', title: 'System Architecture Audit', agent: 'Security Specialist', status: 'done', priority: 'high', timestamp: Date.now() - 3600000 },
-    { id: 't_init_2', title: 'Live Meeting Diarization Pipeline', agent: 'Voice Copilot', status: 'progress', priority: 'urgent', timestamp: Date.now() - 1200000 },
-    { id: 't_init_3', title: 'Pitch Deck Template Generation', agent: 'Document Engine', status: 'backlog', priority: 'normal', timestamp: Date.now() - 600000 },
-  ])
+  // Persistent Kanban board tasks state (backed by Paperclip Control Plane)
+  const [customTasks, setCustomTasks] = React.useState([])
+  const [boardGoals, setBoardGoals] = React.useState([])
   const [newTaskTitle, setNewTaskTitle] = React.useState('')
-  const [newTaskAgent, setNewTaskAgent] = React.useState('General')
+  const [newTaskAgentId, setNewTaskAgentId] = React.useState('agent_general')
+  const [newTaskGoalId, setNewTaskGoalId] = React.useState('')
+  const [newTaskRequiresApproval, setNewTaskRequiresApproval] = React.useState(false)
+
+  React.useEffect(() => {
+    let mounted = true
+    const loadTasks = async () => {
+      const [list, goals] = await Promise.all([listBoardTasks(), listGoals()])
+      if (mounted) {
+        setCustomTasks(list)
+        setBoardGoals(goals)
+      }
+    }
+    loadTasks()
+    const unsub = subscribeControlPlane(() => { loadTasks() })
+    return () => { mounted = false; unsub() }
+  }, [])
 
   // Scoped to THIS chat, inheriting the global default. Without the id the
   // panel read and wrote the single global key, so activating an agent here
@@ -100,22 +118,26 @@ export function AgentsPanel({ onClose, onToast, conversationId = null, embedded 
   const [crewTraces, setCrewTraces] = React.useState([])
   React.useEffect(() => subscribeCrewTraces(setCrewTraces), [])
 
-  const moveTask = (taskId, nextStatus) => {
-    setCustomTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: nextStatus } : t))
+  const moveTask = async (taskId, nextStatus) => {
+    const res = await moveBoardTask(taskId, nextStatus)
+    if (res?.approvalCreated) {
+      onToast?.('Task routed to Control Plane Approvals inbox')
+    }
   }
 
-  const addTask = (e) => {
+  const addTask = async (e) => {
     e?.preventDefault?.()
     if (!newTaskTitle.trim()) return
-    const task = {
-      id: `task_${Date.now()}`,
+    const picked = agents.find(a => a.id === newTaskAgentId)
+    await upsertBoardTask({
       title: newTaskTitle.trim(),
-      agent: newTaskAgent || 'General',
+      agentId: picked?.id || newTaskAgentId || 'agent_general',
+      agent: picked?.name || 'General',
+      goalId: newTaskGoalId || null,
+      requiresApproval: newTaskRequiresApproval,
       status: 'backlog',
       priority: 'normal',
-      timestamp: Date.now()
-    }
-    setCustomTasks(prev => [task, ...prev])
+    })
     setNewTaskTitle('')
   }
 
@@ -140,12 +162,22 @@ export function AgentsPanel({ onClose, onToast, conversationId = null, embedded 
 
   return (
     <Modal title="Agents" icon={<Bot size={16} />} onClose={onClose} embedded={embedded}>
-      <div className="tab-row" style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+      <div className="tab-row" style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <button className={tab === 'board' ? 'active' : ''} onClick={() => setTab('board')}><LayoutGrid size={12} /> Board</button>
+        <button className={tab === 'control' ? 'active' : ''} onClick={() => setTab('control')}><Building2 size={12} /> Control Plane</button>
+        <button className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}><Bot size={12} /> Roster &amp; Channels</button>
         <button className={tab === 'agents' ? 'active' : ''} onClick={() => setTab('agents')}><Users size={12} /> Agents</button>
         <button className={tab === 'auto' ? 'active' : ''} onClick={() => setTab('auto')}><Target size={12} /> Autonomous</button>
         <button className={tab === 'crew' ? 'active' : ''} onClick={() => setTab('crew')}><GitBranch size={12} /> Crew traces{crewTraces.length ? ` (${crewTraces.length})` : ''}</button>
       </div>
+
+      {tab === 'control' && (
+        <PaperclipControlPanel onToast={onToast} />
+      )}
+
+      {tab === 'roster' && (
+        <BotRosterView onToast={onToast} />
+      )}
 
       {tab === 'board' && (
         <div className="personalise-group" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -153,26 +185,45 @@ export function AgentsPanel({ onClose, onToast, conversationId = null, embedded 
             <p className="personalise-hint" style={{ margin: 0 }}>
               Multi-Agent Collaboration Board — Real-time synchronization of sub-agents, autonomous planning steps, and team tasks.
             </p>
-            <form onSubmit={addTask} style={{ display: 'flex', gap: 6, alignItems: 'center', width: '100%', maxWidth: 420 }}>
+            <form onSubmit={addTask} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
               <input
                 type="text"
                 placeholder="New multi-agent task..."
                 value={newTaskTitle}
                 onChange={e => setNewTaskTitle(e.target.value)}
-                style={{ flex: 1, padding: '4px 8px', fontSize: '12px' }}
+                style={{ flex: 1, minWidth: 160, padding: '4px 8px', fontSize: '12px' }}
               />
               <select
-                value={newTaskAgent}
-                onChange={e => setNewTaskAgent(e.target.value)}
+                value={newTaskAgentId}
+                onChange={e => setNewTaskAgentId(e.target.value)}
                 style={{ padding: '4px 6px', fontSize: '11px', background: 'var(--bg-input, #1e1e2e)', color: 'inherit', border: '1px solid var(--border-color, rgba(255,255,255,0.1))', borderRadius: 4 }}
               >
-                <option value="General">General</option>
-                <option value="Researcher">Researcher</option>
-                <option value="Coder">Coder</option>
-                <option value="Security Specialist">Security Specialist</option>
-                <option value="Document Engine">Document Engine</option>
-                <option value="Voice Copilot">Voice Copilot</option>
+                {agents.length > 0 ? agents.map(a => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                )) : (
+                  <option value="agent_general">General</option>
+                )}
               </select>
+              {boardGoals.length > 0 && (
+                <select
+                  value={newTaskGoalId}
+                  onChange={e => setNewTaskGoalId(e.target.value)}
+                  style={{ padding: '4px 6px', fontSize: '11px', background: 'var(--bg-input, #1e1e2e)', color: 'inherit', border: '1px solid var(--border-color, rgba(255,255,255,0.1))', borderRadius: 4 }}
+                >
+                  <option value="">No goal</option>
+                  {boardGoals.map(g => (
+                    <option key={g.id} value={g.id}>{g.title}</option>
+                  ))}
+                </select>
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '11px', opacity: 0.85, cursor: 'pointer' }} title="Require human approval in Control Plane before marking Done">
+                <input
+                  type="checkbox"
+                  checked={newTaskRequiresApproval}
+                  onChange={e => setNewTaskRequiresApproval(e.target.checked)}
+                />
+                Gate
+              </label>
               <button type="submit" className="small-btn" disabled={!newTaskTitle.trim()}>
                 <Plus size={12} /> Add
               </button>
@@ -260,6 +311,25 @@ export function AgentsPanel({ onClose, onToast, conversationId = null, embedded 
                             <div style={{ fontSize: '12px', fontWeight: 500, lineHeight: 1.35, color: '#f1f5f9' }}>
                               {task.title}
                             </div>
+                            {(task.requiresApproval || task.costUsd > 0 || task.goalId) && (
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                {task.requiresApproval && (
+                                  <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: 4, background: 'rgba(251,146,60,0.16)', color: '#fb923c', fontWeight: 600 }}>
+                                    Approval Gate
+                                  </span>
+                                )}
+                                {task.costUsd > 0 && (
+                                  <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: 4, background: 'rgba(52,211,153,0.14)', color: '#34d399' }}>
+                                    ${task.costUsd.toFixed(4)}
+                                  </span>
+                                )}
+                                {task.goalId && boardGoals.find(g => g.id === task.goalId) && (
+                                  <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: 4, background: 'rgba(56,189,248,0.14)', color: '#38bdf8' }}>
+                                    {boardGoals.find(g => g.id === task.goalId).title.slice(0, 24)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
                               <span style={{
                                 fontSize: '9.5px',
@@ -287,7 +357,7 @@ export function AgentsPanel({ onClose, onToast, conversationId = null, embedded 
                                   <button
                                     className="icon-btn"
                                     title="Delete task"
-                                    onClick={() => setCustomTasks(prev => prev.filter(t => t.id !== task.id))}
+                                    onClick={() => deleteBoardTask(task.id)}
                                     style={{ padding: '2px 4px' }}
                                   >
                                     <Trash2 size={10} />

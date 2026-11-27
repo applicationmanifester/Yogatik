@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mixPcm, applyEdgeFades, planNarration, captionCues, cueAt } from './audio'
+import { mixPcm, applyEdgeFades, planNarration, captionCues, cueAt, synthesizeBed, synthesizeTransitionSfx, duckPcm } from './audio'
 import { cleanForSpeech, estimateSpeechSeconds } from './speech'
 
 const tone = (n, v = 0.5) => Float32Array.from({ length: n }, () => v)
@@ -94,5 +94,32 @@ describe('speech text preparation', () => {
     expect(ten).toBeGreaterThan(3)
     expect(ten).toBeLessThan(5)
     expect(estimateSpeechSeconds('one two three', 1.5)).toBeLessThan(estimateSpeechSeconds('one two three', 1))
+  })
+})
+
+describe('procedural soundtrack & ducking', () => {
+  it('synthesizes ambient and march beds of exact duration', () => {
+    const amb = synthesizeBed(2, 1000, { style: 'ambient' })
+    const mar = synthesizeBed(2, 1000, { style: 'march' })
+    expect(amb.length).toBe(2000)
+    expect(mar.length).toBe(2000)
+    expect(amb.every(Number.isFinite)).toBe(true)
+    expect(mar.some(v => Math.abs(v) > 0.01)).toBe(true)
+  })
+
+  it('synthesizes finite transition sfx with faded edges', () => {
+    const sfx = synthesizeTransitionSfx(1000, { durationSec: 0.2 })
+    expect(sfx.length).toBe(200)
+    expect(sfx[0]).toBeCloseTo(0, 6)
+    expect(sfx[sfx.length - 1]).toBeCloseTo(0, 6)
+    expect(sfx.some(v => Math.abs(v) > 0.01)).toBe(true)
+  })
+
+  it('ducks background bed during speech windows and restores outside', () => {
+    const bed = tone(3000, 0.4)
+    const ducked = duckPcm(bed, [{ startSec: 1.0, endSec: 2.0 }], 1000, { duckGain: 0.25, fadeSec: 0.1 })
+    expect(ducked[500]).toBeCloseTo(0.4, 5)
+    expect(ducked[1500]).toBeCloseTo(0.1, 5)
+    expect(ducked[2500]).toBeCloseTo(0.4, 5)
   })
 })
