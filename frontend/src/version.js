@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '27.0.0'
+export const APP_VERSION = '28.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 27.0.0 — Multi-Format 2D Animation Studio'
+export const APP_CODENAME = 'Yogatik 28.0.0 — Universal Document Reading & Creation Skills'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,36 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "28.0.0",
+    "title": "Yogatik 28.0.0: Universal Document Reading & Creation Skills",
+    "date": "November 27, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Layout-Aware & Hybrid PDF Reading: Reconstructs lines, paragraphs, and tabular columns from PDF coordinates, extracts metadata/outline, supports startPage/endPage pagination, and runs per-page OCR fallback on scanned pages",
+      "Expanded Multi-Format Extractors & doc_read: Added support for Excel (.xlsx/.xls/.xlsm/.xlsb/.ods) with Markdown tables & sheet filtering, Word/RTF/ODT (.docx lists/headers/footnotes/comments, .odt, .rtf), PowerPoint (.pptx paragraph grouping, tables, .odp), EPUB, and images (.png/.jpg/.jpeg/.webp/.svg)",
+      "Markdown Outlining & 9 New Document Skills: Added Markdown heading outlining to fs_outline/fs_smart_read plus dedicated reading and creation skills & workflows for PDFs, Excel, Word, PowerPoint, Markdown, and images"
+    ],
+    "sections": [
+      {
+        "category": "📄 Document Reading & Creation",
+        "items": [
+          {
+            "title": "Upgraded PDF, Office, Ebook & Image Readers",
+            "description": "Layout-aware PDF extraction with per-page OCR fallback, Markdown-table Excel reading, paragraph-grouped PPTX slides, RTF/ODT/ODP/EPUB support, and workspace image reading via doc_read."
+          },
+          {
+            "title": "Reading & Creation Skills Suite",
+            "description": "Added 9 preset & catalog skills for reading and authoring PDFs, Excel workbooks, Word docs, PowerPoint decks, Markdown, diagrams, and images."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "27.0.0",
     "title": "Yogatik 27.0.0: Multi-Format 2D Animation Studio",
     "date": "November 27, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Aspect-Ratio Format Presets: Render 16:9 widescreen, 9:16 vertical Shorts/Reels/TikTok, 1:1 square, 4:3, and 21:9 cinema animations",
       "6 Rendering Styles & 5 New Environments: Neon, Cartoon, Blueprint, Retro CRT, Sketch, and Flat styles across Underwater, City, Sunset, Forest, and Chalkboard backdrops",

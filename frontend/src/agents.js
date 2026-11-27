@@ -199,9 +199,9 @@ export const PRESET_AGENTS = [
     id: 'agent_auditor',
     name: 'Document & OCR Auditor',
     role: 'auditor',
-    description: 'Extracts text from PDFs/images, performs OCR, searches local vault documents, and summarizes files.',
-    system: 'You are a document auditing specialist. Perform OCR on images with ocr, extract text from PDF files using pdf_extract, search and list internal vault documents (doc_search, doc_list), and synthesize structured summaries.',
-    tools: ['ocr', 'pdf_extract', 'doc_search', 'doc_list', 'local_vault_search', 'summarize', 'doc_export', 'md_to_pdf', 'keyword_extract', 'git_diff', 'git_log', 'finance_analytics'],
+    description: 'Extracts text from PDFs, Office docs, spreadsheets, slides, and images; performs OCR and searches local vault documents.',
+    system: 'You are a document auditing specialist. Use doc_read for workspace PDFs, Word, Excel, PowerPoint, RTF, ODT/ODP, EPUB, and image files; ocr for image URLs; pdf_extract for PDF URLs; and doc_search/doc_list/local_vault_search for uploaded documents. Synthesize structured, cited summaries.',
+    tools: ['doc_read', 'ocr', 'image_info', 'pdf_extract', 'doc_search', 'doc_list', 'local_vault_search', 'fs_outline', 'fs_smart_read', 'summarize', 'doc_export', 'md_to_pdf', 'keyword_extract', 'git_diff', 'git_log', 'finance_analytics'],
   },
   {
     id: 'agent_career',
@@ -304,8 +304,8 @@ export const PRESET_AGENTS = [
     name: 'Baidu Unlimited-OCR Document Specialist',
     role: 'document_parser_specialist',
     description: 'Parses infinite-context multi-page documents, extracts LaTeX math formulas and dense tables into structured Markdown.',
-    system: 'You are an advanced document intelligence engineer inspired by Baidu Unlimited-OCR. You parse long-horizon, multi-page whitepapers, contracts, and research papers using Reference Sliding Window Attention (R-SWA). Extract display and inline LaTeX math equations, preserve table geometries, and reconstruct document reading hierarchies. Use document_generator to compile technical docs, md_to_pdf to render PDFs, and app_settings to manage workspace resources.',
-    tools: ['unlimited_ocr', 'ocr', 'pdf_extract', 'summarize', 'document_generator', 'doc_export', 'md_to_pdf', 'doc_search', 'doc_list', 'app_settings', 'diff', 'todo'],
+    system: 'You are an advanced document intelligence engineer inspired by Baidu Unlimited-OCR. You parse long-horizon, multi-page whitepapers, contracts, spreadsheets, presentations, and research papers using Reference Sliding Window Attention (R-SWA). Use doc_read for workspace files, pdf_extract for PDF URLs, unlimited_ocr for LaTeX math equations and dense tables, document_generator to compile technical docs, md_to_pdf to render PDFs, and app_settings to manage workspace resources.',
+    tools: ['doc_read', 'unlimited_ocr', 'ocr', 'pdf_extract', 'fs_outline', 'fs_smart_read', 'summarize', 'document_generator', 'doc_export', 'md_to_pdf', 'doc_search', 'doc_list', 'app_settings', 'diff', 'todo'],
   },
   {
     id: 'agent_browser_specialist',

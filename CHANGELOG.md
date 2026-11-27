@@ -1,5 +1,15 @@
 # Changelog
 
+## [28.0.0] — 2026-11-27: Universal Document Reading & Creation Skills Suite
+
+Major document intelligence release upgrading PDF extraction, multi-format Office/image/ebook reading, Markdown outlining, and adding dedicated reading & creation skills across all platforms.
+
+### 🚀 Highlights
+- **Layout-Aware & Hybrid PDF Reading (`tools/pdfExtract.js`)**: Reconstructs lines, paragraphs, and tabular columns from `pdf.js` coordinates, extracts PDF metadata & bookmark outlines, supports `startPage`/`endPage` pagination, and runs per-page OCR fallback on scanned pages.
+- **Expanded Multi-Format Extractors & `doc_read` (`tools/docExtractors.js`, `tools/docOps.js`, `tools/fsSmartRead.js`)**: Added Excel sheet filtering & Markdown table formatting (`.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods`), Word lists/headers/footers/footnotes/comments (`.docx`), `.odt`/`.odp`/`.rtf`/`.epub` extractors, paragraph-grouped PPTX slides with tables, workspace image OCR/SVG reading, and Markdown heading outlining in `fs_outline`.
+- **Reading & Creation Skills Suite (`skills.js`, `skillsCatalog.js`)**: Added 9 new preset & catalog skills plus `wf_document_intelligence` and `wf_document_creation_suite` workflows for reading and creating PDFs, Excel workbooks, Word docs, PowerPoint decks, Markdown, diagrams, and images.
+- **Multi-Platform Deployment & CI/CD**: Unified version 28.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [27.0.0] — 2026-11-27: Multi-Format 2D Animation Studio (Formats, Styles, Environments & Transitions)
 
 Major creative animation expansion adding aspect-ratio format presets, 6 rendering styles, 5 new animated environments, 6 additional color themes, and directional/zoom scene transitions to Yogatik's on-device `video_render` engine.

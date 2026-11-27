@@ -52,6 +52,22 @@ describe('skills', () => {
     expect(searchSkillsCatalog('remotion', 'frontend').some(s => s.id === 'cartoon-3d-shorts')).toBe(true)
     expect(AUTONOMOUS_WORKFLOWS.some(w => w.id === 'wf_animated_shorts')).toBe(true)
   })
+  it('resolves new document reading catalog skills and workflow', () => {
+    const mentioned = resolveSkillMentions('Use @pdf-deep-reader and @spreadsheet-analyst')
+    expect(mentioned.map(s => s.id)).toEqual(['pdf-deep-reader', 'spreadsheet-analyst'])
+    expect(searchSkillsCatalog('excel', 'documents').some(s => s.id === 'spreadsheet-analyst')).toBe(true)
+    expect(AUTONOMOUS_WORKFLOWS.some(w => w.id === 'wf_document_intelligence')).toBe(true)
+  })
+  it('resolves new document creation catalog skills and workflow', () => {
+    const mentioned = resolveSkillMentions('Use @pdf-report-author, @excel-workbook-builder, @word-pptx-author, and @markdown-visual-creator')
+    expect(mentioned.map(s => s.id)).toEqual([
+      'pdf-report-author',
+      'excel-workbook-builder',
+      'word-pptx-author',
+      'markdown-visual-creator',
+    ])
+    expect(AUTONOMOUS_WORKFLOWS.some(w => w.id === 'wf_document_creation_suite')).toBe(true)
+  })
 })
 
 describe('workflow runner', () => {

@@ -223,7 +223,7 @@ export function RagDocumentsModal({
               type="file"
               ref={fileInputRef}
               hidden
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.tsv,.txt,.md,.json,.xml,.yaml,.yml,.toml,.ini,.env,.sql,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.sh,.html,.css,*/*"
+              accept=".pdf,.doc,.docx,.odt,.rtf,.xls,.xlsx,.xlsm,.xlsb,.ods,.ppt,.pptx,.odp,.epub,.csv,.tsv,.txt,.md,.markdown,.json,.xml,.yaml,.yml,.toml,.ini,.env,.sql,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.sh,.html,.css,.png,.jpg,.jpeg,.webp,.bmp,.tiff,.gif,.svg,*/*"
               onChange={handleFileChange}
             />
             <button

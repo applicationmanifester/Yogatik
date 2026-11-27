@@ -2,24 +2,26 @@
  * Universal Client-Side Document & File Extractor
  *
  * Supports:
- * - PDF: Digital text + Scanned/Image PDFs via high-DPI canvas & auto-OCR
- * - Microsoft Word (.docx): XML text & paragraph parsing via JSZip
- * - Microsoft Excel (.xlsx, .xls): CSV table generation per sheet via SheetJS
- * - Images (.png, .jpg, .jpeg, .webp, .bmp, .tiff): OCR text extraction via Tesseract.js
+ * - PDF: Layout-aware digital text + per-page scanned/image OCR fallback
+ * - Microsoft Word (.docx) & OpenDocument (.odt) & Rich Text (.rtf)
+ * - Microsoft Excel (.xlsx, .xls, .xlsm, .xlsb, .ods): Markdown tables / CSV per sheet
+ * - PowerPoint (.pptx, .odp): Paragraph-grouped slides, tables, and speaker notes
+ * - E-books (.epub): Chapter text extraction via OPF spine
+ * - Images (.png, .jpg, .jpeg, .webp, .bmp, .tiff, .gif, .svg): OCR + visual layout metadata
  * - Data & Config: CSV, TSV, JSON, JSONL, XML, YAML, TOML, INI, ENV, SQL
- * - Programming Languages: JS, TS, Python, Java, C, C++, C#, Go, Rust, PHP, Ruby, Bash, PowerShell, etc.
+ * - Programming Languages & Markdown: MD, JS, TS, Python, Java, C, C++, C#, Go, Rust, etc.
  * - Universal Text Fallback: Any text-encoded file (checked via byte inspection for null characters)
  */
 
 const CODE_OR_TEXT_EXTS = new Set([
-  'txt', 'text', 'md', 'markdown', 'log', 'rtf', 'csv', 'tsv', 'json', 'jsonl', 'ndjson',
+  'txt', 'text', 'md', 'markdown', 'mdx', 'log', 'csv', 'tsv', 'json', 'jsonl', 'ndjson',
   'xml', 'yaml', 'yml', 'toml', 'ini', 'env', 'conf', 'cfg', 'properties', 'plist',
-  'html', 'htm', 'xhtml', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
+  'html', 'htm', 'xhtml', 'svg', 'css', 'scss', 'sass', 'less', 'vue', 'svelte',
   'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'py', 'pyw', 'java', 'c', 'cpp', 'cc', 'cxx',
   'h', 'hpp', 'hh', 'cs', 'go', 'rs', 'php', 'rb', 'sh', 'bash', 'zsh', 'ps1',
   'bat', 'cmd', 'sql', 'r', 'swift', 'kt', 'kts', 'dart', 'scala', 'lua', 'pl', 'pm',
   'graphql', 'gql', 'proto', 'diff', 'patch', 'dockerfile', 'makefile',
-  'srt', 'vtt', 'sub', 'rst', 'adoc', 'asciidoc', 'tex', 'latex', 'bib'
+  'srt', 'vtt', 'sub', 'rst', 'adoc', 'asciidoc', 'tex', 'latex', 'bib', 'eml'
 ])
 
 const KNOWN_TEXT_BASENAMES = new Set([
@@ -48,12 +50,18 @@ async function loadScript(urls, globalVar) {
   throw new Error(`Could not load ${globalVar} from CDN mirrors.`)
 }
 
-/** Extract text from PDF (digital layer + scanned OCR fallback) */
-export async function extractPdf(file) {
+/** Extract text from PDF (digital layer + per-page scanned OCR fallback) */
+export async function extractPdf(file, options = {}) {
   const { pdfExtractTool } = await import('./pdfExtract')
   const url = URL.createObjectURL(file)
   try {
-    const res = await pdfExtractTool.execute({ url })
+    const res = await pdfExtractTool.execute({
+      url,
+      maxPages: options.maxPages ?? 100,
+      startPage: options.startPage ?? 1,
+      endPage: options.endPage,
+      ocrFallback: options.ocrFallback ?? true,
+    })
     if (!res?.text?.trim()) {
       throw new Error(res?.error || 'No extractable text or OCR content found in this PDF.')
     }
@@ -107,10 +115,16 @@ function extractParagraphText(p) {
 
 function headingPrefixFor(p) {
   const styles = p.getElementsByTagName('w:pStyle')
-  if (!styles.length) return ''
-  const val = styles[0].getAttribute('w:val') || styles[0].getAttribute('val') || ''
-  const m = val.match(/^Heading([1-6])$/i)
-  return m ? `${'#'.repeat(Number(m[1]))} ` : ''
+  if (styles.length) {
+    const val = styles[0].getAttribute('w:val') || styles[0].getAttribute('val') || ''
+    const m = val.match(/^Heading([1-6])$/i)
+    if (m) return `${'#'.repeat(Number(m[1]))} `
+    if (/^Title$/i.test(val)) return '# '
+    if (/^Subtitle$/i.test(val)) return '## '
+  }
+  const numPr = p.getElementsByTagName('w:numPr')
+  if (numPr.length) return '- '
+  return ''
 }
 
 function extractTableMarkdown(tbl) {
@@ -174,7 +188,48 @@ export async function extractDocxFromBuffer(arrayBuffer) {
     }
   }
 
-  const result = blocks.join('\n\n')
+  const resultParts = [blocks.join('\n\n')]
+
+  // Optional headers, footers, footnotes, and comments
+  const extraFiles = [
+    ...Object.keys(zip.files).filter(n => /^word\/header\d*\.xml$/i.test(n)).sort(),
+    ...Object.keys(zip.files).filter(n => /^word\/footer\d*\.xml$/i.test(n)).sort(),
+  ]
+  const extraNotes = []
+  for (const ef of extraFiles) {
+    try {
+      const eDoc = parseXml(await zip.file(ef).async('text'))
+      const ps = eDoc.getElementsByTagName('w:p')
+      const lines = []
+      for (let i = 0; i < ps.length; i++) {
+        const t = extractParagraphText(ps[i])
+        if (t) lines.push(t)
+      }
+      if (lines.length) {
+        const tag = ef.includes('header') ? 'Header' : 'Footer'
+        extraNotes.push(`[${tag}] ${lines.join(' | ')}`)
+      }
+    } catch { /* ignore malformed header/footer */ }
+  }
+
+  for (const [notePath, label] of [['word/footnotes.xml', 'Footnotes'], ['word/comments.xml', 'Comments']]) {
+    if (zip.file(notePath)) {
+      try {
+        const nDoc = parseXml(await zip.file(notePath).async('text'))
+        const ps = nDoc.getElementsByTagName('w:p')
+        const lines = []
+        for (let i = 0; i < ps.length; i++) {
+          const t = extractParagraphText(ps[i])
+          if (t) lines.push(`- ${t}`)
+        }
+        if (lines.length) extraNotes.push(`### ${label}\n${lines.join('\n')}`)
+      } catch { /* ignore */ }
+    }
+  }
+
+  if (extraNotes.length) resultParts.push(extraNotes.join('\n\n'))
+
+  const result = resultParts.filter(Boolean).join('\n\n')
   if (!result.trim()) {
     throw new Error('Word document contains no readable text.')
   }
@@ -186,19 +241,57 @@ export async function extractDocx(file) {
   return extractDocxFromBuffer(await readBlobAsArrayBuffer(file))
 }
 
-/** Extract structured tables/data from an Excel (.xlsx, .xls) ArrayBuffer */
-export async function extractXlsxFromBuffer(arrayBuffer) {
+function aoaToMarkdownTable(rows) {
+  if (!rows.length) return ''
+  const cols = Math.max(...rows.map(r => r.length), 1)
+  const norm = (r) => {
+    const out = []
+    for (let c = 0; c < cols; c++) {
+      const val = r[c] == null ? '' : String(r[c]).replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim()
+      out.push(val)
+    }
+    return `| ${out.join(' | ')} |`
+  }
+  const sep = `| ${Array(cols).fill('---').join(' | ')} |`
+  return [norm(rows[0]), sep, ...rows.slice(1).map(norm)].join('\n')
+}
+
+/** Extract structured tables/data from an Excel (.xlsx, .xls, .xlsm, .xlsb, .ods) ArrayBuffer */
+export async function extractXlsxFromBuffer(arrayBuffer, options = {}) {
   const XLSX = await getXlsx()
   const data = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer)
   const workbook = XLSX.read(data, { type: 'array' })
+  const maxRows = Math.max(10, Number(options.maxRows) || 500)
+  const targetSheet = options.sheetName ? String(options.sheetName).toLowerCase() : null
   const sections = []
 
-  for (const sheetName of workbook.SheetNames) {
+  const sheetNames = targetSheet
+    ? workbook.SheetNames.filter(n => n.toLowerCase() === targetSheet || n.toLowerCase().includes(targetSheet))
+    : workbook.SheetNames
+
+  if (workbook.SheetNames.length > 1 && !targetSheet) {
+    sections.push(`[Workbook: ${workbook.SheetNames.length} sheets — ${workbook.SheetNames.join(', ')}]`)
+  }
+
+  for (const sheetName of sheetNames) {
     const sheet = workbook.Sheets[sheetName]
-    const csv = XLSX.utils.sheet_to_csv(sheet)
-    if (csv && csv.trim()) {
-      const rowCount = csv.trim().split('\n').length
-      sections.push(`=== Sheet: ${sheetName} (${rowCount} rows) ===\n${csv.trim()}`)
+    const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+    const nonEmpty = aoa.filter(row => Array.isArray(row) && row.some(cell => String(cell ?? '').trim() !== ''))
+    if (!nonEmpty.length) continue
+
+    const totalRows = nonEmpty.length
+    const maxCols = Math.max(...nonEmpty.map(r => r.length), 1)
+    const sliced = nonEmpty.slice(0, maxRows)
+    const truncatedNote = totalRows > maxRows ? `\n\n[Truncated: showing ${maxRows} of ${totalRows} non-empty rows]` : ''
+
+    // Render Markdown table when requested (`format: 'markdown'`); default to CSV for compatibility
+    if (options.format === 'markdown' && sliced.length <= 200 && maxCols <= 20) {
+      sections.push(`=== Sheet: ${sheetName} (${totalRows} rows × ${maxCols} cols) ===\n${aoaToMarkdownTable(sliced)}${truncatedNote}`)
+    } else {
+      const csv = XLSX.utils.sheet_to_csv(sheet)
+      const csvLines = csv.trim().split('\n')
+      const outCsv = csvLines.slice(0, maxRows).join('\n')
+      sections.push(`=== Sheet: ${sheetName} (${totalRows} rows) ===\n${outCsv}${truncatedNote}`)
     }
   }
 
@@ -209,13 +302,33 @@ export async function extractXlsxFromBuffer(arrayBuffer) {
   return result
 }
 
-/** Extract structured tables/data from Excel (.xlsx, .xls) */
-export async function extractXlsx(file) {
-  return extractXlsxFromBuffer(await readBlobAsArrayBuffer(file))
+/** Extract structured tables/data from Excel (.xlsx, .xls, .xlsm, .xlsb, .ods) */
+export async function extractXlsx(file, options = {}) {
+  return extractXlsxFromBuffer(await readBlobAsArrayBuffer(file), options)
 }
 
-/** Extract slides and speaker notes from a PowerPoint (.pptx) ArrayBuffer */
-export async function extractPptxFromBuffer(arrayBuffer) {
+function extractPptxTableMarkdown(tbl) {
+  const rows = []
+  const trs = tbl.getElementsByTagName('a:tr')
+  for (let r = 0; r < trs.length; r++) {
+    const tcs = trs[r].getElementsByTagName('a:tc')
+    const cells = []
+    for (let c = 0; c < tcs.length; c++) {
+      const ts = tcs[c].getElementsByTagName('a:t')
+      const parts = []
+      for (let k = 0; k < ts.length; k++) {
+        const txt = (ts[k].textContent || '').trim()
+        if (txt) parts.push(txt)
+      }
+      cells.push(parts.join(' ').replace(/\|/g, '\\|'))
+    }
+    if (cells.some(Boolean)) rows.push(cells)
+  }
+  return aoaToMarkdownTable(rows)
+}
+
+/** Extract slides, tables, and speaker notes from a PowerPoint (.pptx) ArrayBuffer */
+export async function extractPptxFromBuffer(arrayBuffer, options = {}) {
   const JSZip = await getJsZip()
   const zip = await JSZip.loadAsync(arrayBuffer)
   const slideNames = Object.keys(zip.files)
@@ -226,30 +339,61 @@ export async function extractPptxFromBuffer(arrayBuffer) {
     throw new Error('Invalid PowerPoint file: no slides found in ppt/slides/.')
   }
 
+  const startSlide = Math.max(1, Number(options.startSlide) || 1)
+  const endSlide = options.endSlide != null ? Math.min(slideNames.length, Number(options.endSlide)) : slideNames.length
+
   const slidesOut = []
+  if (slideNames.length > 1 && (startSlide > 1 || endSlide < slideNames.length)) {
+    slidesOut.push(`[Presentation: showing slides ${startSlide}-${endSlide} of ${slideNames.length}]`)
+  }
+
   for (const slidePath of slideNames) {
-    const slideNum = slidePath.match(/(\d+)\.xml$/)[1]
+    const slideNum = Number(slidePath.match(/(\d+)\.xml$/)[1])
+    if (slideNum < startSlide || slideNum > endSlide) continue
+
     const xml = await zip.file(slidePath).async('text')
     const doc = parseXml(xml)
-    const texts = doc.getElementsByTagName('a:t').length
-      ? doc.getElementsByTagName('a:t')
-      : doc.getElementsByTagNameNS('*', 't')
+
+    // Group text runs by paragraph (<a:p>) so sentences aren't fragmented across lines
     const lines = []
-    for (let i = 0; i < texts.length; i++) {
-      const t = (texts[i].textContent || '').trim()
-      if (t) lines.push(t)
+    const paragraphs = doc.getElementsByTagName('a:p')
+    if (paragraphs.length) {
+      for (let i = 0; i < paragraphs.length; i++) {
+        const ts = paragraphs[i].getElementsByTagName('a:t')
+        let pText = ''
+        for (let j = 0; j < ts.length; j++) {
+          pText += ts[j].textContent || ''
+        }
+        const trimmed = pText.trim()
+        if (trimmed) lines.push(trimmed)
+      }
+    } else {
+      const texts = doc.getElementsByTagNameNS('*', 't')
+      for (let i = 0; i < texts.length; i++) {
+        const t = (texts[i].textContent || '').trim()
+        if (t) lines.push(t)
+      }
     }
+
+    // Extract any tables on the slide
+    const tables = doc.getElementsByTagName('a:tbl')
+    for (let t = 0; t < tables.length; t++) {
+      const md = extractPptxTableMarkdown(tables[t])
+      if (md) lines.push('', md)
+    }
+
     const notesPath = `ppt/notesSlides/notesSlide${slideNum}.xml`
     let notesText = ''
     if (zip.file(notesPath)) {
       const nDoc = parseXml(await zip.file(notesPath).async('text'))
-      const nTexts = nDoc.getElementsByTagName('a:t').length
-        ? nDoc.getElementsByTagName('a:t')
-        : nDoc.getElementsByTagNameNS('*', 't')
+      const nParagraphs = nDoc.getElementsByTagName('a:p')
       const nLines = []
-      for (let i = 0; i < nTexts.length; i++) {
-        const t = (nTexts[i].textContent || '').trim()
-        if (t && t !== slideNum) nLines.push(t)
+      for (let i = 0; i < nParagraphs.length; i++) {
+        const ts = nParagraphs[i].getElementsByTagName('a:t')
+        let pText = ''
+        for (let j = 0; j < ts.length; j++) pText += ts[j].textContent || ''
+        const trimmed = pText.trim()
+        if (trimmed && trimmed !== String(slideNum)) nLines.push(trimmed)
       }
       if (nLines.length) notesText = `\n\n> Notes: ${nLines.join(' ')}`
     }
@@ -262,11 +406,86 @@ export async function extractPptxFromBuffer(arrayBuffer) {
 }
 
 /** Extract slides and notes from PowerPoint (.pptx) files */
-export async function extractPptx(file) {
-  return extractPptxFromBuffer(await readBlobAsArrayBuffer(file))
+export async function extractPptx(file, options = {}) {
+  return extractPptxFromBuffer(await readBlobAsArrayBuffer(file), options)
 }
 
-/** Extract text and layout signals from images via OCR */
+/** Extract plain text from Rich Text Format (.rtf) */
+export function extractRtfText(rtf = '') {
+  if (!rtf || typeof rtf !== 'string') return ''
+  let text = rtf
+    .replace(/\{\\\*\\[^}]*\}/g, '') // remove destination groups like {\*\generator ...}
+    .replace(/\\(fonttbl|colortbl|stylesheet|info|pict|object)[^}]*\}/g, '')
+    .replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\\u(-?\d+)\??/g, (_, code) => {
+      const n = Number(code)
+      return String.fromCharCode(n < 0 ? n + 65536 : n)
+    })
+    .replace(/\\(par|line)\b[ \t]?/g, '\n')
+    .replace(/\\tab\b[ \t]?/g, '\t')
+    .replace(/\\[a-zA-Z]+-?\d*[ \t]?/g, '')
+    .replace(/[{}]/g, '')
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/** Extract text from OpenDocument Text (.odt) or Presentation (.odp) ArrayBuffer */
+export async function extractOpenDocFromBuffer(arrayBuffer) {
+  const JSZip = await getJsZip()
+  const zip = await JSZip.loadAsync(arrayBuffer)
+  const contentFile = zip.file('content.xml')
+  if (!contentFile) throw new Error('Invalid OpenDocument file: content.xml not found')
+  const doc = parseXml(await contentFile.async('text'))
+  const blocks = []
+  const nodes = doc.getElementsByTagName('*')
+  for (let i = 0; i < nodes.length; i++) {
+    const tag = nodes[i].localName || nodes[i].nodeName || ''
+    if (tag === 'h' || tag === 'p') {
+      const txt = (nodes[i].textContent || '').trim()
+      if (!txt) continue
+      if (tag === 'h') {
+        const level = Math.min(6, Math.max(1, Number(nodes[i].getAttribute('text:outline-level')) || 1))
+        blocks.push(`${'#'.repeat(level)} ${txt}`)
+      } else {
+        blocks.push(txt)
+      }
+    }
+  }
+  const result = blocks.join('\n\n').trim()
+  if (!result) throw new Error('OpenDocument file contains no readable text.')
+  return result
+}
+
+/** Extract chapters from an EPUB (.epub) ArrayBuffer */
+export async function extractEpubFromBuffer(arrayBuffer) {
+  const JSZip = await getJsZip()
+  const zip = await JSZip.loadAsync(arrayBuffer)
+  const htmlFiles = Object.keys(zip.files)
+    .filter(n => /\.(x?html?|htm)$/i.test(n) && !/nav|toc/i.test(n.split('/').pop()))
+    .sort()
+  if (!htmlFiles.length) throw new Error('EPUB archive contains no readable HTML chapters.')
+  const chapters = []
+  for (const path of htmlFiles.slice(0, 60)) {
+    const raw = await zip.file(path).async('text')
+    const cleaned = raw
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<\/(p|div|h[1-6]|li|tr|br)>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+    if (cleaned) chapters.push(cleaned)
+  }
+  const result = chapters.join('\n\n---\n\n').trim()
+  if (!result) throw new Error('EPUB contains no readable text.')
+  return result
+}
+
+/** Extract text and layout signals from images via OCR (with graceful metadata fallback) */
 export async function extractImage(file) {
   const { ocrTool } = await import('./ocr')
   const url = URL.createObjectURL(file)
@@ -281,6 +500,9 @@ export async function extractImage(file) {
     }
     if (res?.low_confidence_text?.trim()) {
       return `[Low-confidence OCR text detected]:\n${res.low_confidence_text.trim()}`
+    }
+    if (res?.structure) {
+      return `[Image: ${file.name || 'image'} | Visual Layout: ${res.structure}]\nNo legible text detected via OCR.`
     }
     throw new Error(res?.error || 'No readable text found in this image via OCR.')
   } finally {
@@ -393,26 +615,44 @@ export async function extractFileText(file) {
     return extractPdf(file)
   }
 
-  // 2. Word document (.docx)
+  // 2. Word document (.docx), OpenDocument (.odt), Rich Text (.rtf)
   if (name.endsWith('.docx') || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
     return extractDocx(file)
   }
+  if (name.endsWith('.odt') || mime === 'application/vnd.oasis.opendocument.text') {
+    return extractOpenDocFromBuffer(await readBlobAsArrayBuffer(file))
+  }
+  if (name.endsWith('.rtf') || mime === 'application/rtf' || mime === 'text/rtf') {
+    return extractRtfText(await readBlobAsText(file))
+  }
 
-  // 3. Excel spreadsheet (.xlsx, .xls)
-  if (name.endsWith('.xlsx') || name.endsWith('.xls') ||
+  // 3. Excel & OpenDocument spreadsheets (.xlsx, .xls, .xlsm, .xlsb, .ods)
+  if (/\.(xlsx|xls|xlsm|xlsb|ods)$/i.test(name) ||
       mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-      mime === 'application/vnd.ms-excel') {
+      mime === 'application/vnd.ms-excel' ||
+      mime === 'application/vnd.oasis.opendocument.spreadsheet') {
     return extractXlsx(file)
   }
 
-  // 3b. PowerPoint presentation (.pptx)
+  // 3b. PowerPoint & OpenDocument presentations (.pptx, .odp)
   if (name.endsWith('.pptx') ||
       mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
     return extractPptx(file)
   }
+  if (name.endsWith('.odp') || mime === 'application/vnd.oasis.opendocument.presentation') {
+    return extractOpenDocFromBuffer(await readBlobAsArrayBuffer(file))
+  }
 
-  // 4. Image file (PNG, JPG, WEBP, BMP, TIFF) via OCR
-  if (/\.(png|jpe?g|webp|bmp|tiff?)$/i.test(name) || mime.startsWith('image/')) {
+  // 3c. E-book (.epub)
+  if (name.endsWith('.epub') || mime === 'application/epub+zip') {
+    return extractEpubFromBuffer(await readBlobAsArrayBuffer(file))
+  }
+
+  // 4. SVG vector images (XML text) & Raster images (PNG, JPG, JPEG, WEBP, BMP, TIFF, GIF) via OCR
+  if (name.endsWith('.svg') || mime === 'image/svg+xml') {
+    return readBlobAsText(file)
+  }
+  if (/\.(png|jpe?g|webp|bmp|tiff?|gif)$/i.test(name) || mime.startsWith('image/')) {
     return extractImage(file)
   }
 
@@ -421,5 +661,5 @@ export async function extractFileText(file) {
     return readBlobAsText(file)
   }
 
-  throw new Error(`Unsupported file type: ${mime || name}. Supported: PDF (digital & scan), DOCX, XLSX/XLS, Images (PNG/JPG/WEBP with OCR), CSV/TSV, JSON, Markdown, and all Code/Config files.`)
+  throw new Error(`Unsupported file type: ${mime || name}. Supported: PDF (digital & scan), DOCX/ODT/RTF, XLSX/XLS/XLSM/ODS, PPTX/ODP, EPUB, Images (PNG/JPG/JPEG/WEBP/SVG with OCR), CSV/TSV, JSON, Markdown, and all Code/Config files.`)
 }

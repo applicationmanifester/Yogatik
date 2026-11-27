@@ -17,10 +17,30 @@ export function extractFileSymbols(content, ext = '') {
   const pyLike = /^\.?(py|pyw)$/i.test(ext)
   const rustLike = /^\.?(rs)$/i.test(ext)
   const goLike = /^\.?(go)$/i.test(ext)
+  const mdLike = /^\.?(md|markdown|mdx)$/i.test(ext)
 
+  let inFence = false
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1
     const line = lines[i].trim()
+    if (mdLike) {
+      if (line.startsWith('```') || line.startsWith('~~~')) {
+        inFence = !inFence
+        continue
+      }
+      if (!inFence) {
+        const hMatch = line.match(/^(#{1,6})\s+(.+?)\s*#*$/)
+        if (hMatch) {
+          symbols.push({
+            name: hMatch[2].trim(),
+            type: `h${hMatch[1].length}`,
+            line: lineNum,
+            signature: `${hMatch[1]} ${hMatch[2].trim()}`,
+          })
+        }
+      }
+      continue
+    }
     if (!line || line.startsWith('//') || line.startsWith('#') || line.startsWith('/*')) continue
 
     if (jsLike) {

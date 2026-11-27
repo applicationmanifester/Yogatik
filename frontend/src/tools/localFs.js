@@ -607,8 +607,8 @@ export const fsReadTool = {
         ? rawContent.split('\n').map((l, i) => `${String(firstLine + i).padStart(padLen, ' ')} | ${l}`).join('\n')
         : undefined)
 
-      const officeHint = res?.binary && /\.(docx|xlsx|xls|pptx|pdf)$/i.test(path)
-        ? ' This is a binary Office/PDF document — use doc_read to extract its readable text, tables, or slides, and doc_edit to modify it.'
+      const officeHint = res?.binary && /\.(docx|odt|rtf|xlsx|xls|xlsm|xlsb|ods|pptx|odp|pdf|epub|png|jpe?g|webp|bmp|tiff?|gif)$/i.test(path)
+        ? ' This is a binary document or image — use doc_read to extract its readable text, tables, slides, or OCR content (and doc_edit for Office/PDF edits).'
         : ''
 
       return ok({

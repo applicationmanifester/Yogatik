@@ -4,7 +4,14 @@
  */
 
 import { isDesktop, invoke, ok, fail } from './localFs'
-import { extractDocxFromBuffer, extractXlsxFromBuffer, extractPptxFromBuffer } from './docExtractors'
+import {
+  extractDocxFromBuffer,
+  extractXlsxFromBuffer,
+  extractPptxFromBuffer,
+  extractOpenDocFromBuffer,
+  extractRtfText,
+  extractEpubFromBuffer,
+} from './docExtractors'
 
 function base64ToUint8Array(b64) {
   if (typeof globalThis.Buffer !== 'undefined') {
@@ -213,12 +220,20 @@ export async function editPdfBuffer(arrayBuffer, { operation, pages = [], text =
 export const docReadTool = {
   schema: {
     description:
-      'Read and extract structured text, tables, or slides from binary Office/PDF files (.docx, .xlsx, .xls, .pptx, .pdf) ' +
-      'in the workspace folder. Use this instead of fs_read for binary documents. Desktop app only.',
+      'Read and extract structured text, tables, slides, or OCR content from binary Office/PDF/ebook/image files ' +
+      '(.pdf, .docx, .odt, .rtf, .xlsx, .xls, .xlsm, .xlsb, .ods, .pptx, .odp, .epub, .png, .jpg, .jpeg, .webp, .bmp, .tiff, .gif, .svg) ' +
+      'in the workspace folder. Use this instead of fs_read for binary documents and images. Desktop app only.',
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'Path to the .docx, .xlsx, .xls, .pptx, or .pdf file in the workspace.' },
+        path: { type: 'string', description: 'Path to the document or image file in the workspace.' },
+        start_page: { type: 'number', description: 'For .pdf: 1-based start page (default 1).' },
+        end_page: { type: 'number', description: 'For .pdf: 1-based end page.' },
+        ocr_fallback: { type: 'boolean', description: 'For .pdf: run OCR on scanned/image pages (default true).' },
+        sheet_name: { type: 'string', description: 'For spreadsheets: optional sheet name filter.' },
+        max_rows: { type: 'number', description: 'For spreadsheets: max rows per sheet (default 500).' },
+        start_slide: { type: 'number', description: 'For .pptx: 1-based start slide.' },
+        end_slide: { type: 'number', description: 'For .pptx: 1-based end slide.' },
       },
       required: ['path'],
     },
@@ -233,25 +248,73 @@ export const docReadTool = {
       const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
       const lower = String(filePath).toLowerCase()
       let content = ''
+      let extra = {}
+
       if (lower.endsWith('.docx')) {
         content = await extractDocxFromBuffer(buf)
-      } else if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-        content = await extractXlsxFromBuffer(buf)
+      } else if (lower.endsWith('.odt') || lower.endsWith('.odp')) {
+        content = await extractOpenDocFromBuffer(buf)
+      } else if (lower.endsWith('.rtf')) {
+        const raw = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+        content = extractRtfText(raw)
+      } else if (/\.(xlsx|xls|xlsm|xlsb|ods)$/i.test(lower)) {
+        content = await extractXlsxFromBuffer(buf, { sheetName: args.sheet_name, maxRows: args.max_rows })
       } else if (lower.endsWith('.pptx')) {
-        content = await extractPptxFromBuffer(buf)
+        content = await extractPptxFromBuffer(buf, { startSlide: args.start_slide, endSlide: args.end_slide })
+      } else if (lower.endsWith('.epub')) {
+        content = await extractEpubFromBuffer(buf)
+      } else if (lower.endsWith('.svg')) {
+        content = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+      } else if (/\.(png|jpe?g|webp|bmp|tiff?|gif)$/i.test(lower)) {
+        const mimeMap = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          webp: 'image/webp', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', gif: 'image/gif',
+        }
+        const ext = lower.split('.').pop()
+        const { ocrTool } = await import('./ocr')
+        const url = URL.createObjectURL(new Blob([bytes], { type: mimeMap[ext] || 'image/png' }))
+        try {
+          const ocrRes = await ocrTool.execute({ image_url: url })
+          if (ocrRes?.text?.trim()) {
+            content = ocrRes.structure ? `[Visual Layout: ${ocrRes.structure}]\n\n${ocrRes.text.trim()}` : ocrRes.text.trim()
+          } else if (ocrRes?.low_confidence_text?.trim()) {
+            content = `[Low-confidence OCR text]:\n${ocrRes.low_confidence_text.trim()}`
+          } else {
+            content = `[Image: ${filePath}${ocrRes?.structure ? ` | Visual Layout: ${ocrRes.structure}` : ''}]\nNo legible text detected via OCR.`
+          }
+          if (ocrRes?.confidence != null) extra.ocrConfidence = ocrRes.confidence
+        } finally {
+          URL.revokeObjectURL(url)
+        }
       } else if (lower.endsWith('.pdf')) {
         const { pdfExtractTool } = await import('./pdfExtract')
         const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
         try {
-          const pdfRes = await pdfExtractTool.execute({ url })
+          const pdfRes = await pdfExtractTool.execute({
+            url,
+            startPage: args.start_page ?? 1,
+            endPage: args.end_page,
+            ocrFallback: args.ocr_fallback ?? true,
+          })
+          if (!pdfRes?.success && !pdfRes?.text) {
+            return fail(pdfRes?.error || 'Failed to extract text from PDF')
+          }
           content = pdfRes?.text || ''
+          extra = {
+            pages: pdfRes.pages,
+            startPage: pdfRes.startPage,
+            endPage: pdfRes.endPage,
+            truncated: pdfRes.truncated,
+            method: pdfRes.method,
+            ...(pdfRes.note ? { note: pdfRes.note } : {}),
+          }
         } finally {
           URL.revokeObjectURL(url)
         }
       } else {
         return fail(`Unsupported extension for doc_read: ${filePath}. Use fs_read for text/code files.`)
       }
-      return ok({ tool: 'doc_read', path: res.path || filePath, hash: res.hash, bytes: res.bytes, content })
+      return ok({ tool: 'doc_read', path: res.path || filePath, hash: res.hash, bytes: res.bytes, ...extra, content })
     } catch (e) {
       return fail(e)
     }

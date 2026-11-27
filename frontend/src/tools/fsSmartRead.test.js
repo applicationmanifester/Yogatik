@@ -55,4 +55,22 @@ async def process_batch(items):
     expect(symbols[1].name).toBe('__init__')
     expect(symbols[2].name).toBe('process_batch')
   })
+
+  it('extracts Markdown headings while ignoring headings inside fenced code blocks', () => {
+    const md = [
+      '# Title',
+      'Some intro',
+      '```bash',
+      '# not a heading',
+      '```',
+      '## Setup Guide',
+      '### Step 1',
+    ].join('\n')
+    const symbols = extractFileSymbols(md, 'md')
+    expect(symbols).toEqual([
+      { name: 'Title', type: 'h1', line: 1, signature: '# Title' },
+      { name: 'Setup Guide', type: 'h2', line: 6, signature: '## Setup Guide' },
+      { name: 'Step 1', type: 'h3', line: 7, signature: '### Step 1' },
+    ])
+  })
 })

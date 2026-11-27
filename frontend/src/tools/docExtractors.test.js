@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isLikelyTextFile, extractFileText } from './docExtractors'
+import { isLikelyTextFile, extractFileText, extractRtfText, extractXlsxFromBuffer } from './docExtractors'
 
 describe('docExtractors: file classification and text extraction', () => {
   it('recognizes code and configuration files as text', async () => {
@@ -55,5 +55,30 @@ describe('docExtractors: file classification and text extraction', () => {
     const ndjson = new File(['{"id":1}\n{"id":2}'], 'stream.ndjson', { type: '' })
     expect(await isLikelyTextFile(srt)).toBe(true)
     expect(await isLikelyTextFile(ndjson)).toBe(true)
+  })
+
+  it('extracts clean plain text from RTF files without raw control codes', async () => {
+    const rtf = String.raw`{\rtf1\ansi{\fonttbl\f0 Arial;}Hello \b World\b0\par Second line}`
+    expect(extractRtfText(rtf)).toBe('Hello World\nSecond line')
+    const rtfFile = new File([rtf], 'notes.rtf', { type: 'application/rtf' })
+    expect(await extractFileText(rtfFile)).toBe('Hello World\nSecond line')
+  })
+
+  it('formats Excel sheets as Markdown tables and supports sheet filtering', async () => {
+    const XLSX = (await import('xlsx')).default || (await import('xlsx'))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Item', 'Qty'], ['Pen', 5]]), 'Inventory')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Month', 'Rev'], ['Jan', 100]]), 'Sales')
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
+
+    const all = await extractXlsxFromBuffer(buf, { format: 'markdown' })
+    expect(all).toContain('Workbook: 2 sheets')
+    expect(all).toContain('| Item | Qty |')
+    expect(all).toContain('| Pen | 5 |')
+
+    const filtered = await extractXlsxFromBuffer(buf, { sheetName: 'Sales' })
+    expect(filtered).toContain('=== Sheet: Sales')
+    expect(filtered).toContain('Jan,100')
+    expect(filtered).not.toContain('Inventory')
   })
 })
