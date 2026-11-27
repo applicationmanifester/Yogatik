@@ -79,6 +79,7 @@ const DEFAULT_SECONDS = {
   image: 4,
   split: 5,
   steps: 5,
+  animation: 6,
   bars: 5,
   outro: 2.5,
   quote: 4,
@@ -97,10 +98,11 @@ const KNOWN_SCENE_FIELDS = new Set([
   'type', 'duration', 'narration', 'voice', 'speed', 'text', 'subtitle', 'heading',
   'bullets', 'steps', 'image_url', 'url', 'caption', 'motion', 'align', 'data',
   'quote', 'author', 'metric', 'label',
+  'environment', 'actors', 'particles', 'gravity',
 ])
 const CONTENT_FIELDS = [
   'text', 'subtitle', 'heading', 'bullets', 'steps', 'image_url', 'url', 'caption', 'data',
-  'quote', 'author', 'metric', 'label',
+  'quote', 'author', 'metric', 'label', 'actors', 'particles', 'environment',
 ]
 
 export function normalizeSpec(spec = {}) {

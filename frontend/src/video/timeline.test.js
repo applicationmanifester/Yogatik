@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { normalizeSpec, frameAt, wrapText, stagger, coverFit, LIMITS, THEMES, SCENE_TYPES } from './timeline'
+import { evalActorState, resolveCoord } from './animate'
 
 const spec = (over = {}) => normalizeSpec({
   scenes: [
@@ -149,5 +150,28 @@ describe('themes, new scene types, and cross-dissolve prev state', () => {
     expect(seam.prev.index).toBe(0)
     expect(seam.alpha).toBeGreaterThan(0)
     expect(seam.alpha).toBeLessThan(1)
+  })
+
+  it('supports 2D animation scenes with keyframes and orbits', () => {
+    expect(SCENE_TYPES).toContain('animation')
+    const s = normalizeSpec({
+      scenes: [{
+        type: 'animation',
+        environment: 'space',
+        particles: { type: 'stars', count: 30 },
+        actors: [
+          { shape: 'rocket', keyframes: [{ t: 0, x: 0.2, y: 0.8 }, { t: 1, x: 0.8, y: 0.2 }] },
+          { shape: 'planet', orbit: { cx: 0.5, cy: 0.5, radius: 0.2, speed: 1 } },
+        ],
+      }],
+    })
+    expect(s.scenes[0].type).toBe('animation')
+    expect(resolveCoord(0.5, 1000)).toBe(500)
+    expect(resolveCoord(250, 1000)).toBe(250)
+
+    const startState = evalActorState(s.scenes[0].actors[0], 0, 6, { W: 1000, H: 500, theme: THEMES.dark })
+    const endState = evalActorState(s.scenes[0].actors[0], 1, 6, { W: 1000, H: 500, theme: THEMES.dark })
+    expect(startState.x).toBeCloseTo(200, 1)
+    expect(endState.x).toBeCloseTo(800, 1)
   })
 })

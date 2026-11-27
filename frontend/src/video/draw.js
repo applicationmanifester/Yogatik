@@ -6,6 +6,7 @@
 
 import { ease, stagger, wrapText, kenBurns, coverFit } from './timeline'
 import { cueAt } from './audio'
+import { drawAnimation } from './animate'
 
 const px = (n) => `${Math.round(n)}px`
 
@@ -472,6 +473,7 @@ const PAINTERS = {
   image: drawImage,
   split: drawSplit,
   steps: drawSteps,
+  animation: drawAnimation,
   bars: drawBars,
   quote: drawQuote,
   metric: drawMetric,
@@ -479,7 +481,7 @@ const PAINTERS = {
 
 function paintSceneLayer(ctx, spec, scene, t) {
   const { width: W, height: H, theme } = spec
-  if (scene.type !== 'image') background(ctx, W, H, theme, t)
+  if (scene.type !== 'image' && scene.type !== 'animation') background(ctx, W, H, theme, t)
   ;(PAINTERS[scene.type] || drawText)(ctx, scene, t, { W, H, theme })
   if (scene._cues?.length) drawSubtitle(ctx, scene, t, { W, H, theme })
 }

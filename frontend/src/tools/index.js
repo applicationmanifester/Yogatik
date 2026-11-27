@@ -1433,7 +1433,7 @@ export function prioritizeToolSchemas(schemas = [], userMessage = '', { limit = 
   if (/\b(manim|math animation|calculus animation|fourier animation|matrix animation|vector field animation|3b1b|3blue1brown|kinetic math)\b/i.test(text)) {
     scores['manim_anim'] = 260
   }
-  if (/\b(animated short|story short|cartoon short|remotion|vertical video|9:16|youtube short|tiktok|reel)\b/i.test(text)) {
+  if (/\b(animated short|story short|cartoon short|remotion|vertical video|9:16|youtube short|tiktok|reel|animation|animate|animated video|cartoon|2d animation|physics simulation|motion graphics)\b/i.test(text)) {
     scores['video_render'] = Math.max(scores['video_render'] || 0, 240)
     scores['image_generate'] = Math.max(scores['image_generate'] || 0, 200)
     scores['threeui'] = Math.max(scores['threeui'] || 0, 190)

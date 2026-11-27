@@ -163,12 +163,11 @@ function createSprite({ id, x = 0, y = 0, rotation = 0, scale = 1,
 export const videoRenderTool = {
   schema: {
     description:
-      'Render a real video file (MP4) in the browser from a scene list — titles, bullet slides, ' +
-      'images with Ken Burns motion, and animated bar charts, with cross-fades and spoken narration. ' +
-      'Free, no API key, runs entirely on the device. Give each scene a "narration" line and it is ' +
-      'spoken by an on-device voice, subtitled, and the scene is stretched to fit the line. ' +
-      'Use it for explainers, summaries, data stories and slideshows; call image_generate first if ' +
-      'you want generated visuals to cut together.',
+      'Render a real video file (MP4) in the browser from a scene list — 2D animations (actors, keyframes, orbits, physics, particles), ' +
+      'titles, bullet slides, images with Ken Burns motion, split layouts, numbered steps, and animated bar charts, with cross-dissolves and spoken narration. ' +
+      'Free, no API key, runs entirely on the device. IMPORTANT: When the user asks for an animation, cartoon, motion scene, or physics simulation ' +
+      '(e.g. bouncing balls, rockets, planets, walking characters), use scene type "animation" with environment, actors, and particles — do NOT just make PPT bullet slides. ' +
+      'Give each scene a "narration" line and it is spoken by an on-device voice, subtitled, and stretched to fit.',
     parameters: {
       type: 'object',
       properties: {
@@ -176,6 +175,7 @@ export const videoRenderTool = {
           type: 'array',
           description:
             'Ordered scenes. Each: {type, duration (seconds)} plus its own fields. ' +
+            'animation: environment (space|sky|ground|grid|stage), actors[{shape (circle|rect|roundedRect|star|triangle|ring|arrow|line|planet|rocket|stickFigure|car|bird|cloud|wave|text), x, y (0-1 normalized), size, color, label, keyframes[{t, x, y, scale, rotation, opacity}], orbit{cx, cy, radius, speed}, physics:true, vx, vy, bounciness, trail:true, spin, bob{amp, freq}}], particles{type (stars|spark|snow|rain|confetti|bubbles), count, color}. ' +
             'title/outro: text, subtitle. text: heading, bullets[]. ' +
             'image: image_url, caption, motion (in|out|left|right|up|none). ' +
             'split: image_url, heading, bullets[], align (left|right). ' +
@@ -206,6 +206,44 @@ export const videoRenderTool = {
               author: { type: 'string' },
               metric: { type: 'string' },
               label: { type: 'string' },
+              environment: { type: 'string', enum: ['space', 'sky', 'ground', 'grid', 'stage'] },
+              gravity: { type: 'number', description: 'Gravity in px/s^2 for physics actors (default 980)' },
+              particles: {
+                type: 'object',
+                properties: {
+                  type: { type: 'string', enum: ['stars', 'spark', 'snow', 'rain', 'confetti', 'bubbles'] },
+                  count: { type: 'number' },
+                  color: { type: 'string' },
+                },
+              },
+              actors: {
+                type: 'array',
+                description: 'Animated actors for animation scenes (use normalized 0-1 coordinates for x/y)',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    shape: { type: 'string', enum: ['circle', 'rect', 'roundedRect', 'triangle', 'star', 'ring', 'arrow', 'line', 'planet', 'rocket', 'stickFigure', 'car', 'bird', 'cloud', 'wave', 'text'] },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    size: { type: 'number' },
+                    color: { type: 'string' },
+                    label: { type: 'string' },
+                    text: { type: 'string' },
+                    rings: { type: 'boolean' },
+                    trail: { type: 'boolean' },
+                    physics: { type: 'boolean' },
+                    vx: { type: 'number' },
+                    vy: { type: 'number' },
+                    bounciness: { type: 'number' },
+                    spin: { type: 'number' },
+                    keyframes: { type: 'array', items: { type: 'object' } },
+                    orbit: { type: 'object' },
+                    bob: { type: 'object' },
+                    pulse: { type: 'object' },
+                  },
+                },
+              },
               data: {
                 type: 'array',
                 items: {
