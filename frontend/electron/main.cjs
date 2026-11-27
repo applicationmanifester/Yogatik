@@ -742,6 +742,27 @@ if (!gotLock) {
       return resp.json()
     })
 
+    // Native Rust accelerator sidecar (yogatik-accel)
+    const rustAccel = require('./services/rustAccel.cjs')
+    ipcMain.handle('rust:status', () => ({ available: rustAccel.isAvailable() }))
+    ipcMain.handle('rust:tokens', (_, text) =>
+      rustAccel.sendCommand(`TOKENS ${String(text || '').replace(/[\r\n]+/g, ' ')}`))
+    ipcMain.handle('rust:route', (_, query, hasVisual) =>
+      rustAccel.sendCommand(`ROUTE ${hasVisual ? '1' : '0'} ${String(query || '').replace(/[\r\n]+/g, ' ')}`))
+    ipcMain.handle('rust:audio', (_, samples, sampleRate = 16000) => {
+      const list = Array.isArray(samples) ? samples.join(',') : ''
+      return rustAccel.sendCommand(`AUDIO ${Number(sampleRate) || 16000} ${list}`)
+    })
+    ipcMain.handle('rust:dhash', (_, luma, prevHex = '0') => {
+      const list = Array.isArray(luma) ? luma.join(',') : ''
+      return rustAccel.sendCommand(`DHASH ${String(prevHex || '0')} ${list}`)
+    })
+    ipcMain.handle('rust:topk', (_, queryVec, docVecs, k = 5) => {
+      const q = Array.isArray(queryVec) ? queryVec.join(',') : ''
+      const docs = Array.isArray(docVecs) ? docVecs.map(v => (Array.isArray(v) ? v.join(',') : '')).join(';') : ''
+      return rustAccel.sendCommand(`TOPK ${Number(k) || 5} ${q}|${docs}`)
+    })
+
     // The AGENT's shell. It goes through the SAME per-chat timeline the human's
     // terminal drawer renders, so every command the model runs is watchable and
     // interruptible as it happens. Before this it collected stdout and stderr
@@ -1058,7 +1079,10 @@ if (!gotLock) {
     })
   })
 
-  app.on('before-quit', () => { app.isQuitting = true })
+  app.on('before-quit', () => {
+    app.isQuitting = true
+    try { require('./services/rustAccel.cjs').stopWorker() } catch {}
+  })
   app.on('will-quit', () => {
     globalShortcut.unregisterAll()
     stopScheduler()  // Stop the cron daemon gracefully

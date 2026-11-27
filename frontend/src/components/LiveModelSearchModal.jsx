@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Search, X, Check, Sparkles, Eye, Zap, Brain, ChevronRight, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { looksVisionCapable } from '../vision/capability'
 
 export function LiveModelSearchModal({
   open,
@@ -50,7 +51,7 @@ export function LiveModelSearchModal({
         const rawM = typeof m === 'string' ? m : (m?.id || m?.name || String(m || ''))
         if (!rawM) continue
         const lowerM = rawM.toLowerCase()
-        const isVision = lowerM.includes('vision') || lowerM.includes('vl') || lowerM.includes('flash') || lowerM.includes('omni') || lowerM.includes('4o') || lowerM.includes('gemini')
+        const isVision = looksVisionCapable(rawM)
         const isReasoning = lowerM.includes('r1') || lowerM.includes('reason') || lowerM.includes('thinking') || lowerM.includes('qwq') || lowerM.includes('nemotron')
         const isFast = lowerM.includes('fast') || lowerM.includes('flash') || lowerM.includes('turbo') || lowerM.includes('mini') || lowerM.includes('instant') || provId === 'groq'
 

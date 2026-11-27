@@ -200,6 +200,47 @@ export function matchReflexIntent(text = '') {
 }
 
 /**
+ * Fast Live Query Intent Router (sub-millisecond).
+ * Classifies whether a live turn needs tools, web search, deep research, visual inspection, or pure chat,
+ * so simple turns skip heavy tool schemas and deep_research overhead.
+ * @param {string} text
+ * @param {{ hasVisualSource?: boolean }} [opts]
+ * @returns {{ intent: 'reflex'|'visual'|'search'|'deep_research'|'chat', toolsEnabled: boolean, webEnabled: boolean, maxHistoryTurns: number, allowDeepResearch: boolean }}
+ */
+export function classifyLiveQuery(text = '', { hasVisualSource = false } = {}) {
+  const t = String(text || '').trim()
+  if (!t) {
+    return { intent: 'chat', toolsEnabled: false, webEnabled: false, maxHistoryTurns: 8, allowDeepResearch: false }
+  }
+  if (matchReflex(t)) {
+    return { intent: 'reflex', toolsEnabled: false, webEnabled: false, maxHistoryTurns: 4, allowDeepResearch: false }
+  }
+
+  const lower = t.toLowerCase()
+  const wantsDeep = /\b(deep\s+research|in\s+depth|comprehensive\s+report|detailed\s+research|thoroughly\s+research)\b/i.test(lower)
+  if (wantsDeep) {
+    return { intent: 'deep_research', toolsEnabled: true, webEnabled: true, maxHistoryTurns: 10, allowDeepResearch: true }
+  }
+
+  const visualHint = hasVisualSource && /\b(see|look|looking|camera|screen|holding|wearing|front\s+of\s+me|what\s+is\s+this|read\s+this|on\s+my\s+screen)\b/i.test(lower)
+  if (visualHint) {
+    return { intent: 'visual', toolsEnabled: false, webEnabled: false, maxHistoryTurns: 6, allowDeepResearch: false }
+  }
+
+  const searchHint = /\b(news|headlines|weather|forecast|price|stock|score|today|latest|current|who\s+won|search|look\s+up|find\s+out|release\s+date|202\d)\b/i.test(lower)
+  if (searchHint) {
+    return { intent: 'search', toolsEnabled: true, webEnabled: true, maxHistoryTurns: 8, allowDeepResearch: false }
+  }
+
+  const explicitToolHint = /\b(remind|timer|alarm|calculate|compute|convert|run\s+code|execute|file|folder|open\s+app|email|calendar|schedule)\b/i.test(lower)
+  if (explicitToolHint) {
+    return { intent: 'search', toolsEnabled: true, webEnabled: true, maxHistoryTurns: 8, allowDeepResearch: false }
+  }
+
+  return { intent: 'chat', toolsEnabled: false, webEnabled: false, maxHistoryTurns: 8, allowDeepResearch: false }
+}
+
+/**
  * Checks if an utterance matches a known high-frequency reflex intent.
  * @param {string} text - User prompt
  * @returns {string|null} - The synthesized response or null if not a reflex match

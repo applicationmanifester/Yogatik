@@ -197,3 +197,24 @@ describe('sameUtterance deduplication (Horizon 2 Item 7)', () => {
     expect(sameUtterance('', 'anything')).toBe(false)
   })
 })
+
+describe('createCascadeSession provider & model switching', () => {
+  it('emits provider events and updates model without tearing down the session', async () => {
+    const { createCascadeSession } = await import('./cascade')
+    const events = []
+    const session = createCascadeSession({
+      provider: 'groq',
+      apiKey: 'gsk_test_123',
+      model: 'llama-3.1-8b-instant',
+      onEvent: (evt) => events.push(evt),
+    })
+
+    session.setModel('llama-3.2-90b-vision-preview', true)
+    expect(events.some(e => e.type === 'provider' && e.provider === 'groq' && e.model === 'llama-3.2-90b-vision-preview')).toBe(true)
+
+    session.setProvider('ollama', '', 'llama3.2:latest', false)
+    expect(events.some(e => e.type === 'provider' && e.provider === 'ollama' && e.model === 'llama3.2:latest')).toBe(true)
+
+    session.stop()
+  })
+})

@@ -27,6 +27,7 @@ const GENDER = {
 export function LiveSettings({
   open, onClose,
   modelCanSee, provider, model, availableModels = [], onModelChange,
+  allProviders = {}, onProviderChange, isProviderReady,
   visionMode, onVisionMode,
   voiceEngine, voice, onVoice, onVoiceEngine,
   rate = 1, onRate,
@@ -36,6 +37,7 @@ export function LiveSettings({
   if (!open) return null
 
   const voices = [...GENDER.female, ...GENDER.male]
+  const providerEntries = Object.entries(allProviders || {})
 
   return (
     <div className="live-settings-backdrop" onClick={onClose} role="presentation">
@@ -63,6 +65,24 @@ export function LiveSettings({
                 </p>
               </div>
             </div>
+          )}
+
+          {providerEntries.length > 0 && onProviderChange && (
+            <select
+              className="live-settings-select"
+              value={provider || ''}
+              onChange={e => onProviderChange(e.target.value)}
+              aria-label="Provider"
+            >
+              {providerEntries.map(([pId, pData]) => {
+                const ready = isProviderReady ? isProviderReady(pId, pData) : (pData?.available !== false)
+                return (
+                  <option key={pId} value={pId}>
+                    {ready ? '● ' : '○ '}{pData?.name || pId}{!ready ? ' (no key)' : ''}
+                  </option>
+                )
+              })}
+            </select>
           )}
 
           {availableModels.length > 0 && (() => {

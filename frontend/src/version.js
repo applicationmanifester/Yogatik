@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '24.0.0'
+export const APP_VERSION = '25.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 24.0.0 — Paperclip Agent Control Plane, Org Chart, Budgets & Heartbeats'
+export const APP_CODENAME = 'Yogatik 25.0.0 — Native Rust Accelerator, Live Object Detection & Speech/Token Polish'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,45 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "25.0.0",
+    "title": "Yogatik 25.0.0: Native Rust Accelerator, Live Object Detection & Speech/Token Polish",
+    "date": "November 27, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Native Rust Accelerator (yogatik-accel): Bundled optimized Rust stdio sidecar for Desktop with native AUDIO, DHASH, ROUTE, TOKENS, TOPK, and NMS kernels",
+      "Live Object Detection Polish: Automatic WebGPU-to-WASM fallback for DETR/CLIP, bounding-box normalization, and temporal smoothing + hysteresis",
+      "Speech Recognition & Token I/O: Noise-floor gating, Whisper hallucination filtering, continuous multi-sentence dictation, and accurate Input/Output token tracking"
+    ],
+    "sections": [
+      {
+        "category": "⚡ Native Rust Performance",
+        "items": [
+          {
+            "title": "yogatik-accel Sidecar & Bridge",
+            "description": "Compiled release Rust binary bundled via Electron extraResources with persistent stdio IPC and transparent JS fallbacks on Web/Mobile."
+          }
+        ]
+      },
+      {
+        "category": "👁️ Vision, Speech & Tokens",
+        "items": [
+          {
+            "title": "Steady Object HUD & WebGPU Fallback",
+            "description": "Added DETR/CLIP WebGPU-to-WASM fallback, [0,1] box normalization, and temporal EMA smoothing in LiveView."
+          },
+          {
+            "title": "Speech & Input/Output Token Accuracy",
+            "description": "Filtered Whisper silence hallucinations, fixed continuous dictation buffering, and fixed Ollama/Anthropic token tracking without tool-result double-counting."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "24.0.0",
     "title": "Yogatik 24.0.0: Paperclip Agent Control Plane, Org Chart, Budgets & Heartbeats",
     "date": "November 27, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Paperclip Control Plane (Org Chart & Roles): Define reporting hierarchies (reportsTo), standing instructions, and department roles across Yogatik agents",
       "Per-Agent Budgets & Governance Approvals: Enforce USD spend caps on sub-agent/crew/heartbeat runs with auto-pause and a human-in-the-loop Approvals inbox",

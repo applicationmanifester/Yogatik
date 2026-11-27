@@ -634,3 +634,13 @@ contextBridge.exposeInMainWorld('__YOGATIK_HARNESS__', {
   },
 })
 
+// Native Rust accelerator bridge (yogatik-accel)
+contextBridge.exposeInMainWorld('__YOGATIK_RUST__', {
+  status: () => ipcRenderer.invoke('rust:status'),
+  tokens: (text) => ipcRenderer.invoke('rust:tokens', text),
+  route: (query, hasVisual) => ipcRenderer.invoke('rust:route', query, hasVisual),
+  audio: (samples, sampleRate) => ipcRenderer.invoke('rust:audio', samples, sampleRate),
+  dhash: (luma, prevHex) => ipcRenderer.invoke('rust:dhash', luma, prevHex),
+  topk: (queryVec, docVecs, k) => ipcRenderer.invoke('rust:topk', queryVec, docVecs, k),
+})
+

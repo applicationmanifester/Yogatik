@@ -163,11 +163,46 @@ export function createSpeaker({
     })
   }
 
+  const prefetchedSynth = new Map()
+
+  const synthClause = (text, neuralRate) => {
+    const key = `${voice}|${neuralRate}|${text}`
+    const cachedPromise = prefetchedSynth.get(key)
+    if (cachedPromise) {
+      prefetchedSynth.delete(key)
+      return cachedPromise
+    }
+    return synth(text, { voice, speed: neuralRate })
+  }
+
+  const prefetchNextClause = () => {
+    if (cancelled || !neuralReady || engine !== 'neural' || queue.length === 0) return
+    const nextText = queue[0]
+    if (!nextText) return
+    const neuralRate = Math.min(rate, 1.2)
+    const key = `${voice}|${neuralRate}|${nextText}`
+    if (!prefetchedSynth.has(key)) {
+      const p = Promise.resolve()
+        .then(() => synth(nextText, { voice, speed: neuralRate }))
+        .catch(() => null)
+      prefetchedSynth.set(key, p)
+      // Bound cache size
+      if (prefetchedSynth.size > 4) {
+        const firstKey = prefetchedSynth.keys().next().value
+        prefetchedSynth.delete(firstKey)
+      }
+    }
+  }
+
   async function speakNeural(text) {
     // Neural voice sounds unnatural above 1.2× speed; clamp it here so a
     // user-set rate of 1.3 does not produce chipmunk speech.
     const neuralRate = Math.min(rate, 1.2)
-    const { pcm, sampleRate } = await synth(text, { voice, speed: neuralRate })
+    // Pipeline: start synthesizing the next queued clause while this one plays
+    const synthPromise = synthClause(text, neuralRate)
+    prefetchNextClause()
+    const res = await synthPromise
+    const { pcm, sampleRate } = res || {}
     if (cancelled || !pcm?.length) return
     const ac = ctx()
     const buffer = ac.createBuffer(1, pcm.length, sampleRate)
@@ -180,6 +215,7 @@ export function createSpeaker({
       current = src
       began()
       src.start()
+      prefetchNextClause()
     })
   }
 
@@ -224,6 +260,7 @@ export function createSpeaker({
     /** Barge-in: stop mid-word and drop everything still queued. */
     cancel() {
       cancelled = true
+      prefetchedSynth.clear()
       if (pulseTimer) { clearInterval(pulseTimer); pulseTimer = null }
       activeUtterances.clear()
       try { speechSynthesis.cancel() } catch { /* not started */ }

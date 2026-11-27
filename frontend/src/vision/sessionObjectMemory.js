@@ -43,7 +43,7 @@ function boxIoU(a, b) {
   if (intersection <= 0) return 0
 
   const areaA = Math.max(0, xmaxA - xminA) * Math.max(0, ymaxA - yminA)
-  const areaB = Math.max(0, xmaxB - xminB) * Math.max(0, yminB - yminB)
+  const areaB = Math.max(0, xmaxB - xminB) * Math.max(0, ymaxB - yminB)
   const union = areaA + areaB - intersection
   return union > 0 ? intersection / union : 0
 }

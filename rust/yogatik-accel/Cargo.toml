@@ -1,0 +1,11 @@
+[package]
+name = "yogatik-accel"
+version = "0.1.0"
+edition = "2021"
+description = "Native Rust real-time audio VAD/prosody, vision dHash/motion, and query routing accelerator for Yogatik"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,7 +1,7 @@
 {
   "name": "yogatik",
   "private": true,
-  "version": "24.0.0",
+  "version": "25.0.0",
   "description": "Yogatik — AI Desktop & Web Application",
   "homepage": "https://yogatik.web.app",
   "desktopName": "yogatik",
@@ -15,6 +15,8 @@
     "test": "node ./scripts/run-vitest.mjs",
     "test:watch": "node ./scripts/run-vitest.mjs --watch",
     "lint": "eslint src",
+    "rust:build": "cd ../rust/yogatik-accel && cargo build --release",
+    "rust:test": "cd ../rust/yogatik-accel && cargo test",
     "build:electron": "vite --configLoader runner build --base=./ --outDir dist-electron",
     "build:desktop": "node ./scripts/build-desktop-app.mjs",
     "build:studio": "node ./scripts/build-studio.mjs",
@@ -128,6 +130,13 @@
       {
         "from": "bin/search-sidecar",
         "to": "search-sidecar",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "bin/yogatik-accel",
+        "to": "yogatik-accel",
         "filter": [
           "**/*"
         ]

@@ -374,15 +374,16 @@
   z-index: 16;
   display: flex;
   border-radius: var(--radius-xl);
-  overflow: hidden;
-  box-shadow: var(--shadow-3);
+  overflow: visible;
+  pointer-events: none;
   animation: railIn var(--dur-slow) var(--ease-out-quint);
 }
 @keyframes railIn {
   from { opacity: 0; transform: translateX(var(--space-4)); }
   to { opacity: 1; transform: translateX(0); }
 }
-.live-cockpit-rail .live-artifact-stage {
+.live-cockpit-rail .live-artifact-stage,
+.live-artifact-stage {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -392,8 +393,24 @@
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--live-panel-border);
   border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  pointer-events: auto;
+  contain: layout style;
 }
-.live-cockpit-rail .live-artifact-header {
+.live-artifact-stage.is-dragging {
+  will-change: transform;
+  user-select: none;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+.live-cockpit-rail .live-artifact-stage.is-minimized,
+.live-artifact-stage.is-minimized {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 100%;
+}
+.live-cockpit-rail .live-artifact-header,
+.live-artifact-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -402,7 +419,55 @@
   border-bottom: 1px solid var(--live-panel-border);
   flex-shrink: 0;
 }
-.live-cockpit-rail .live-artifact-header button {
+.live-artifact-header.is-draggable {
+  cursor: grab;
+  touch-action: none;
+}
+.live-artifact-stage.is-dragging .live-artifact-header.is-draggable {
+  cursor: grabbing;
+}
+.live-artifact-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.live-artifact-badge-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+.live-artifact-title-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--live-text);
+  white-space: nowrap;
+}
+.live-artifact-counter {
+  font-size: 11px;
+  color: var(--live-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.live-artifact-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.live-artifact-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+.live-cockpit-rail .live-artifact-header button,
+.live-artifact-header button {
   display: grid;
   place-items: center;
   width: var(--control-h-sm);
@@ -413,9 +478,12 @@
   color: var(--live-text-dim);
   cursor: pointer;
 }
-.live-cockpit-rail .live-artifact-header button:hover { background: var(--live-btn-hover); color: var(--live-text); }
-.live-cockpit-rail .live-artifact-header button:disabled { opacity: .35; cursor: not-allowed; }
-.live-cockpit-rail .live-artifact-header button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
+.live-cockpit-rail .live-artifact-header button:hover,
+.live-artifact-header button:hover { background: var(--live-btn-hover); color: var(--live-text); }
+.live-cockpit-rail .live-artifact-header button:disabled,
+.live-artifact-header button:disabled { opacity: .35; cursor: not-allowed; }
+.live-cockpit-rail .live-artifact-header button:focus-visible,
+.live-artifact-header button:focus-visible { outline: 2px solid #38bdf8; outline-offset: 1px; }
 .live-artifact-tabs {
   display: flex;
   align-items: center;
@@ -427,10 +495,36 @@
   flex-shrink: 0;
 }
 .live-artifact-tabs::-webkit-scrollbar { display: none; }
+.live-artifact-tab-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+.live-artifact-tab-wrap.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.96);
+}
+.live-artifact-tab-wrap.drop-before::before,
+.live-artifact-tab-wrap.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2.5px;
+  border-radius: 2px;
+  background: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.75);
+  pointer-events: none;
+}
+.live-artifact-tab-wrap.drop-before::before { left: -4px; }
+.live-artifact-tab-wrap.drop-after::after { right: -4px; }
 .live-artifact-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   height: 26px;
   padding: 0 10px;
   border-radius: var(--radius-pill);
@@ -444,6 +538,23 @@
   flex-shrink: 0;
   transition: all var(--dur-fast) var(--ease-out-quint);
 }
+.live-artifact-tab.has-close {
+  padding-right: 24px;
+}
+.live-artifact-tab-grip {
+  opacity: 0.35;
+  cursor: grab;
+  flex-shrink: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+.live-artifact-tab-wrap:hover .live-artifact-tab-grip,
+.live-artifact-tab.active .live-artifact-tab-grip {
+  opacity: 0.75;
+}
+.live-artifact-tab-icon {
+  opacity: 0.8;
+  flex-shrink: 0;
+}
 .live-artifact-tab:hover {
   background: var(--live-btn-hover);
   color: var(--live-text);
@@ -455,6 +566,32 @@
   color: #bae6fd;
   font-weight: 600;
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.18);
+}
+.live-artifact-tab-close {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--live-text-dim);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--dur-fast) ease, background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.live-artifact-tab-wrap:hover .live-artifact-tab-close,
+.live-artifact-tab-close:focus-visible {
+  opacity: 1;
+}
+.live-artifact-tab-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
 }
 .live-artifact-tab-num {
   display: inline-grid;
@@ -475,7 +612,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.live-cockpit-rail .live-artifact-content {
+.live-cockpit-rail .live-artifact-content,
+.live-artifact-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

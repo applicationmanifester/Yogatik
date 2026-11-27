@@ -84,7 +84,8 @@ import {
 } from '../vision/source'
 import { resolveReference, formatSpatialContext } from '../vision/sessionObjectMemory'
 import { preconnectProvider, isSyntacticallyComplete } from './latencyOptimizer'
-import { matchReflex, streamReflex } from './reflexEngine'
+import { matchReflex, streamReflex, classifyLiveQuery } from './reflexEngine'
+import { analyzeVoiceProsody, summarizeVoiceEmotion } from './audioProsody'
 import { webSearchTool } from '../tools/webSearch'
 import { summariseToolResults } from '../toolSummary'
 import { cleanForSpeech } from '../video/speech'
@@ -402,6 +403,8 @@ export function createCascadeSession({
   let micAnalyser = null
   let micLevelTimer = null
 
+  const prosodyWindow = []
+
   async function startMicMonitor() {
     if (micMonitorStream || closed || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return
     try {
@@ -411,9 +414,12 @@ export function createCascadeSession({
       micAudioCtx = new AC()
       const src = micAudioCtx.createMediaStreamSource(micMonitorStream)
       micAnalyser = micAudioCtx.createAnalyser()
-      micAnalyser.fftSize = 256
+      micAnalyser.fftSize = 1024
       src.connect(micAnalyser)
       const data = new Uint8Array(micAnalyser.frequencyBinCount)
+      const timeDomain = typeof micAnalyser.getFloatTimeDomainData === 'function'
+        ? new Float32Array(micAnalyser.fftSize)
+        : null
 
       micLevelTimer = setInterval(() => {
         if (closed || muted || !micAnalyser || speaking) {
@@ -426,6 +432,14 @@ export function createCascadeSession({
         const avg = sum / (data.length * 255)
         if (avg > 0.02) {
           emit({ type: 'level', who: 'user', value: Math.min(1, avg * 3.2) })
+          if (timeDomain) {
+            micAnalyser.getFloatTimeDomainData(timeDomain)
+            const p = analyzeVoiceProsody(timeDomain, micAudioCtx.sampleRate || 16000)
+            if (p.speechActive) {
+              prosodyWindow.push(p)
+              if (prosodyWindow.length > 12) prosodyWindow.shift()
+            }
+          }
         } else {
           emit({ type: 'level', who: 'user', value: 0 })
         }
@@ -903,11 +917,18 @@ export function createCascadeSession({
     let content = userText
     const objMem = getSharedObjectMemory?.()
     let spatialGrounding = ''
+    if (prosodyWindow.length > 0) {
+      const voiceTone = summarizeVoiceEmotion(prosodyWindow)
+      prosodyWindow.length = 0
+      if (voiceTone && voiceTone.emotion !== 'neutral' && voiceTone.confidence >= 0.65) {
+        spatialGrounding += `\n\n[User voice tone: ${voiceTone.emotion}]`
+      }
+    }
     if (objMem) {
       try {
         const ref = resolveReference(objMem, userText)
         if (ref?.resolved) {
-          spatialGrounding = `\n\n[Referential Grounding: ${ref.explanation}]`
+          spatialGrounding += `\n\n[Referential Grounding: ${ref.explanation}]`
         }
       } catch {}
     }
@@ -970,6 +991,11 @@ export function createCascadeSession({
     }
 
     const toolMode = await getToolMode(active.provider, active.model).catch(() => 'native')
+    const route = classifyLiveQuery(userText, { hasVisualSource: Boolean(screen || cam) })
+    const effectiveDisabledTools = route.allowDeepResearch
+      ? disabledTools
+      : Array.from(new Set([...(disabledTools || []), 'deep_research']))
+    const trimmedHistory = history.slice(Math.max(0, history.length - 1 - route.maxHistoryTurns), -1)
 
     await new Promise((resolve) => {
       // 12s live response watchdog: If provider hangs with 0 tokens, failover to next provider
@@ -992,13 +1018,13 @@ export function createCascadeSession({
 
       runAgent({
         provider: active.provider, apiKey: active.apiKey, model: active.model,
-        history: history.slice(0, -1),
+        history: trimmedHistory,
         userMessage: content,
         conversationId,
         projectId,
-        toolsEnabled: true,
-        webEnabled: true,
-        disabledTools,
+        toolsEnabled: route.toolsEnabled,
+        webEnabled: route.webEnabled,
+        disabledTools: effectiveDisabledTools,
         initialToolMode: toolMode,
         onToolModeChange: (mode) => { setToolMode(active.provider, active.model, mode).catch(() => {}) },
         // NO maxTokens limit — model runs with its natural full token capacity identical to main UI
@@ -1674,10 +1700,12 @@ export function createCascadeSession({
       emit({ type: 'provider', provider: active.provider, model: active.model })
     },
     setProvider: (newProvider, newApiKey, newModel, newModelCanSee) => {
+      const prevProvider = active.provider
       if (newProvider) active.provider = newProvider
       if (newApiKey !== undefined && newApiKey !== '') {
         active.apiKey = newApiKey
-      } else if (newProvider && (!active.apiKey || active.provider !== newProvider)) {
+      } else if (newProvider && prevProvider !== newProvider) {
+        active.apiKey = ''
         try {
           if (typeof localStorage !== 'undefined') {
             const lsKey = localStorage.getItem(`apikey_${newProvider}`)
@@ -1687,6 +1715,9 @@ export function createCascadeSession({
       }
       if (newModel) active.model = newModel
       if (typeof newModelCanSee === 'boolean') active.modelCanSee = newModelCanSee
+      if (newProvider && PROVIDER_ORIGINS[newProvider]) {
+        preconnectProvider(PROVIDER_ORIGINS[newProvider])
+      }
       emit({ type: 'provider', provider: active.provider, model: active.model })
     },
 

@@ -18,8 +18,9 @@ import { createLiveSession } from '../live/session'
 import { createCascadeSession } from '../live/cascade'
 import { formatLiveSessionRecap } from '../live/sessionHandoff'
 import { captureProfile, describeWithoutModel, getSharedVisualSource, needsMotion } from '../vision/source'
-import { findVisionCandidate } from '../vision/capability'
+import { findVisionCandidate, looksVisionCapable } from '../vision/capability'
 import { detectObjects, smoothDetections } from '../vision/detect'
+import { estimateEmotionFromRoi, smoothEmotion } from '../vision/emotionDetect'
 import { temporalVideoBuffer } from '../vision/temporalBuffer'
 import { buzz, isEnabled } from '../features'
 import { VisionModal } from './VisionModal'
@@ -117,13 +118,17 @@ export function LiveView({
   const [showModelSearch, setShowModelSearch] = useState(false)
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
+  const [modelFilter, setModelFilter] = useState('')
   const [isAutoPickingFastest, setIsAutoPickingFastest] = useState(false)
   const [endConfirm, setEndConfirm] = useState(false)
   const providerDropdownRef = useRef(null)
   const modelDropdownRef = useRef(null)
 
   useEffect(() => {
-    if (!providerDropdownOpen && !modelDropdownOpen) return
+    if (!providerDropdownOpen && !modelDropdownOpen) {
+      setModelFilter('')
+      return
+    }
     const handleClickOutside = (e) => {
       if (providerDropdownRef.current && !providerDropdownRef.current.contains(e.target)) {
         setProviderDropdownOpen(false)
@@ -132,8 +137,18 @@ export function LiveView({
         setModelDropdownOpen(false)
       }
     }
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setProviderDropdownOpen(false)
+        setModelDropdownOpen(false)
+      }
+    }
     document.addEventListener('pointerdown', handleClickOutside)
-    return () => document.removeEventListener('pointerdown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [providerDropdownOpen, modelDropdownOpen])
 
   const isProviderReady = useCallback((pId, pData) => {
@@ -299,6 +314,44 @@ export function LiveView({
   const [showArtifactStage, setShowArtifactStage] = useState(false)
   const [sidePanelTab, setSidePanelTab] = useState('transcript') // 'transcript' | 'artifacts'
   const [pipRoot, setPipRoot] = useState(null)
+
+  const handleReorderArtifact = useCallback((fromIdx, toIdx) => {
+    setArtifacts((prev) => {
+      if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0 || fromIdx >= prev.length || toIdx >= prev.length) {
+        return prev
+      }
+      const next = prev.slice()
+      const [moved] = next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, moved)
+      return next
+    })
+    setActiveArtifactIdx((curr) => {
+      if (curr === fromIdx) return toIdx
+      if (fromIdx < curr && toIdx >= curr) return curr - 1
+      if (fromIdx > curr && toIdx <= curr) return curr + 1
+      return curr
+    })
+  }, [])
+
+  const handleRemoveArtifact = useCallback((idx) => {
+    setArtifacts((prev) => {
+      if (idx < 0 || idx >= prev.length) return prev
+      const next = prev.filter((_, i) => i !== idx)
+      if (next.length === 0) setShowArtifactStage(false)
+      setActiveArtifactIdx((curr) => {
+        if (next.length === 0) return 0
+        if (curr > idx) return curr - 1
+        if (curr >= next.length) return next.length - 1
+        return curr
+      })
+      return next
+    })
+  }, [])
+
+  const handleCloseArtifactStage = useCallback(() => {
+    setShowArtifactStage(false)
+    commandBarFocusReturn()
+  }, [])
 
   // [live-recording] Recording + post-call recap state. `recRef` persists the
   // frame sampler and consent across cam/screen toggles for THIS call; it is
@@ -671,14 +724,15 @@ export function LiveView({
 
   const handleModelChange = useCallback((newModel) => {
     if (!newModel) return
+    const nextCanSee = looksVisionCapable(newModel)
     setState(prev => ({
       ...prev,
       activeProvider: { ...prev.activeProvider, model: newModel }
     }))
-    sessionRef.current?.setModel?.(newModel, modelCanSee)
+    sessionRef.current?.setModel?.(newModel, nextCanSee)
     onModelChange?.(newModel)
     showHudNotice(`Model: ${newModel.split('/').pop().slice(0, 24)}`)
-  }, [modelCanSee, onModelChange, showHudNotice])
+  }, [onModelChange, showHudNotice])
 
   /**
    * One transient line through the toast banner — the SAME channel the
@@ -719,30 +773,32 @@ export function LiveView({
     const provModels = allProviders[newProvider]?.models || []
     const newModel = provModels[0] || ''
     const newKey = keyInfo?.[newProvider]?.key || ''
+    const nextCanSee = looksVisionCapable(newModel)
     setState(prev => ({
       ...prev,
       activeProvider: { provider: newProvider, model: newModel }
     }))
-    sessionRef.current?.setProvider?.(newProvider, newKey, newModel, modelCanSee)
+    sessionRef.current?.setProvider?.(newProvider, newKey, newModel, nextCanSee)
     onProviderChange?.(newProvider, newModel)
     if (!isProviderReady(newProvider, allProviders[newProvider])) {
       showHudNotice(`⚠️ ${allProviders[newProvider]?.name || newProvider} needs an API key in Settings`)
     } else {
       showHudNotice(`Provider: ${allProviders[newProvider]?.name || newProvider}`)
     }
-  }, [activeProvider.provider, provider, allProviders, keyInfo, isProviderReady, modelCanSee, onProviderChange, showHudNotice])
+  }, [activeProvider.provider, provider, allProviders, keyInfo, isProviderReady, onProviderChange, showHudNotice])
 
   const handlePickModelFromSearch = useCallback((targetProvider, targetModel) => {
     if (!targetModel) return
     const isDiffProv = targetProvider && targetProvider !== (activeProvider.provider || provider)
     const effProvider = targetProvider || activeProvider.provider || provider
     const targetKey = keyInfo?.[effProvider]?.key || ''
+    const nextCanSee = looksVisionCapable(targetModel)
     setState(prev => ({
       ...prev,
       activeProvider: { provider: effProvider, model: targetModel }
     }))
     if (isDiffProv) {
-      sessionRef.current?.setProvider?.(targetProvider, targetKey, targetModel, modelCanSee)
+      sessionRef.current?.setProvider?.(targetProvider, targetKey, targetModel, nextCanSee)
       onProviderChange?.(targetProvider, targetModel)
       if (!isProviderReady(targetProvider, allProviders[targetProvider])) {
         showHudNotice(`⚠️ ${allProviders[targetProvider]?.name || targetProvider} needs an API key in Settings`)
@@ -750,11 +806,11 @@ export function LiveView({
         showHudNotice(`Model: ${targetModel.split('/').pop().slice(0, 24)} (${allProviders[targetProvider]?.name || targetProvider})`)
       }
     } else {
-      sessionRef.current?.setModel?.(targetModel, modelCanSee)
+      sessionRef.current?.setModel?.(targetModel, nextCanSee)
       onModelChange?.(targetModel)
       showHudNotice(`Model: ${targetModel.split('/').pop().slice(0, 24)}`)
     }
-  }, [activeProvider.provider, provider, allProviders, keyInfo, isProviderReady, modelCanSee, onProviderChange, onModelChange, showHudNotice])
+  }, [activeProvider.provider, provider, allProviders, keyInfo, isProviderReady, onProviderChange, onModelChange, showHudNotice])
 
   const handleAutoPickFastest = useCallback(async () => {
     if (isAutoPickingFastest) return
@@ -1069,7 +1125,10 @@ export function LiveView({
             break
           case 'artifact':
             if (e.artifact) {
-              setArtifacts(prev => [e.artifact, ...prev.filter(a => a.name !== e.artifact.name || Math.abs(a.time - e.artifact.time) > 2000)].slice(0, 15))
+              const stamped = e.artifact.id
+                ? e.artifact
+                : { ...e.artifact, id: `art-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
+              setArtifacts(prev => [stamped, ...prev.filter(a => a.name !== stamped.name || Math.abs(a.time - stamped.time) > 2000)].slice(0, 15))
               setShowArtifactStage(true)
             }
             break
@@ -1077,10 +1136,11 @@ export function LiveView({
             // Keep the raw result object so images/videos/files/code render richly.
             const r = e.result
             if (e.name && r) {
+              const now = Date.now()
               setArtifacts(prev => {
-                const exists = prev.some(a => a.name === e.name && Math.abs(a.time - Date.now()) < 2000)
+                const exists = prev.some(a => a.name === e.name && Math.abs(a.time - now) < 2000)
                 if (exists) return prev
-                return [{ name: e.name, result: r, time: Date.now() }, ...prev].slice(0, 15)
+                return [{ id: `art-${now}-${Math.random().toString(36).slice(2, 7)}`, name: e.name, result: r, time: now }, ...prev].slice(0, 15)
               })
               setShowArtifactStage(true)
             }
@@ -1212,18 +1272,44 @@ export function LiveView({
     }
     let cancelled = false
     let inFlight = false
+    let lastFrameSig = ''
+    let prevEmotion = null
     const tick = async () => {
       if (cancelled || inFlight) return
       const src = getSharedVisualSource()
       if (!src || src.stopped) return
       const frame = src.grab(false, { maxEdge: 480, quality: 0.6 })
       if (!frame) return
+      // Fast frame-skipping: avoid re-running DETR on identical static frames
+      const sig = `${frame.length}:${frame.slice(0, 64)}:${frame.slice(-64)}`
+      if (sig === lastFrameSig) return
+      lastFrameSig = sig
       inFlight = true
       try {
         const objects = await detectObjects(`data:image/jpeg;base64,${frame}`, { threshold: 0.6 })
+        const enriched = (objects || []).map((obj) => {
+          if (obj.label === 'person' && src.videoEl && src.videoEl.videoWidth > 0 && typeof document !== 'undefined') {
+            try {
+              const cw = 160
+              const ch = 120
+              const c = document.createElement('canvas')
+              c.width = cw
+              c.height = ch
+              const g = c.getContext('2d', { willReadFrequently: true })
+              if (g) {
+                g.drawImage(src.videoEl, 0, 0, cw, ch)
+                const img = g.getImageData(0, 0, cw, ch)
+                const nextEmo = estimateEmotionFromRoi(img.data, cw, ch, obj.box)
+                prevEmotion = smoothEmotion(prevEmotion, nextEmo)
+                return { ...obj, emotion: prevEmotion.emotion, label: `person (${prevEmotion.emotion})` }
+              }
+            } catch { /* non-fatal if canvas read unavailable */ }
+          }
+          return obj
+        })
         if (!cancelled) {
           setVision(v => ({
-            detections: smoothDetections(v.detections, objects),
+            detections: smoothDetections(v.detections, enriched),
             detectError: '',
           }))
         }
@@ -1939,6 +2025,9 @@ export function LiveView({
                 artifacts={artifacts}
                 activeIndex={activeArtifactIdx}
                 onSelectIndex={setActiveArtifactIdx}
+                onReorderArtifact={handleReorderArtifact}
+                onRemoveArtifact={handleRemoveArtifact}
+                draggable={false}
                 onClose={() => {}}
               />
             </div>
@@ -1991,7 +2080,10 @@ export function LiveView({
         modelCanSee={modelCanSee}
         provider={activeProvider.provider || provider}
         model={activeProvider.model || model}
-        availableModels={availableModels}
+        availableModels={currentModels}
+        allProviders={allProviders}
+        isProviderReady={isProviderReady}
+        onProviderChange={(p) => { handleProviderSelect(p) }}
         onModelChange={(m) => { handleModelChange(m); setShowSettings(false) }}
         visionMode={visionMode}
         onVisionMode={(m) => { setState({ visionMode: m }); sessionRef.current?.setVisionMode?.(m) }}
@@ -2434,6 +2526,8 @@ export function LiveView({
               }}
               className="live-badge provider-custom-btn"
               title="Switch AI Provider"
+              aria-haspopup="listbox"
+              aria-expanded={providerDropdownOpen}
             >
               {/* Glowing Green Dot if current provider is ready */}
               <span
@@ -2449,59 +2543,74 @@ export function LiveView({
             </button>
 
             {/* Transparent Frosted Glass Dropdown Panel */}
-            {providerDropdownOpen && (
-              <div className="live-custom-dropdown-panel">
-                <div className="live-custom-dropdown-header">
-                  <span>Select Provider</span>
-                  <span style={{ fontSize: '9px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e' }} /> Ready
-                  </span>
-                </div>
+            {providerDropdownOpen && (() => {
+              const sortedProviders = Object.entries(allProviders).sort(([idA, dA], [idB, dB]) => {
+                const rA = isProviderReady(idA, dA) ? 0 : 1
+                const rB = isProviderReady(idB, dB) ? 0 : 1
+                if (rA !== rB) return rA - rB
+                return (dA?.name || idA).localeCompare(dB?.name || idB)
+              })
+              return (
+                <div className="live-custom-dropdown-panel" role="listbox" aria-label="Select Provider">
+                  <div className="live-custom-dropdown-header">
+                    <span>Select Provider</span>
+                    <span style={{ fontSize: '9px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e' }} /> Ready first
+                    </span>
+                  </div>
 
-                {Object.entries(allProviders).map(([pId, pData]) => {
-                  const isReady = isProviderReady(pId, pData)
-                  const isSelected = pId === curProvider
-                  return (
-                    <button
-                      key={pId}
-                      type="button"
-                      onClick={() => {
-                        handleProviderSelect(pId)
-                        setProviderDropdownOpen(false)
-                      }}
-                      className={`live-dropdown-item-btn ${isSelected ? 'selected' : ''}`}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                        {/* Glowing green dot for providers who have API key updated and ready */}
-                        <span
-                          style={{
-                            width: '7px',
-                            height: '7px',
-                            borderRadius: '50%',
-                            backgroundColor: isReady ? '#22c55e' : 'rgba(148, 163, 184, 0.3)',
-                            flexShrink: 0,
-                            display: 'inline-block',
-                          }}
-                          title={isReady ? 'API Key updated & ready' : 'Needs API Key'}
-                        />
-                        <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                          {pData?.name || pId}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {!isReady && (
-                          <span style={{ fontSize: '9px', opacity: 0.65 }}>
-                            no key
+                  {sortedProviders.map(([pId, pData]) => {
+                    const isReady = isProviderReady(pId, pData)
+                    const isSelected = pId === curProvider
+                    const count = (pData?.models || []).length
+                    return (
+                      <button
+                        key={pId}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          handleProviderSelect(pId)
+                          setProviderDropdownOpen(false)
+                        }}
+                        className={`live-dropdown-item-btn ${isSelected ? 'selected' : ''}`}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <span
+                            style={{
+                              width: '7px',
+                              height: '7px',
+                              borderRadius: '50%',
+                              backgroundColor: isReady ? '#22c55e' : 'rgba(148, 163, 184, 0.3)',
+                              flexShrink: 0,
+                              display: 'inline-block',
+                            }}
+                            title={isReady ? 'API Key updated & ready' : 'Needs API Key'}
+                          />
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                            {pData?.name || pId}
                           </span>
-                        )}
-                        {isSelected && <Check size={12} style={{ color: 'var(--accent, #ff6b35)', flexShrink: 0 }} />}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {count > 0 && (
+                            <span style={{ fontSize: '9px', opacity: 0.55 }}>
+                              {count}
+                            </span>
+                          )}
+                          {!isReady && (
+                            <span style={{ fontSize: '9px', opacity: 0.65 }}>
+                              no key
+                            </span>
+                          )}
+                          {isSelected && <Check size={12} style={{ color: 'var(--accent, #ff6b35)', flexShrink: 0 }} />}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <span className="live-badge provider">
@@ -2519,9 +2628,11 @@ export function LiveView({
             }}
             className="live-badge model-custom-btn"
             title="Change active model or search"
+            aria-haspopup="listbox"
+            aria-expanded={modelDropdownOpen}
           >
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {(activeProvider.model || model || '').split('/').pop()}
+              {(activeProvider.model || model || '').split('/').pop() || 'Select model'}
             </span>
             <ChevronDown
               size={11}
@@ -2530,65 +2641,122 @@ export function LiveView({
           </button>
 
           {/* Transparent Frosted Glass Dropdown Panel */}
-          {modelDropdownOpen && (
-            <div className="live-custom-dropdown-panel">
-              {/* Auto-pick fastest model for live button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setModelDropdownOpen(false)
-                  handleAutoPickFastest()
-                }}
-                disabled={isAutoPickingFastest}
-                className="live-dropdown-action-btn"
-                style={{
-                  background: 'rgba(34, 197, 94, 0.14)',
-                  border: '1px solid rgba(74, 222, 128, 0.35)',
-                  color: '#16a34a',
-                }}
-              >
-                <Zap size={13} className={isAutoPickingFastest ? 'spin' : ''} style={{ color: '#16a34a', flexShrink: 0 }} />
-                <span>{isAutoPickingFastest ? 'Testing Speed…' : '⚡ Auto-pick fastest for live'}</span>
-              </button>
-
-              {/* Search all models button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setModelDropdownOpen(false)
-                  setShowModelSearch(true)
-                }}
-                className="live-dropdown-action-btn"
-              >
-                <Search size={13} style={{ flexShrink: 0 }} />
-                <span>🔍 Search all models…</span>
-              </button>
-
-              <div className="live-custom-dropdown-header">
-                <span>{allProviders[curProvider]?.name || curProvider} Models</span>
-              </div>
-
-              {currentModels.map(m => {
-                const isSelected = (activeProvider.model || model) === m
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      handleModelChange(m)
-                      setModelDropdownOpen(false)
-                    }}
-                    className={`live-dropdown-item-btn ${isSelected ? 'selected' : ''}`}
-                  >
+          {modelDropdownOpen && (() => {
+            const q = modelFilter.trim().toLowerCase()
+            const filtered = q
+              ? currentModels.filter(m => m.toLowerCase().includes(q))
+              : currentModels
+            const visionModels = filtered.filter(looksVisionCapable)
+            const textModels = filtered.filter(m => !looksVisionCapable(m))
+            const renderModelBtn = (m, isVision) => {
+              const isSelected = (activeProvider.model || model) === m
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => {
+                    handleModelChange(m)
+                    setModelDropdownOpen(false)
+                  }}
+                  className={`live-dropdown-item-btn ${isSelected ? 'selected' : ''}`}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
+                    {isVision && <span title="Vision-capable" style={{ fontSize: '10px', flexShrink: 0 }}>👁</span>}
                     <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                       {m.split('/').pop()}
                     </span>
-                    {isSelected && <Check size={12} style={{ color: 'var(--accent, #ff6b35)', flexShrink: 0 }} />}
-                  </button>
-                )
-              })}
-            </div>
-          )}
+                  </span>
+                  {isSelected && <Check size={12} style={{ color: 'var(--accent, #ff6b35)', flexShrink: 0 }} />}
+                </button>
+              )
+            }
+            return (
+              <div className="live-custom-dropdown-panel" role="listbox" aria-label="Select Model">
+                {/* Auto-pick fastest model for live button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModelDropdownOpen(false)
+                    handleAutoPickFastest()
+                  }}
+                  disabled={isAutoPickingFastest}
+                  className="live-dropdown-action-btn"
+                  style={{
+                    background: 'rgba(34, 197, 94, 0.14)',
+                    border: '1px solid rgba(74, 222, 128, 0.35)',
+                    color: '#16a34a',
+                  }}
+                >
+                  <Zap size={13} className={isAutoPickingFastest ? 'spin' : ''} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  <span>{isAutoPickingFastest ? 'Testing Speed…' : '⚡ Auto-pick fastest for live'}</span>
+                </button>
+
+                {/* Search all models button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModelDropdownOpen(false)
+                    setShowModelSearch(true)
+                  }}
+                  className="live-dropdown-action-btn"
+                >
+                  <Search size={13} style={{ flexShrink: 0 }} />
+                  <span>🔍 Search all models…</span>
+                </button>
+
+                {currentModels.length > 6 && (
+                  <div style={{ padding: '4px 6px' }}>
+                    <input
+                      type="text"
+                      value={modelFilter}
+                      onChange={e => setModelFilter(e.target.value)}
+                      placeholder={`Filter ${currentModels.length} models…`}
+                      aria-label="Filter models"
+                      autoFocus
+                      style={{
+                        width: '100%',
+                        padding: '4px 8px',
+                        fontSize: '11px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(148, 163, 184, 0.25)',
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        color: 'inherit',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+                )}
+
+                {visionModels.length > 0 && (
+                  <>
+                    <div className="live-custom-dropdown-header">
+                      <span>👁 Vision-capable ({visionModels.length})</span>
+                    </div>
+                    {visionModels.map(m => renderModelBtn(m, true))}
+                  </>
+                )}
+
+                {textModels.length > 0 && (
+                  <>
+                    <div className="live-custom-dropdown-header">
+                      <span>{allProviders[curProvider]?.name || curProvider} {visionModels.length > 0 ? 'Text Models' : 'Models'}</span>
+                    </div>
+                    {textModels.map(m => renderModelBtn(m, false))}
+                  </>
+                )}
+
+                {filtered.length === 0 && (
+                  <div style={{ padding: '10px 8px', fontSize: '11px', opacity: 0.65, textAlign: 'center' }}>
+                    {currentModels.length === 0
+                      ? `No models available for ${allProviders[curProvider]?.name || curProvider}.`
+                      : `No models match "${modelFilter}".`}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
                 </div>
 
@@ -2771,10 +2939,9 @@ export function LiveView({
             artifacts={artifacts}
             activeIndex={activeArtifactIdx}
             onSelectIndex={setActiveArtifactIdx}
-            onClose={() => {
-              setShowArtifactStage(false)
-              commandBarFocusReturn()
-            }}
+            onReorderArtifact={handleReorderArtifact}
+            onRemoveArtifact={handleRemoveArtifact}
+            onClose={handleCloseArtifactStage}
           />
         </aside>
       )}

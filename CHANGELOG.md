@@ -1,5 +1,15 @@
 # Changelog
 
+## [25.0.0] — 2026-11-27: Native Rust Accelerator (`yogatik-accel`), Live Object Detection & Speech/Token Polish
+
+Major performance, multimodal reliability, and quality release introducing native Rust acceleration (`yogatik-accel`) for Electron Desktop, smoother WebGPU-to-WASM Live Object Detection, cleaner speech recognition, and accurate input/output token tracking.
+
+### 🚀 Highlights
+- **Native Rust Accelerator (`rust/yogatik-accel`, `rustAccel.cjs`, `rustAccel.js`)**: Bundled optimized Rust stdio sidecar (`yogatik-accel.exe`) with native `AUDIO` (VAD/pitch/SNR/emotion), `DHASH`, `ROUTE`, `TOKENS`, `COSINE`/`TOPK`, and `NMS` kernels, plus transparent JS fallbacks for Web/Mobile.
+- **Live Object Detection Polish (`vision/detect.js`, `LiveView.jsx`)**: Added automatic WebGPU-to-WASM fallback for DETR/CLIP, `[0, 1]` bounding-box normalization, and temporal EMA smoothing + 1-tick hysteresis so HUD boxes stay steady.
+- **Speech Recognition & Token I/O (`live/localSTT.js`, `VoiceDictationButton.jsx`, `tokenTracker.js`, `ContextUsageModal.jsx`)**: Added noise-floor gating and Whisper hallucination filtering, fixed multi-sentence continuous dictation, fixed Ollama/Anthropic token extraction, and eliminated `toolResults` double-counting.
+- **Multi-Platform Deployment & CI/CD**: Unified version 25.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [24.0.0] — 2026-11-27: Paperclip Agent Control Plane, Org Chart, Budgets & Heartbeats
 
 Major multi-agent governance and orchestration release integrating Paperclip-style Org Chart hierarchies, per-agent USD budget enforcement, scheduled heartbeats, goal-aligned persistent task boards, and human-in-the-loop approvals.
