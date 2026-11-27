@@ -71,10 +71,12 @@ import { assessResponse } from '../responseWatchdog'
 import { logWatchdogEvent } from '../errorLog'
 import { getToolMode, setToolMode } from '../api'
 import { splitReasoning } from '../reasoning'
-import { createCamera, createScreenCapture, switchCamera as switchCameraTrack } from './video'
+import { createCamera, createScreenCapture, formatScreenShareError, switchCamera as switchCameraTrack } from './video'
 import { pickFiller } from './fillers'
 import { sharpestFrame } from './capture'   // [live-capture]
 import * as metrics from './metrics'
+import { cameraGuard, resolveCameraAction } from './guard'
+import { END_REASON } from './metrics'
 import { enumerate, nextCamera, loadPreferredDevices, savePreferredDevices } from './devices'
 import { createSpeaker, defaultLang } from './voice'
 import {
@@ -85,7 +87,7 @@ import {
 import { resolveReference, formatSpatialContext } from '../vision/sessionObjectMemory'
 import { preconnectProvider, isSyntacticallyComplete } from './latencyOptimizer'
 import { matchReflex, streamReflex, classifyLiveQuery } from './reflexEngine'
-import { analyzeVoiceProsody, summarizeVoiceEmotion } from './audioProsody'
+import { analyzeVoiceProsody, summarizeVoiceEmotion, createAdaptiveNoiseGate } from './audioProsody'
 import { webSearchTool } from '../tools/webSearch'
 import { summariseToolResults } from '../toolSummary'
 import { cleanForSpeech } from '../video/speech'
@@ -221,6 +223,8 @@ export function parseVoiceCommand(text = '') {
   if (/^(repeat|repeat that|say that again|come again|what did you say|pardon)$/.test(t)) return { type: 'repeat' }
   if (/^(speak (faster|quicker)|talk faster|faster)$/.test(t)) return { type: 'rate', delta: 0.15 }
   if (/^(speak (slower|more slowly)|talk slower|slow down|slower)$/.test(t)) return { type: 'rate', delta: -0.15 }
+  const modeMatch = t.match(/^(?:switch\s+(?:to\s+)?|use\s+|enable\s+)?(answer|thinking|discussion)\s+mode$/)
+  if (modeMatch) return { type: 'liveMode', mode: modeMatch[1] }
   const lang = t.match(/^(?:speak|talk|switch|respond|reply)\s+(?:in\s+|to\s+)?(\w+)$/)
   if (lang && LANG_MAP[lang[1]]) return { type: 'language', lang: LANG_MAP[lang[1]], name: lang[1] }
   return null
@@ -297,6 +301,7 @@ export function createCascadeSession({
   //           auto-scan noticed a change). 'always' — every turn while a source
   //           is live (any model sees continuously). 'off' — never.
   visionMode = 'auto',
+  liveMode: initialLiveMode = 'answer',
   // Hands-free: require this phrase to start a spoken turn (null = always on).
   wakeWord = null,
   // Handle spoken control words (stop / pause / repeat / faster / language…).
@@ -306,6 +311,7 @@ export function createCascadeSession({
   speakerMuted = false,
   onEvent = () => {},
 }) {
+  let liveMode = ['answer', 'thinking', 'discussion'].includes(initialLiveMode) ? initialLiveMode : 'answer'
   // The active provider can change mid-call: a 429 five minutes into a
   // conversation should not end it.
   let active = { provider, apiKey, model, modelCanSee }
@@ -344,13 +350,23 @@ export function createCascadeSession({
       const { createLocalRecognizer } = await import('./localSTT')
       localRecognizer = await createLocalRecognizer({
         lang,
+        deviceId: loadPreferredDevices().micId,
+        isSpeaking: () => !speakerMuted && (speaking || (Date.now() - speechEndedAt) < ECHO_TAIL_MS),
+        isMuted: () => muted,
         onStatus: (message) => emit({ type: 'status', message }),
-        onFinal: (text) => {
+        onFinal: (text, meta) => {
           // Muted and echo handling mirror the Web Speech path; without the echo
           // guard the assistant transcribes its own voice and answers itself.
+          // Check against segment end time (before Whisper latency) so slow
+          // on-device transcription doesn't outlast ECHO_TAIL_MS.
           if (muted || closed) return
-          if (!speakerMuted && (speaking || (Date.now() - speechEndedAt) < ECHO_TAIL_MS) && isEcho(text, spokenAloud)) return
-          if (!speakerMuted && speaking) interrupt(false)
+          const checkAt = meta?.endedAt || Date.now()
+          const inEchoWindow = !speakerMuted && (Boolean(meta?.duringSpeech) || speaking || (checkAt - speechEndedAt) < ECHO_TAIL_MS)
+          if (inEchoWindow && isEcho(text, spokenAloud)) return
+          if (!speakerMuted && speaking) {
+            if (text.trim().length < MIN_BARGE_CHARS) return
+            interrupt(false)
+          }
           handleUtterance(text, 1)
         },
         onError: (err) => {
@@ -372,6 +388,9 @@ export function createCascadeSession({
   let screen = null
   let closed = false
   let muted = false
+  // End reason for this session — recorded by metrics so we know whether
+  // sessions die of user intent vs socket failure vs blind-model refusal.
+  let endReason = null
   // AI VOICE OUTPUT, separate from `muted` (which gates the MIC). Nothing in
   // this file could turn the assistant's speaking off without also turning
   // off listening — a user who wants to read captions in a quiet room, or
@@ -404,11 +423,25 @@ export function createCascadeSession({
   let micLevelTimer = null
 
   const prosodyWindow = []
+  const noiseGate = createAdaptiveNoiseGate()
+  let bargeStreak = 0
 
   async function startMicMonitor() {
     if (micMonitorStream || closed || typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return
     try {
-      micMonitorStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const micId = loadPreferredDevices().micId
+      const audioConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+        ...(micId ? { deviceId: { ideal: micId } } : {}),
+      }
+      try {
+        micMonitorStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
+      } catch {
+        micMonitorStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      }
       const AC = window.AudioContext || window.webkitAudioContext
       if (!AC) return
       micAudioCtx = new AC()
@@ -422,10 +455,31 @@ export function createCascadeSession({
         : null
 
       micLevelTimer = setInterval(() => {
-        if (closed || muted || !micAnalyser || speaking) {
+        if (closed || muted || !micAnalyser) {
+          bargeStreak = 0
           if (!speaking && !muted) emit({ type: 'level', who: 'user', value: 0 })
           return
         }
+        // Instant acoustic VAD barge-in while AI is speaking (~150ms sustained voice)
+        if (speaking) {
+          if (!speakerMuted && timeDomain) {
+            micAnalyser.getFloatTimeDomainData(timeDomain)
+            const p = analyzeVoiceProsody(timeDomain, micAudioCtx.sampleRate || 16000)
+            const gate = noiseGate.update(p.rms, false)
+            if (p.speechActive && p.rms > Math.max(0.065, gate.threshold * 2.2)) {
+              bargeStreak++
+              if (bargeStreak >= 2) {
+                bargeStreak = 0
+                metrics.markBargeIn(true)
+                interrupt(false)
+              }
+            } else {
+              bargeStreak = 0
+            }
+          }
+          return
+        }
+        bargeStreak = 0
         micAnalyser.getByteFrequencyData(data)
         let sum = 0
         for (let i = 0; i < data.length; i++) sum += data[i]
@@ -435,12 +489,19 @@ export function createCascadeSession({
           if (timeDomain) {
             micAnalyser.getFloatTimeDomainData(timeDomain)
             const p = analyzeVoiceProsody(timeDomain, micAudioCtx.sampleRate || 16000)
-            if (p.speechActive) {
+            const gate = noiseGate.update(p.rms, p.speechActive)
+            if (p.speechActive && gate.isAboveGate) {
               prosodyWindow.push(p)
               if (prosodyWindow.length > 12) prosodyWindow.shift()
             }
           }
         } else {
+          if (timeDomain) {
+            micAnalyser.getFloatTimeDomainData(timeDomain)
+            let sq = 0
+            for (let i = 0; i < timeDomain.length; i++) sq += timeDomain[i] * timeDomain[i]
+            noiseGate.update(Math.sqrt(sq / timeDomain.length), false)
+          }
           emit({ type: 'level', who: 'user', value: 0 })
         }
       }, 75)
@@ -700,6 +761,13 @@ export function createCascadeSession({
         if (recog) { try { recog.lang = lang } catch { /* mid-restart */ } }
         emit({ type: 'status', text: `Switching to ${cmd.name}` })
         return
+      case 'liveMode':
+        if (['answer', 'thinking', 'discussion'].includes(cmd.mode)) {
+          liveMode = cmd.mode
+          emit({ type: 'liveMode', value: liveMode })
+          emit({ type: 'status', text: `Mode: ${liveMode}` })
+        }
+        return
       default:
     }
   }
@@ -768,12 +836,10 @@ export function createCascadeSession({
     const always = visionMode === 'always' && !!src
 
     if (!always && !isVisualQuestion(userText)) {
-      // Not a question about the room — but if auto-scan noticed a change,
-      // let the model see it once.
-      if (!watched) return null
-      const frame = watched
+      // Not a question about the camera/screen — never attach unrequested frames,
+      // otherwise VLMs narrate the camera feed in a loop on non-visual turns.
       watched = null
-      return [framePart(frame)]
+      return null
     }
     watched = null
     if (!src) return null
@@ -817,7 +883,8 @@ export function createCascadeSession({
       const profile = captureProfile(userText)
       const pick = await sharpestFrame(() => src.grab(true, profile), { count: 3, gapMs: 350 })
       if (pick) b64 = pick.frame
-    } else if (watched) { b64 = watched; watched = null }
+    }
+    watched = null
     if (!b64) return null
     // Horizon 1b: a pitch-dark (or otherwise unreadable) frame gets an honest
     // refusal, not a guess. describeWithoutModel already leads with the
@@ -945,7 +1012,7 @@ export function createCascadeSession({
       // the question is actually visual or visionMode is 'always'.
       const src = screen || cam
       const canSee = active.modelCanSee ?? modelCanSee
-      const needsLocalVision = !canSee && src && visionMode !== 'off' && (visionMode === 'always' || isVisualQuestion(userText) || watched)
+      const needsLocalVision = !canSee && src && visionMode !== 'off' && (visionMode === 'always' || isVisualQuestion(userText))
       if (needsLocalVision) {
         const line = pickFiller(['identify'], { announced: filler.announced, last: filler.last })
         if (line) { filler.announced = true; filler.last = line; speak(line) }
@@ -992,10 +1059,19 @@ export function createCascadeSession({
 
     const toolMode = await getToolMode(active.provider, active.model).catch(() => 'native')
     const route = classifyLiveQuery(userText, { hasVisualSource: Boolean(screen || cam) })
-    const effectiveDisabledTools = route.allowDeepResearch
+    const allowDeep = liveMode === 'thinking' || route.allowDeepResearch
+    const toolsOn = liveMode === 'thinking' ? true : route.toolsEnabled
+    const webOn = liveMode === 'thinking' ? true : route.webEnabled
+    const maxTurns = liveMode === 'discussion' ? Math.max(route.maxHistoryTurns, 14) : route.maxHistoryTurns
+    const effectiveDisabledTools = allowDeep
       ? disabledTools
       : Array.from(new Set([...(disabledTools || []), 'deep_research']))
-    const trimmedHistory = history.slice(Math.max(0, history.length - 1 - route.maxHistoryTurns), -1)
+    const trimmedHistory = history.slice(Math.max(0, history.length - 1 - maxTurns), -1)
+    const modeInstruction = liveMode === 'thinking'
+      ? '- THINKING MODE: Reason carefully step-by-step and verify facts with tools before giving a clear spoken summary.'
+      : liveMode === 'discussion'
+        ? '- DISCUSSION MODE: Keep the back-and-forth dialogue alive—give a concise answer (1-3 sentences) and end with ONE focused, natural follow-up question.'
+        : '- ANSWER MODE: Be ultra-crisp—deliver the direct answer in 1-3 sentences with zero fluff.'
 
     await new Promise((resolve) => {
       // 12s live response watchdog: If provider hangs with 0 tokens, failover to next provider
@@ -1005,16 +1081,16 @@ export function createCascadeSession({
           timeoutMessage = `Timeout: ${active.provider || 'model'} did not respond within 12s`
           controller.abort(new Error(timeoutMessage))
         }
-      }, 12000)
+      }, liveMode === 'thinking' ? 20000 : 12000)
 
-      // 35s hard turn ceiling: ensure watchdog safety without truncating thorough thinking
+      // 35s (or 60s in thinking mode) hard turn ceiling
       let hardTurnCeilingTimer = setTimeout(() => {
         if (thinking && !controller.signal.aborted) {
           watchdogTimedOut = true
-          timeoutMessage = `Live voice limit: ${active.model || 'model'} took over 35s to formulate response`
+          timeoutMessage = `Live voice limit: ${active.model || 'model'} took over ${liveMode === 'thinking' ? '60s' : '35s'} to formulate response`
           controller.abort(new Error(timeoutMessage))
         }
-      }, 35000)
+      }, liveMode === 'thinking' ? 60000 : 35000)
 
       runAgent({
         provider: active.provider, apiKey: active.apiKey, model: active.model,
@@ -1022,19 +1098,21 @@ export function createCascadeSession({
         userMessage: content,
         conversationId,
         projectId,
-        toolsEnabled: route.toolsEnabled,
-        webEnabled: route.webEnabled,
+        toolsEnabled: toolsOn,
+        webEnabled: webOn,
         disabledTools: effectiveDisabledTools,
         initialToolMode: toolMode,
         onToolModeChange: (mode) => { setToolMode(active.provider, active.model, mode).catch(() => {}) },
         // NO maxTokens limit — model runs with its natural full token capacity identical to main UI
         modelCanSee: active.modelCanSee ?? modelCanSee,
-        persona: `${persona ? persona + '\n\n' : ''}LIVE CONVERSATIONAL MODE:
-- Speak directly, naturally, and warmly.
-- Deliver accurate, clear, and helpful answers.
-- You have full access to tools and web search. If reporting live news or web results, share the core facts directly.
-- For real-time voice chat, give direct spoken responses immediately without verbose internal reasoning or lengthy preamble.
-- Keep answers conversational without unnecessary internal monologue.`,
+        persona: `${persona ? persona + '\n\n' : ''}LIVE CONVERSATIONAL & EXPLANATION MODE:
+${modeInstruction}
+- Lead with the direct answer in 1-2 crisp sentences—no filler openers ("Sure", "Great question").
+- Explain clearly for listening: use plain spoken language, concrete analogies, and clear signposting ("First… Second…") instead of markdown tables, bullet punctuation, or raw URLs.
+- When tool results or cards appear on the Live Spatial Canvas, summarize the key takeaway aloud and invite follow-up instead of reading raw data verbatim.
+- Adapt pacing and depth to any [User voice tone: ...] hint (concise and direct when urgent; step-by-step when curious or confused).
+- Skip verbose internal monologue so voice output starts immediately.
+- Only describe or comment on what is visible on the camera or screen when the user explicitly asks about it or it is directly needed to answer their question. Never narrate or repeat camera descriptions unprompted.`,
         signal: controller.signal,
         onToken: (t) => {
           if (liveTurnTimer) { clearTimeout(liveTurnTimer); liveTurnTimer = null }
@@ -1353,7 +1431,10 @@ export function createCascadeSession({
         pendingInterim = ''
         emit({ type: 'level', who: 'user', value: 0 })
         // Drop the final if the endpoint timer already sent this.
-        if (Date.now() - committedAt < COMMIT_ECHO_MS && sameUtterance(text, committed)) return
+        // No time window: Chrome can take well over 1200ms to deliver a
+        // final after silence, and sameUtterance() normalisation makes
+        // this comparison safe without one.
+        if (committed && sameUtterance(text, committed)) return
 
         // Speculative turn promotion on final result
         if (activeSpeculative && sameUtterance(text, activeSpeculative.text)) {
@@ -1492,6 +1573,7 @@ export function createCascadeSession({
 
     if (!speechRecognitionAvailable() || isLocalProvider || isElectron) {
       startLocalRecognition()
+      startMicMonitor()
       if (camera) {
         try { await enableCamera(true) } catch (camErr) {
           console.warn('Live: camera unavailable, starting audio-only', camErr)
@@ -1514,33 +1596,23 @@ export function createCascadeSession({
     emit({ type: 'ready' })
   }
 
-  async function enableScreenShare(on) {
-    if (on && !screen) {
-      try {
-        screen = await createScreenCapture()
-        setSharedVisualSource(screen)
-        emit({ type: 'screen', stream: screen.stream, active: true })
-        // If screen sharing stops from browser UI, auto-disable
-        screen.stream.getVideoTracks()[0].addEventListener('ended', () => {
-          clearSharedVisualSource(screen)
-          screen = null
-          if (cam) setSharedVisualSource(cam)
-          emit({ type: 'screen', stream: null, active: false })
-        })
-      } catch {
-        emit({ type: 'error', message: 'Screen sharing was cancelled or not supported.' })
-      }
-    } else if (!on && screen) {
-      clearSharedVisualSource(screen)
-      screen.close()
-      screen = null
-      if (cam) setSharedVisualSource(cam)
-      emit({ type: 'screen', stream: null, active: false })
-    }
-  }
-
   async function enableCamera(on) {
     if (on && !cam) {
+      // Blind-model guard: a text-only model + camera = confident OCR noise.
+      // Refuse outright, or auto-switch to a vision-capable model when one is
+      // reachable from cache. metrics.js records both.
+      const verdict = resolveCameraAction({ canSee: active.modelCanSee ?? modelCanSee, allowSwitch: true })
+      if (verdict.action === 'block') {
+        metrics.recordBlindModelRefusal()
+        emit({ type: 'error', message: verdict.reason, endReason: END_REASON.MODEL_BLIND })
+        return
+      }
+      if (verdict.action === 'switch' && verdict.model && verdict.model !== active.model) {
+        metrics.recordAutoVisionSwitch()
+        emit({ type: 'provider', provider: active.provider, model: verdict.model })
+        emit({ type: 'error', message: verdict.reason || `Switched to vision model ${verdict.model}. Restarting the call…`, endReason: END_REASON.MODEL_BLIND })
+        return
+      }
       // Open the camera the user last chose. A remembered device that is gone
       // falls back to any camera inside createCamera rather than throwing
       // OverconstrainedError and failing the whole call.
@@ -1582,8 +1654,8 @@ export function createCascadeSession({
           if (cam) setSharedVisualSource(cam)
           emit({ type: 'screen', stream: null, active: false })
         })
-      } catch {
-        emit({ type: 'error', message: 'Screen sharing was cancelled or not supported.' })
+      } catch (err) {
+        emit({ type: 'error', message: formatScreenShareError(err) })
       }
     } else if (!on && screen) {
       screen.offFrame()
@@ -1626,10 +1698,15 @@ export function createCascadeSession({
     cam?.close()
     screen?.close()
     cam = null; screen = null
-    onEvent({ type: 'ended' })
+
+    onEvent({ type: 'ended', endReason: endReason || END_REASON.USER })
   }
 
+  /** Record why the session is ending; surfaced in the 'ended' event. */
+  function setEndReason(reason) { endReason = reason }
+
   return {
+    setEndReason,
     start,
     stop,
     stopTurn: () => interrupt(true),
@@ -1644,6 +1721,15 @@ export function createCascadeSession({
     /** Let ANY model watch the feed continuously: 'auto' | 'always' | 'off'. */
     setVisionMode: (mode) => { if (['auto', 'always', 'off'].includes(mode)) { visionMode = mode; emit({ type: 'status', text: `Vision: ${mode}` }) } },
     getVisionMode: () => visionMode,
+    /** Switch Live interaction mode mid-call: 'answer' | 'thinking' | 'discussion'. */
+    setLiveMode: (mode) => {
+      if (['answer', 'thinking', 'discussion'].includes(mode)) {
+        liveMode = mode
+        emit({ type: 'liveMode', value: mode })
+        emit({ type: 'status', text: `Mode: ${mode}` })
+      }
+    },
+    getLiveMode: () => liveMode,
     /** Hands-free: require a phrase to start each spoken turn (null to disable). */
     setWakeWord: (w) => { wakeWord = w ? String(w).trim() : null },
     /** Change speaking rate (0.6–1.6) mid-call. */

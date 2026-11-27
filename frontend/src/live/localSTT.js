@@ -97,16 +97,18 @@ export function filterHallucination(text) {
  *          onError?:(e:Error)=>void}} opts
  * @returns {Promise<{stop:()=>void}>}
  */
-export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }) {
+export async function createLocalRecognizer({ lang, onFinal, onStatus, onError, isSpeaking, isMuted, deviceId }) {
   if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
     throw new Error('This browser cannot record audio for on-device speech.')
   }
 
   onStatus?.('Starting on-device speech…')
+  const audioConstraints = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+  if (deviceId) audioConstraints.deviceId = { ideal: deviceId }
   const stream = await navigator.mediaDevices.getUserMedia({
     // Echo cancellation is mandatory here for the same reason as Web Speech:
     // without it the recognizer hears the assistant's own voice.
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    audio: audioConstraints,
   })
 
   const ctx = new (window.AudioContext || window.webkitAudioContext)()
@@ -123,9 +125,11 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
   let silenceMs = 0
   let segmentMs = 0
   let peak = 0
+  let hadSpeaking = false
   let timer = null
   // Faster tick: 40ms vs old 60ms → ~20ms better onset detection and endpointing
   const TICK = 40
+  const SILENT_RECYCLE_MS = 10000
 
   // ─── Adaptive noise floor ──────────────────────────────────────────────────
   // Rolling background noise level tracked over 30s of silence frames.
@@ -157,10 +161,13 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
     silenceMs = 0
     segmentMs = 0
     peak = 0
+    hadSpeaking = false
     const r = new MediaRecorder(stream)
     r.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data) }
     r.onstop = async () => {
       const parts = chunks
+      const endedAt = Date.now()
+      const duringSpeech = hadSpeaking
       chunks = []
       if (closed || !parts.length) return
       const blob = new Blob(parts, { type: parts[0]?.type || 'audio/webm' })
@@ -168,7 +175,7 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
         const { transcribe } = await import('../whisper')
         const text = await transcribe(blob, { lang })
         const clean = filterHallucination(text)
-        if (clean) onFinal?.(clean)
+        if (clean) onFinal?.(clean, { endedAt, duringSpeech })
       } catch (e) {
         const msg = String(e?.message || e)
         if (!/abort|cancel|closed|already started/i.test(msg)) {
@@ -181,19 +188,72 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
 
   const tick = () => {
     if (closed) return
+    if (isMuted?.()) {
+      if (speechStarted || silenceMs > 0) {
+        chunks = []
+        speechStarted = false
+        silenceMs = 0
+        segmentMs = 0
+        peak = 0
+        hadSpeaking = false
+      }
+      return
+    }
     analyser.getFloatTimeDomainData(buf)
     const level = rms(buf)
+    const assistantSpeaking = Boolean(isSpeaking?.())
 
-    // Adaptive noise floor update (only in silence)
-    if (level < adaptiveFloor * 1.5) updateNoiseFloor(level)
+    // Adaptive noise floor update (only in true silence, never during assistant TTS)
+    if (!assistantSpeaking && level < adaptiveFloor * 1.5) updateNoiseFloor(level)
+
+    if (assistantSpeaking) {
+      if (speechStarted) hadSpeaking = true
+      else {
+        // Don't let assistant TTS start a speech segment or accumulate in chunks
+        silenceMs += TICK
+        if (silenceMs >= 1500 && recorder?.state === 'recording') {
+          chunks = []
+          silenceMs = 0
+          peak = 0
+          try {
+            recorder.onstop = null
+            recorder.stop()
+          } catch { /* ignore */ }
+          if (!closed) {
+            recorder = newRecorder()
+            recorder.start()
+          }
+        }
+        return
+      }
+    }
 
     // Use the adaptive floor as the active threshold
     const threshold = adaptiveFloor
 
     if (level > peak) peak = level
-    segmentMs += TICK
-    if (isSilent(level, threshold)) silenceMs += TICK
-    else { silenceMs = 0; speechStarted = true }
+    if (isSilent(level, threshold)) {
+      silenceMs += TICK
+      if (speechStarted) segmentMs += TICK
+      else if (silenceMs >= SILENT_RECYCLE_MS && recorder?.state === 'recording') {
+        // Recycle silent buffer periodically so Whisper never receives minutes of silence
+        silenceMs = 0
+        peak = 0
+        try {
+          recorder.onstop = null
+          recorder.stop()
+        } catch { /* ignore */ }
+        if (!closed) {
+          recorder = newRecorder()
+          recorder.start()
+        }
+        return
+      }
+    } else {
+      silenceMs = 0
+      speechStarted = true
+      segmentMs += TICK
+    }
 
     if (shouldCloseSegment({ speechStarted, silenceMs, segmentMs })) {
       const usable = segmentIsUsable({ segmentMs, peakRms: peak, noiseFloor: adaptiveFloor })
@@ -220,6 +280,7 @@ export async function createLocalRecognizer({ lang, onFinal, onStatus, onError }
         silenceMs = 0
         segmentMs = 0
         peak = 0
+        hadSpeaking = false
       }
     }
   }

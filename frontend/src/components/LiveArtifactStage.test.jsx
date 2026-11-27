@@ -102,7 +102,7 @@ describe('LiveArtifactStage', () => {
     expect(onRemoveArtifact).toHaveBeenCalledWith(1)
 
     // Close button on tab 2 should remove without selecting
-    const closeBtn = screen.getByRole('button', { name: 'Close web_search' })
+    const closeBtn = screen.getByRole('button', { name: 'Close local weather' })
     fireEvent.click(closeBtn)
     expect(onRemoveArtifact).toHaveBeenCalledWith(1)
   })
@@ -156,5 +156,49 @@ describe('LiveArtifactStage', () => {
     const expBtn = screen.getByRole('button', { name: 'Expand canvas' })
     fireEvent.click(expBtn)
     expect(screen.getByTestId('mock-tool-result')).toBeTruthy()
+  })
+
+  it('extracts smart host/query labels and supports category filtering, wrap toggle, group, and clear', () => {
+    const onOrganizeArtifacts = vi.fn()
+    const onClearArtifacts = vi.fn()
+    const richArtifacts = [
+      { id: 'b1', name: 'browser_control', result: { url: 'https://www.deccanherald.com/india/karnataka', action: 'read' }, time: 1 },
+      { id: 's1', name: 'web_search', args: { query: 'bengaluru weather' }, result: { summary: 'Sunny' }, time: 2 },
+      { id: 'r1', name: 'deep_research', args: { query: 'karnataka news' }, result: { summary: 'Report' }, time: 3 },
+      { id: 'b2', name: 'browser_control', result: { url: 'https://news.ycombinator.com', action: 'navigate' }, time: 4 },
+    ]
+
+    const { container } = render(
+      <LiveArtifactStage
+        artifacts={richArtifacts}
+        activeIndex={0}
+        onSelectIndex={vi.fn()}
+        onOrganizeArtifacts={onOrganizeArtifacts}
+        onClearArtifacts={onClearArtifacts}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('deccanherald.com · read')).toBeTruthy()
+    expect(screen.getByText('bengaluru weather')).toBeTruthy()
+
+    // Filter to Browser only (2 tabs)
+    fireEvent.click(screen.getByRole('button', { name: /Browser/i }))
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+
+    // Back to All (4 tabs)
+    fireEvent.click(screen.getByRole('button', { name: /^All\s/i }))
+    expect(screen.getAllByRole('tab')).toHaveLength(4)
+
+    // Toggle wrapped grid
+    fireEvent.click(screen.getByRole('button', { name: 'Wrap tabs into grid' }))
+    expect(container.querySelector('.live-artifact-tabs.is-wrapped')).toBeTruthy()
+
+    // Group & Clear actions
+    fireEvent.click(screen.getByRole('button', { name: 'Group tabs by tool type' }))
+    expect(onOrganizeArtifacts).toHaveBeenCalledWith('group')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all tabs' }))
+    expect(onClearArtifacts).toHaveBeenCalled()
   })
 })

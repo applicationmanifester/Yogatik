@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizeSpec, frameAt, wrapText, stagger, coverFit, LIMITS } from './timeline'
+import { normalizeSpec, frameAt, wrapText, stagger, coverFit, LIMITS, THEMES, SCENE_TYPES } from './timeline'
 
 const spec = (over = {}) => normalizeSpec({
   scenes: [
@@ -122,5 +122,32 @@ describe('layout helpers', () => {
     expect(box.w).toBeGreaterThanOrEqual(1280)
     expect(box.h).toBeGreaterThanOrEqual(720)
     expect(box.x).toBeCloseTo((1280 - box.w) / 2, 5)
+  })
+})
+
+describe('themes, new scene types, and cross-dissolve prev state', () => {
+  it('resolves named theme presets and supports split & steps scenes', () => {
+    expect(SCENE_TYPES).toContain('split')
+    expect(SCENE_TYPES).toContain('steps')
+    const s = normalizeSpec({
+      theme: 'ocean',
+      scenes: [
+        { type: 'split', heading: 'Overview', bullets: ['Fast', 'Local'], align: 'right' },
+        { type: 'steps', heading: 'How it works', steps: ['Step 1', 'Step 2', 'Step 3'] },
+      ],
+    })
+    expect(s.theme).toEqual(THEMES.ocean)
+    expect(s.scenes).toHaveLength(2)
+  })
+
+  it('provides prev scene info during inter-scene cross-dissolve windows', () => {
+    const s = spec({ fps: 30, fade: 0.5 })
+    expect(frameAt(s, 0).prev).toBeUndefined()
+    const seam = frameAt(s, 62) // inside scene 2's 15-frame fade window
+    expect(seam.index).toBe(1)
+    expect(seam.prev).toBeDefined()
+    expect(seam.prev.index).toBe(0)
+    expect(seam.alpha).toBeGreaterThan(0)
+    expect(seam.alpha).toBeLessThan(1)
   })
 })

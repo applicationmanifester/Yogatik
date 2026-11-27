@@ -261,3 +261,9 @@ export async function createScreenCapture() {
     audio: false,
   }))
 }
+
+export function formatScreenShareError(err) {
+  if (err?.name === 'NotAllowedError') return 'Screen sharing permission was denied or cancelled.'
+  if (err?.name === 'NotSupportedError') return 'Screen sharing is not supported in this environment.'
+  return err?.message ? `Screen sharing failed: ${err.message}` : 'Screen sharing was cancelled or not supported.'
+}

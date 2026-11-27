@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '25.0.0'
+export const APP_VERSION = '26.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 25.0.0 — Native Rust Accelerator, Live Object Detection & Speech/Token Polish'
+export const APP_CODENAME = 'Yogatik 26.0.0 — On-Device Video Generation & Voice-Over Upgrades'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,36 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "26.0.0",
+    "title": "Yogatik 26.0.0: On-Device Video Generation & Voice-Over Upgrades",
+    "date": "November 27, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Chunked Voice-Over & Exact Subtitles: Sentence/clause splitting for Kokoro-82M, natural pauses, exact measured subtitle cues, and per-scene voice/speed overrides",
+      "Speech Loudness Normalization & Upbeat Bed: Active-RMS speech normalization with soft-knee peak limiting plus a new upbeat procedural soundtrack",
+      "Visual Themes, Cross-Dissolves & New Scenes: 6 built-in themes (dark, light, ocean, emerald, sunset, midnight), split & steps scenes, and true inter-scene cross-dissolves"
+    ],
+    "sections": [
+      {
+        "category": "🎬 On-Device Video & Voice-Over",
+        "items": [
+          {
+            "title": "Multi-Speaker & Long-Form Narration",
+            "description": "Long narrations are chunked cleanly for Kokoro-82M, normalized for consistent loudness, and synced to exact measured subtitle cues."
+          },
+          {
+            "title": "Themes, Split & Steps Layouts",
+            "description": "Render videos with 6 visual themes, side-by-side split media/bullet slides, numbered step flows, and smooth cross-dissolve transitions."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "25.0.0",
     "title": "Yogatik 25.0.0: Native Rust Accelerator, Live Object Detection & Speech/Token Polish",
     "date": "November 27, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Native Rust Accelerator (yogatik-accel): Bundled optimized Rust stdio sidecar for Desktop with native AUDIO, DHASH, ROUTE, TOKENS, TOPK, and NMS kernels",
       "Live Object Detection Polish: Automatic WebGPU-to-WASM fallback for DETR/CLIP, bounding-box normalization, and temporal smoothing + hysteresis",

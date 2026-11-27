@@ -218,3 +218,29 @@ describe('createCascadeSession provider & model switching', () => {
     session.stop()
   })
 })
+
+describe('visionMode and camera-description echo guard', () => {
+  it('defaults to auto visionMode and supports switching modes', async () => {
+    const { createCascadeSession } = await import('./cascade')
+    const events = []
+    const session = createCascadeSession({
+      provider: 'nvidia',
+      apiKey: 'test-key',
+      model: 'nemotron-3.5-super-vl-120b-a12b',
+      onEvent: (evt) => events.push(evt),
+    })
+
+    expect(session.getVisionMode()).toBe('auto')
+    session.setVisionMode('off')
+    expect(session.getVisionMode()).toBe('off')
+    session.setVisionMode('always')
+    expect(session.getVisionMode()).toBe('always')
+    session.stop()
+  })
+
+  it('detects echoed camera descriptions from speaker output', () => {
+    const spoken = 'Got it, I can see you! Curly hair, beard, grey polo with the red 65 and SINGAPORE text.'
+    expect(isEcho('I can see you curly hair beard grey polo with the red 65', spoken)).toBe(true)
+    expect(isEcho('what is the weather today', spoken)).toBe(false)
+  })
+})

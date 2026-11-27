@@ -114,3 +114,28 @@ export function summarizeVoiceEmotion(history = []) {
   if (!best) return null
   return { emotion: best, confidence: Math.min(0.95, bestScore / history.length) }
 }
+
+/**
+ * Adaptive ambient noise-floor tracker for cleaner VAD and barge-in gating.
+ * Slowly tracks background room noise when speech is inactive and provides
+ * a dynamic RMS threshold above the room floor.
+ */
+export function createAdaptiveNoiseGate({ initialFloor = 0.012, margin = 2.2 } = {}) {
+  let noiseFloor = initialFloor
+  return {
+    update(rms, isSpeech = false) {
+      if (!isSpeech && Number.isFinite(rms) && rms >= 0) {
+        noiseFloor = noiseFloor * 0.92 + Math.min(rms, 0.08) * 0.08
+      }
+      const threshold = Math.max(0.014, noiseFloor * margin)
+      return {
+        noiseFloor,
+        threshold,
+        isAboveGate: rms > threshold,
+      }
+    },
+    get floor() {
+      return noiseFloor
+    },
+  }
+}

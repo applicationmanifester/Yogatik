@@ -227,12 +227,12 @@ export function classifyLiveQuery(text = '', { hasVisualSource = false } = {}) {
     return { intent: 'visual', toolsEnabled: false, webEnabled: false, maxHistoryTurns: 6, allowDeepResearch: false }
   }
 
-  const searchHint = /\b(news|headlines|weather|forecast|price|stock|score|today|latest|current|who\s+won|search|look\s+up|find\s+out|release\s+date|202\d)\b/i.test(lower)
+  const searchHint = /\b(news|headlines|weather|forecast|price|stock|score|today|latest|current|who\s+won|search|look\s+up|find\s+out|release\s+date|google|browse|internet|online|website|url|202\d)\b/i.test(lower)
   if (searchHint) {
     return { intent: 'search', toolsEnabled: true, webEnabled: true, maxHistoryTurns: 8, allowDeepResearch: false }
   }
 
-  const explicitToolHint = /\b(remind|timer|alarm|calculate|compute|convert|run\s+code|execute|file|folder|open\s+app|email|calendar|schedule)\b/i.test(lower)
+  const explicitToolHint = /\b(remind|timer|alarm|calculate|compute|convert|run\s+code|execute|file|files|folder|folders|directory|workspace|project|codebase|repo|readme|package\.json|git|terminal|shell|command|grep|list|read|write|edit|create|delete|open\s+app|email|calendar|schedule)\b/i.test(lower)
   if (explicitToolHint) {
     return { intent: 'search', toolsEnabled: true, webEnabled: true, maxHistoryTurns: 8, allowDeepResearch: false }
   }

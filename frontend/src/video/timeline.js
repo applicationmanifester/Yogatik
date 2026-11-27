@@ -24,7 +24,66 @@ export const THEME = {
   font: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
 }
 
-const DEFAULT_SECONDS = { title: 3, text: 4.5, image: 4, bars: 5, outro: 2.5, quote: 4, metric: 3.5 }
+export const THEMES = {
+  dark: THEME,
+  light: {
+    bg: '#f8fafc',
+    bgAlt: '#e2e8f0',
+    fg: '#0f172a',
+    dim: '#475569',
+    accent: '#2563eb',
+    accent2: '#7c3aed',
+    font: THEME.font,
+  },
+  ocean: {
+    bg: '#071426',
+    bgAlt: '#0d2137',
+    fg: '#f0f9ff',
+    dim: '#7dd3fc',
+    accent: '#06b6d4',
+    accent2: '#3b82f6',
+    font: THEME.font,
+  },
+  emerald: {
+    bg: '#061812',
+    bgAlt: '#0d281f',
+    fg: '#ecfdf5',
+    dim: '#6ee7b7',
+    accent: '#10b981',
+    accent2: '#14b8a6',
+    font: THEME.font,
+  },
+  sunset: {
+    bg: '#1a0f18',
+    bgAlt: '#2d1624',
+    fg: '#fff1f2',
+    dim: '#fda4af',
+    accent: '#f97316',
+    accent2: '#ec4899',
+    font: THEME.font,
+  },
+  midnight: {
+    bg: '#09090b',
+    bgAlt: '#18181b',
+    fg: '#fafafa',
+    dim: '#a1a1aa',
+    accent: '#8b5cf6',
+    accent2: '#ec4899',
+    font: THEME.font,
+  },
+}
+
+const DEFAULT_SECONDS = {
+  title: 3,
+  text: 4.5,
+  image: 4,
+  split: 5,
+  steps: 5,
+  bars: 5,
+  outro: 2.5,
+  quote: 4,
+  metric: 3.5,
+}
 export const SCENE_TYPES = Object.keys(DEFAULT_SECONDS)
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
@@ -35,12 +94,12 @@ const even = (n) => Math.round(n / 2) * 2
 // Fields a scene may legitimately carry. Anything else is a model guessing at
 // the shape, and naming it back is far more useful than ignoring it.
 const KNOWN_SCENE_FIELDS = new Set([
-  'type', 'duration', 'narration', 'text', 'subtitle', 'heading',
-  'bullets', 'image_url', 'url', 'caption', 'motion', 'data',
+  'type', 'duration', 'narration', 'voice', 'speed', 'text', 'subtitle', 'heading',
+  'bullets', 'steps', 'image_url', 'url', 'caption', 'motion', 'align', 'data',
   'quote', 'author', 'metric', 'label',
 ])
 const CONTENT_FIELDS = [
-  'text', 'subtitle', 'heading', 'bullets', 'image_url', 'url', 'caption', 'data',
+  'text', 'subtitle', 'heading', 'bullets', 'steps', 'image_url', 'url', 'caption', 'data',
   'quote', 'author', 'metric', 'label',
 ]
 
@@ -108,10 +167,14 @@ export function normalizeSpec(spec = {}) {
     cursor += frames
   }
 
+  const resolvedTheme = typeof spec.theme === 'string'
+    ? (THEMES[spec.theme] || THEME)
+    : { ...THEME, ...(spec.theme || {}) }
+
   return {
     width, height, fps,
     format: spec.format === 'webm' ? 'webm' : 'mp4',
-    theme: { ...THEME, ...(spec.theme || {}) },
+    theme: resolvedTheme,
     fade: spec.transition === 'cut' ? 0 : clamp(Number(spec.fade ?? 0.35), 0, 1),
     progressBar: spec.progress !== false,
     scenes: out,
@@ -123,7 +186,7 @@ export function normalizeSpec(spec = {}) {
 /**
  * Which scene is on screen at this frame, how far through it we are, and how
  * much to dim it for the cross-fade at the seam.
- * @returns {{scene:object, index:number, t:number, alpha:number}}
+ * @returns {{scene:object, index:number, t:number, alpha:number, prev?:{scene:object, index:number, t:number}}}
  */
 export function frameAt(spec, frame) {
   const f = clamp(frame, 0, spec.totalFrames - 1)
@@ -134,16 +197,23 @@ export function frameAt(spec, frame) {
   const t = scene.frames <= 1 ? 1 : local / (scene.frames - 1)
 
   let alpha = 1
+  let prev = null
   const fadeFrames = Math.round(spec.fade * spec.fps)
   if (fadeFrames > 0) {
     // Fade in at the start of every scene, out at the end of the last one.
-    if (local < fadeFrames) alpha = local / fadeFrames
+    if (local < fadeFrames) {
+      alpha = local / fadeFrames
+      if (index > 0) {
+        const prevScene = spec.scenes[index - 1]
+        prev = { scene: prevScene, index: index - 1, t: 1 }
+      }
+    }
     const tail = scene.frames - 1 - local
     if (index === spec.scenes.length - 1 && tail < fadeFrames) {
       alpha = Math.min(alpha, tail / fadeFrames)
     }
   }
-  return { scene, index, t, alpha: clamp(alpha, 0, 1) }
+  return prev ? { scene, index, t, alpha: clamp(alpha, 0, 1), prev } : { scene, index, t, alpha: clamp(alpha, 0, 1) }
 }
 
 // ─── Easing ───

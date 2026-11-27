@@ -32,7 +32,10 @@ const { registerRootsIpc } = require('./roots.cjs') as { registerRootsIpc(opts: 
 // initJournal lives beside the fs bridge (see original main.cjs import).
 const { initJournal } = require('./fsBridge.cjs') as { initJournal(path: string): void }
 const { registerFsBridge } = require('./fsBridge.cjs') as { registerFsBridge(): void }
-const { applyCSP } = require('./security.cjs') as { applyCSP(window: unknown): void }
+const { applyCSP, registerDisplayMediaHandler } = require('./security.cjs') as {
+  applyCSP(window: unknown): void
+  registerDisplayMediaHandler(): void
+}
 
 export class Application {
   private windowLifecycle: WindowLifecycle
@@ -61,6 +64,7 @@ export class Application {
     this.configureAppPerformance()
     enableProviderCors()
     enableAdBlocker()
+    registerDisplayMediaHandler()
 
     // ── The gate goes FIRST, before any handler exists ──────────────────────
     // installGate wraps ipcMain.handle itself, so every channel registered

@@ -7,7 +7,7 @@
  * captions and animated charts.
  */
 
-import { normalizeSpec, frameAt, LIMITS, SCENE_TYPES } from '../video/timeline'
+import { normalizeSpec, frameAt, LIMITS, SCENE_TYPES, THEMES } from '../video/timeline'
 // NOTE: everything heavy (draw, encode, audio, speech/Kokoro-90MB, image
 // fetching, db) is dynamically imported INSIDE execute() so none of it rides
 // the initial bundle — first paint pays nothing for a video never rendered.
@@ -69,6 +69,97 @@ async function loadImage(url) {
   }
 }
 
+/**
+ * Build a Canvas2D draw function for a sprite from its declarative draw type.
+ * Painted in body-local space (translate already applied by Sprite.paint).
+ */
+function makeSpriteDrawFn(type, label, color, fontSize) {
+  return (ctx, sprite) => {
+    const b = sprite.body
+    const r = (b?.radius ?? 20) * sprite.scale
+    ctx.fillStyle = color || '#ff6b35'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    switch (type) {
+      case 'circle':
+        ctx.beginPath()
+        ctx.arc(0, 0, r, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      case 'rect': {
+        const w = (b?.width ?? 40) * sprite.scale
+        const h = (b?.height ?? 40) * sprite.scale
+        ctx.fillRect(-w / 2, -h / 2, w, h)
+        break
+      }
+      case 'text':
+        ctx.font = `${fontSize || 24}px sans-serif`
+        ctx.fillText(label || sprite.id, 0, 0)
+        break
+      case 'particle':
+        ctx.beginPath()
+        ctx.arc(0, 0, 4 * sprite.scale, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      default:
+        ctx.beginPath()
+        ctx.arc(0, 0, r, 0, Math.PI * 2)
+        ctx.fill()
+    }
+  }
+}
+
+/**
+ * Draw a single sprite onto ctx in canvas/world space.
+ * Applies translate(position) -> rotate(rotation) -> scale(scale) then
+ * delegates to makeSpriteDrawFn for body-local painting.
+ */
+function drawSprite(ctx, sprite) {
+  if (!sprite || sprite.visible === false) return
+  const draw = makeSpriteDrawFn(sprite.drawType ?? 'circle', sprite.label, sprite.color, sprite.fontSize)
+  ctx.save()
+  ctx.translate(sprite.x ?? 0, sprite.y ?? 0)
+  if (sprite.rotation) ctx.rotate(sprite.rotation)
+  if (sprite.scale) ctx.scale(sprite.scale, sprite.scale)
+  if (sprite.alpha !== undefined) { ctx.globalAlpha = sprite.alpha }
+  draw(ctx, sprite)
+  ctx.restore()
+}
+
+/**
+ * Draw many sprites in one pass, skipping hidden ones.
+ */
+function drawSprites(ctx, sprites) {
+  if (!Array.isArray(sprites)) return
+  for (const sprite of sprites) {
+    if (!sprite || sprite.visible === false) continue
+    drawSprite(ctx, sprite)
+  }
+}
+
+/**
+ * Factory for building a declarative sprite descriptor consumed by drawSprite/drawSprites.
+ */
+function createSprite({ id, x = 0, y = 0, rotation = 0, scale = 1,
+                        alpha = 1, visible = true,
+                        drawType = 'circle', label,
+                        color = '#ff6b35', fontSize = 24,
+                        body = {} } = {}) {
+  return {
+    id: id ?? `sprite-${Math.random().toString(36).slice(2, 9)}`,
+    x, y, rotation, scale,
+    alpha,
+    visible: visible !== false,
+    drawType,
+    label,
+    color,
+    fontSize,
+    body: { radius: body.radius ?? 20,
+            width: body.width ?? 40,
+            height: body.height ?? 40 },
+  }
+}
+
 export const videoRenderTool = {
   schema: {
     description:
@@ -87,7 +178,10 @@ export const videoRenderTool = {
             'Ordered scenes. Each: {type, duration (seconds)} plus its own fields. ' +
             'title/outro: text, subtitle. text: heading, bullets[]. ' +
             'image: image_url, caption, motion (in|out|left|right|up|none). ' +
-            'bars: heading, data[{label, value}].',
+            'split: image_url, heading, bullets[], align (left|right). ' +
+            'steps: heading, steps[]. ' +
+            'bars: heading, data[{label, value}]. quote: quote, author. metric: metric, label. ' +
+            'Any scene may also set voice and speed to override the narrator per scene.',
           items: {
             type: 'object',
             properties: {
@@ -95,21 +189,106 @@ export const videoRenderTool = {
               duration: { type: 'number', description: 'Minimum seconds on screen (0.5-30); grows to fit narration' },
               narration: {
                 type: 'string',
-                description: 'One or two spoken sentences for this scene. Plain prose, no markdown.',
+                description: 'Spoken narration for this scene. Long text is automatically chunked at sentence boundaries. Plain prose, no markdown.',
               },
+              voice: { type: 'string', enum: Object.keys(VOICES), description: 'Optional per-scene voice override for multi-speaker videos' },
+              speed: { type: 'number', description: 'Optional per-scene speaking speed (0.6-1.5)' },
               text: { type: 'string' },
               subtitle: { type: 'string' },
               heading: { type: 'string' },
               bullets: { type: 'array', items: { type: 'string' } },
+              steps: { type: 'array', items: { type: 'string' } },
               image_url: { type: 'string' },
               caption: { type: 'string' },
               motion: { type: 'string', enum: ['in', 'out', 'left', 'right', 'up', 'none'] },
+              align: { type: 'string', enum: ['left', 'right'], description: 'Image side for split scenes (default left)' },
+              quote: { type: 'string' },
+              author: { type: 'string' },
+              metric: { type: 'string' },
+              label: { type: 'string' },
               data: {
                 type: 'array',
                 items: {
                   type: 'object',
                   properties: { label: { type: 'string' }, value: { type: 'number' } },
                   required: ['label', 'value'],
+                },
+              },
+              /** Physics bodies that persist across frames in this scene. */
+              objects: {
+                type: 'array',
+                description: 'Rigid bodies with mass/velocity that collide and bounce.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    type: { type: 'string', enum: ['circle', 'rect'] },
+                    x: { type: 'number' },
+                    y: { type: 'number' },
+                    radius: { type: 'number' },
+                    width: { type: 'number' },
+                    height: { type: 'number' },
+                    mass: { type: 'number' },
+                    gravityScale: { type: 'number' },
+                    vx: { type: 'number' },
+                    vy: { type: 'number' },
+                    bounciness: { type: 'number' },
+                    friction: { type: 'number' },
+                    static: { type: 'boolean' },
+                    color: { type: 'string' },
+                  },
+                  required: ['id', 'x', 'y'],
+                },
+              },
+              /** Sprites bound to bodies; drawn each frame from body state. */
+              sprites: {
+                type: 'array',
+                description: 'Renderable entities bound to a physics body.',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    body: { type: 'string' },
+                    draw: { type: 'string', enum: ['circle', 'rect', 'text', 'particle'] },
+                    label: { type: 'string' },
+                    color: { type: 'string' },
+                    fontSize: { type: 'number' },
+                    alpha: { type: 'number' },
+                    scale: { type: 'number' },
+                    ttl: { type: 'number', description: 'Seconds before auto-removal' },
+                  },
+                  required: ['id', 'body', 'draw'],
+                },
+              },
+              /** Action -> reaction -> response event rules for this scene. */
+              events: {
+                type: 'array',
+                description: 'Rules like {on:"collision", if:{bodyA:"ball",bodyB:"floor"}, then:[{type:"applyForce",target:"ball",fy:-400}]}',
+                items: {
+                  type: 'object',
+                  properties: {
+                    on: { type: 'string', enum: ['collision', 'wall', 'impulse', 'frame'] },
+                    if: { type: 'object' },
+                    then: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          type: { type: 'string', enum: ['applyForce', 'setVelocity', 'spawn', 'remove', 'sleep', 'wake'] },
+                          target: { type: 'string' },
+                          fx: { type: 'number' },
+                          fy: { type: 'number' },
+                          vx: { type: 'number' },
+                          vy: { type: 'number' },
+                          spriteId: { type: 'string' },
+                          bodyId: { type: 'string' },
+                          atFrame: { type: 'number' },
+                        },
+                        required: ['type'],
+                      },
+                    },
+                  },
+                  required: ['on', 'then'],
                 },
               },
             },
@@ -123,7 +302,12 @@ export const videoRenderTool = {
           type: 'string',
           description: "Encoding quality: 'draft' (small), 'standard' (default), 'high' (sharp text/detail, 1080p) or 'max'. Use 'high' when the video contains text or fine detail.",
         },
-        transition: { type: 'string', enum: ['fade', 'cut'], description: 'Default fade' },
+        theme: {
+          type: 'string',
+          enum: Object.keys(THEMES),
+          description: `Visual color theme preset (${Object.keys(THEMES).join(', ')}). Default dark.`,
+        },
+        transition: { type: 'string', enum: ['fade', 'cut'], description: 'Default fade (cross-dissolve between scenes)' },
         voice: {
           type: 'string', enum: Object.keys(VOICES),
           description: `Narrator voice. ${Object.entries(VOICES).map(([k, v]) => `${k}: ${v}`).join('; ')}`,
@@ -131,8 +315,8 @@ export const videoRenderTool = {
         speed: { type: 'number', description: 'Speaking speed 0.6-1.5, default 1' },
         narrate: { type: 'boolean', description: 'Set false to render silent even if scenes have narration' },
         soundtrack: {
-          type: 'string', enum: ['none', 'ambient', 'march'],
-          description: "Optional procedural background score ('ambient' or 'march'), automatically ducked under narration. Default 'none'.",
+          type: 'string', enum: ['none', 'ambient', 'march', 'upbeat'],
+          description: "Optional procedural background score ('ambient', 'march', or 'upbeat'), automatically ducked under narration. Default 'none'.",
         },
         sfx: { type: 'boolean', description: 'Add subtle transition chimes on scene cuts. Default false.' },
       },
@@ -146,14 +330,17 @@ export const videoRenderTool = {
     // sentence cut in half at the cut.
     // Heavy engines load HERE, on first render — never in the initial bundle.
     const [{ paintFrame }, { encodeVideo }, {
-      mixPcm, applyEdgeFades, planNarration, captionCues,
+      mixPcm, applyEdgeFades, normalizeSpeechPcm, planNarration, captionCues,
       synthesizeBed, synthesizeTransitionSfx, duckPcm,
-    }, { synthesize, cleanForSpeech, SAMPLE_RATE }, { saveMedia }] = await Promise.all([
+    }, { synthesizeScene, cleanForSpeech, SAMPLE_RATE }, { saveMedia },
+    { World, Body }, { Sprite, WorldSpriteGroup }] = await Promise.all([
       import('../video/draw'),
       import('../video/encode'),
       import('../video/audio'),
       import('../video/speech'),
       import('../db'),
+      import('../video/physics'),
+      import('../video/sprites'),
     ])
     const wantsSpeech = args.narrate !== false &&
       (args.scenes || []).some(s => cleanForSpeech(s?.narration))
@@ -167,10 +354,12 @@ export const videoRenderTool = {
         for (const scene of args.scenes) {
           const line = cleanForSpeech(scene?.narration)
           if (!line) { clips.push(null); continue }
-          const { pcm, sampleRate } = await synthesize(line, {
-            voice: args.voice, speed: args.speed,
+          const { pcm, sampleRate, cues } = await synthesizeScene(scene.narration, {
+            voice: scene.voice || args.voice,
+            speed: scene.speed ?? args.speed,
           })
-          clips.push({ pcm: applyEdgeFades(pcm, sampleRate), sampleRate, seconds: pcm.length / sampleRate })
+          const normalized = applyEdgeFades(normalizeSpeechPcm(pcm), sampleRate)
+          clips.push({ pcm: normalized, sampleRate, seconds: normalized.length / sampleRate, cues })
         }
       } catch (e) {
         // A voice that will not load must not cost the user their video.
@@ -211,8 +400,8 @@ export const videoRenderTool = {
         mixClips.push({ pcm: clip.pcm, startSec })
         speechRanges.push({ startSec, endSec: startSec + clip.seconds })
         // Cues are scene-relative, and the voice starts after the lead-in.
-        scene._cues = captionCues(args.scenes[i].narration, clip.seconds)
-          .map(c => ({ ...c, start: c.start + LEAD, end: c.end + LEAD }))
+        const rawCues = clip.cues?.length ? clip.cues : captionCues(args.scenes[i].narration, clip.seconds)
+        scene._cues = rawCues.map(c => ({ ...c, start: c.start + LEAD, end: c.end + LEAD }))
       })
     }
     const soundtrack = args.soundtrack && args.soundtrack !== 'none' ? args.soundtrack : null
@@ -245,7 +434,7 @@ export const videoRenderTool = {
     const imagesAt = performance.now()
     await Promise.all(spec.scenes.map(async (s) => {
       const url = s.image_url || s.url
-      if (s.type === 'image' && url) {
+      if ((s.type === 'image' || s.type === 'split') && url) {
         try {
           s._image = await loadImage(url)
         } catch (imgErr) {
@@ -257,6 +446,58 @@ export const videoRenderTool = {
 
     t.images_ms = Math.round(performance.now() - imagesAt)
 
+    // ── Physics / sprite groups: one WorldSpriteGroup per scene that declares bodies or sprites ──
+    const sceneGroups = new Map()
+    spec.scenes.forEach((scene, i) => {
+      const bodies = scene.bodies || []
+      const sprites = scene.sprites || []
+      if (!bodies.length && !sprites.length) return
+      const world = new World({ boundsW: spec.width, boundsH: spec.height, gravityX: scene.gravityX ?? 0, gravityY: scene.gravityY ?? 980 })
+      const group = new WorldSpriteGroup(world)
+      world.subSteps = scene.subSteps ?? 8
+      // Register event rules (action -> reaction -> response)
+      ;(scene.events || []).forEach(rule => group.on(rule))
+      // Spawn callback for 'spawn' actions
+      group.onSpawn = (action, ev) => {
+        if (!action.spriteId && !action.bodyId) return null
+        const body = action.bodyId ? world.get(action.bodyId) : null
+        const spriteBody = body ?? new Body(action.spriteId ?? `spawn-${i}-${group.frame}`, {
+          x: action.x ?? (ev?.bodyA ? world.get(ev.bodyA)?.pos.x : spec.width / 2),
+          y: action.y ?? (ev?.bodyA ? world.get(ev.bodyA)?.pos.y : spec.height / 2),
+          vx: action.vx ?? 0,
+          vy: action.vy ?? 0,
+          radius: action.radius ?? 12,
+          color: action.color ?? '#ff6b35',
+          static: action.static ?? false,
+        })
+        if (!world.get(spriteBody.id)) world.add(spriteBody)
+        return new Sprite(action.spriteId ?? spriteBody.id, spriteBody, makeSpriteDrawFn(action.draw ?? 'circle', action.label ?? spriteBody.id, action.color ?? '#ff6b35', action.fontSize), {
+          alpha: action.alpha ?? 1,
+          scale: action.scale ?? 1,
+          ttl: action.ttl ?? Infinity,
+        })
+      }
+      // Add bodies from scene spec
+      bodies.forEach(bdef => {
+        const body = new Body(bdef.id, {
+          type: bdef.type, x: bdef.x, y: bdef.y, vx: bdef.vx, vy: bdef.vy,
+          mass: bdef.mass, gravityScale: bdef.gravityScale, friction: bdef.friction,
+          bounciness: bdef.bounciness, static: bdef.static, collidable: bdef.collidable,
+          radius: bdef.radius, width: bdef.width, height: bdef.height, color: bdef.color,
+        })
+        world.add(body)
+      })
+      // Add sprites bound to bodies
+      sprites.forEach(sdef => {
+        const body = world.get(sdef.body) || new Body(sdef.body, { x: spec.width / 2, y: spec.height / 2 })
+        if (!world.get(sdef.body)) world.add(body)
+        group.add(new Sprite(sdef.id, body, makeSpriteDrawFn(sdef.draw, sdef.label, sdef.color, sdef.fontSize), {
+          alpha: sdef.alpha, scale: sdef.scale, zIndex: sdef.zIndex ?? 0, ttl: sdef.ttl,
+        }))
+      })
+      sceneGroups.set(i, group)
+    })
+
     const started = performance.now()
     let result
     try {
@@ -266,7 +507,21 @@ export const videoRenderTool = {
         fps: spec.fps,
         quality: args.quality,
         audio,
-        drawFrame: (i) => paintFrame(ctx, spec, frameAt(spec, i)),
+        drawFrame: (i) => {
+          const sceneIdx = spec.scenes.findIndex(s => i >= s.startFrame && i < s.endFrame)
+          const group = sceneIdx >= 0 ? sceneGroups.get(sceneIdx) : null
+          const frameTime = frameAt(spec, i)
+          if (group) {
+            const dt = 1 / spec.fps
+            group.step(dt)
+            // Apply per-frame impulse forces from event rules marked 'frame'
+            ;(spec.scenes[sceneIdx].events || []).filter(e => e.on === 'frame' && e.atFrame == null).forEach(rule => {
+              group.runActions(rule.then, { type: 'frame', frame: group.frame })
+            })
+          }
+          paintFrame(ctx, spec, frameTime)
+          if (group) group.paint(ctx, frameTime, THEMES[args.theme] || THEMES.dark)
+        },
       })
     } catch (e) {
       return {

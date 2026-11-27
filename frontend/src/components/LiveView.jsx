@@ -114,6 +114,7 @@ export function LiveView({
   allProviders = {}, onProviderChange, keyInfo = {},
   conversationId = null, projectId = null,
   theme = 'dark', onToggleTheme,
+  docked = false,
 }) {
   const [showModelSearch, setShowModelSearch] = useState(false)
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false)
@@ -309,6 +310,7 @@ export function LiveView({
   const [torchOn, setTorchOn] = useState(false)
   const pinchRef = useRef(null)
   const [viewMode, setViewMode] = useState('cinema') // 'cinema' | 'dock' | 'pip'
+  const [liveMode, setLiveMode] = useState('answer') // 'answer' | 'discussion' | 'thinking'
   const [artifacts, setArtifacts] = useState([])
   const [activeArtifactIdx, setActiveArtifactIdx] = useState(0)
   const [showArtifactStage, setShowArtifactStage] = useState(false)
@@ -346,6 +348,27 @@ export function LiveView({
       })
       return next
     })
+  }, [])
+
+  const handleOrganizeArtifacts = useCallback((mode = 'group') => {
+    setArtifacts((prev) => {
+      if (prev.length < 2) return prev
+      const activeItem = prev[activeArtifactIdx] || prev[0]
+      let next = prev.slice()
+      if (mode === 'group') {
+        next.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')))
+      }
+      const newIdx = activeItem ? next.indexOf(activeItem) : 0
+      setActiveArtifactIdx(newIdx >= 0 ? newIdx : 0)
+      return next
+    })
+  }, [activeArtifactIdx])
+
+  const handleClearArtifacts = useCallback(() => {
+    setArtifacts([])
+    setActiveArtifactIdx(0)
+    setShowArtifactStage(false)
+    commandBarFocusReturn()
   }, [])
 
   const handleCloseArtifactStage = useCallback(() => {
@@ -1950,6 +1973,74 @@ export function LiveView({
     askVision(promptText)
   }, [features])
 
+  // ═══════════════════════════════════════════════════════
+  // DOCKED / MINIMISED LIVE — runs inside normal chat
+  // Compact bottom-right panel with minimised camera output.
+  // ══════════════════════════════════════════════════════
+  if (docked) {
+    return (
+      <div className="live-dock-panel" data-theme={theme} role="region" aria-label="Live conversation (minimised)" aria-live="polite">
+        {/* Minimised camera output — small video feed in bottom-right corner */}
+        <div className="live-dock-preview-wrap">
+          <video
+            ref={videoRef}
+            className="live-dock-preview"
+            autoPlay playsInline muted
+            style={{ touchAction: camOn ? 'none' : undefined }}
+          />
+          {camOn || screenOn ? (
+            <div className="live-dock-viewfinder" aria-hidden="true">
+              <div className="live-dock-vf-bracket tl" /><div className="live-dock-vf-bracket tr" />
+              <div className="live-dock-vf-bracket bl" /><div className="live-dock-vf-bracket br" />
+            </div>
+          ) : null}
+        </div>
+
+        {/* Status strip — provider/model + speaking/thinking indicators */}
+        <div className="live-dock-status">
+          <div className="live-dock-id">
+            <span className="live-dock-ready" style={{ backgroundColor: isCurProviderReady ? '#22c55e' : 'rgba(148, 163, 184, 0.4)' }} aria-hidden="true" />
+            <span className="live-dock-model">{ (activeProvider.model || model || '').split('/').pop() }</span>
+          </div>
+          <div className="live-dock-state">
+            {speaking && <span className="live-dock-pill speaking"><Volume2 size={11} className="pulse" /> Speaking</span>}
+            {thinking && <span className="live-dock-pill thinking"><Brain size={11} /> Thinking</span>}
+            {!speaking && !thinking && state === 'live' && <span className="live-dock-pill idle"><Bot size={11} /> Live</span>}
+            {connectionState === 'connecting' || connectionState === 'negotiating' ? <span className="live-dock-pill connecting">⟳</span> : null}
+            {error && <span className="live-dock-pill error" title={error}>{error.slice(0, 24)}</span>}
+          </div>
+        </div>
+
+        {/* Minimal controls — toggle mic, toggle camera, expand, end */}
+        <div className="live-dock-controls">
+          <button type="button" className="live-dock-btn" onClick={toggleMute} title={muted ? 'Unmute mic' : 'Mute mic'} aria-label={muted ? 'Unmute mic' : 'Mute mic'}>
+            {muted ? <MicOff size={14} /> : <Mic size={14} />}
+          </button>
+          <button type="button" className="live-dock-btn" onClick={toggleCam} title={camOn ? 'Turn camera off' : 'Turn camera on'} aria-label={camOn ? 'Turn camera off' : 'Turn camera on'}>
+            {camOn ? <Video size={14} /> : <VideoOff size={14} />}
+          </button>
+          <button type="button" className="live-dock-btn live-dock-btn-expand" onClick={() => { onEnd?.(null); }} title="End live session" aria-label="End live session">
+            <PhoneOff size={14} />
+          </button>
+          <button type="button" className="live-dock-btn live-dock-btn-expand" onClick={() => setViewMode('cinema')} title="Expand to full Live view" aria-label="Expand to full Live view">
+            <Maximize2 size={14} />
+          </button>
+        </div>
+
+        {/* Rolling caption line — shows latest assistant/user text when minimised */}
+        {showCaptions && lines.length > 0 && lines[lines.length - 1]?.text && (
+          <div className="live-dock-caption" aria-live="polite">
+            <span className="live-dock-caption-tag">{lines[lines.length - 1].role === 'user' ? '🎙️ You' : '🤖 AI'}</span>
+            <span className="live-dock-caption-text">{formatRollingCaption(lines[lines.length - 1].text)}</span>
+          </div>
+        )}
+
+        {/* HUD transient notice */}
+        {hudNotice && <div className="live-dock-hud-notice" role="status" aria-live="polite">{hudNotice}</div>}
+      </div>
+    )
+  }
+
   return (
     <div className={`live-view ${viewMode === 'dock' ? 'mode-dock' : ''} ${(showTranscript || showArtifactStage) ? 'has-side-panel' : ''}${showTranscript ? ' live-drawer-open' : ''}${showArtifactStage && artifacts.length > 0 ? ' live-rail-open' : ''}`} data-theme={theme} role="dialog" aria-modal="true" aria-label="Live conversation">
       {/* Floating Dynamic Island Companion Dock */}
@@ -2027,6 +2118,8 @@ export function LiveView({
                 onSelectIndex={setActiveArtifactIdx}
                 onReorderArtifact={handleReorderArtifact}
                 onRemoveArtifact={handleRemoveArtifact}
+                onOrganizeArtifacts={handleOrganizeArtifacts}
+                onClearArtifacts={handleClearArtifacts}
                 draggable={false}
                 onClose={() => {}}
               />
@@ -2045,6 +2138,8 @@ export function LiveView({
         ref={videoRef}
         className={`live-self ${camOn ? '' : 'off'}`}
         autoPlay playsInline muted
+        onClick={viewMode === 'dock' ? () => setViewMode('cinema') : undefined}
+        title={viewMode === 'dock' ? 'Click to expand Live view' : undefined}
         style={{
           touchAction: camOn ? 'none' : undefined,
           transform: (camOn && zoom > 1) ? `scaleX(-1) scale(${zoom})` : undefined,
@@ -2087,6 +2182,8 @@ export function LiveView({
         onModelChange={(m) => { handleModelChange(m); setShowSettings(false) }}
         visionMode={visionMode}
         onVisionMode={(m) => { setState({ visionMode: m }); sessionRef.current?.setVisionMode?.(m) }}
+        liveMode={liveMode}
+        onLiveMode={(m) => { setLiveMode(m); sessionRef.current?.setLiveMode?.(m) }}
         voiceEngine={liveEngine}
         onVoiceEngine={(e) => {
           const r = sessionRef.current?.setVoiceEngine?.(e)
@@ -2145,6 +2242,20 @@ export function LiveView({
           title="Active model — click to open Live settings"
         >
           {(activeProvider.model || model || '').split('/').pop()}
+        </button>
+
+        <button
+          type="button"
+          className="live-ck-pill scene live-ck-pill-btn"
+          onClick={() => {
+            const order = ['answer', 'discussion', 'thinking']
+            const next = order[(order.indexOf(liveMode) + 1) % order.length]
+            setLiveMode(next)
+            sessionRef.current?.setLiveMode?.(next)
+          }}
+          title="Live conversation mode — click to cycle Answer / Discussion / Thinking"
+        >
+          {liveMode === 'thinking' ? '🧠 Thinking' : liveMode === 'discussion' ? '💬 Discussion' : '⚡ Answer'}
         </button>
 
         {/* Scene watching badges — interactive quick-toggle pills */}
@@ -2941,6 +3052,8 @@ export function LiveView({
             onSelectIndex={setActiveArtifactIdx}
             onReorderArtifact={handleReorderArtifact}
             onRemoveArtifact={handleRemoveArtifact}
+            onOrganizeArtifacts={handleOrganizeArtifacts}
+            onClearArtifacts={handleClearArtifacts}
             onClose={handleCloseArtifactStage}
           />
         </aside>

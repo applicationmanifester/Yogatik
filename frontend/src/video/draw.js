@@ -33,6 +33,22 @@ function background(ctx, W, H, theme, t) {
   glow.addColorStop(1, '#00000000')
   ctx.fillStyle = glow
   ctx.fillRect(0, 0, W, H)
+
+  // Secondary drifting orb for subtle depth
+  const bx = W * (0.78 - 0.25 * ease.inOut(t))
+  const by = H * (0.75 + 0.08 * Math.sin(t * Math.PI))
+  const orb = ctx.createRadialGradient(bx, by, 0, bx, by, Math.max(W, H) * 0.45)
+  orb.addColorStop(0, `${theme.accent2}1a`)
+  orb.addColorStop(1, '#00000000')
+  ctx.fillStyle = orb
+  ctx.fillRect(0, 0, W, H)
+
+  // Faint geometric corner ring
+  ctx.strokeStyle = `${theme.dim}0d`
+  ctx.lineWidth = Math.max(1, Math.min(W, H) * 0.002)
+  ctx.beginPath()
+  ctx.arc(W * 0.92, H * 0.12, Math.min(W, H) * (0.18 + 0.02 * Math.sin(t * Math.PI)), 0, Math.PI * 2)
+  ctx.stroke()
 }
 
 function drawTitle(ctx, scene, t, { W, H, theme }) {
@@ -121,8 +137,11 @@ function drawImage(ctx, scene, t, { W, H, theme }) {
     const box = coverFit(img.width, img.height, W, H, kenBurns(t, scene.motion))
     ctx.drawImage(img, box.x, box.y, box.w, box.h)
   } else {
-    ctx.fillStyle = theme.bgAlt
-    ctx.fillRect(0, 0, W, H)
+    background(ctx, W, H, theme, t)
+    const S = Math.min(W, H)
+    ctx.strokeStyle = `${theme.dim}26`
+    ctx.lineWidth = Math.max(2, S * 0.004)
+    ctx.strokeRect(W * 0.15, H * 0.2, W * 0.7, H * 0.55)
   }
 
   if (scene.caption) {
@@ -298,27 +317,225 @@ function drawSubtitle(ctx, scene, t, { W, H, theme }) {
   for (const line of lines) { ctx.fillText(line, W / 2, y); y += size * 1.3 }
 }
 
+function drawSplit(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
+  const pad = W * 0.06
+  const imgRight = scene.align === 'right'
+  const mediaW = W * 0.42
+  const mediaH = H * 0.68
+  const mediaX = imgRight ? W - pad - mediaW : pad
+  const mediaY = (H - mediaH) / 2
+  const textX = imgRight ? pad : pad + mediaW + W * 0.05
+  const textW = W - pad * 2 - mediaW - W * 0.05
+
+  // Image panel with rounded clip and Ken Burns motion
+  const imgP = ease.out(Math.min(1, t * 2.8))
+  ctx.save()
+  ctx.globalAlpha = imgP
+  const radius = Math.max(10, S * 0.025)
+  if (ctx.roundRect) {
+    ctx.beginPath()
+    ctx.roundRect(mediaX, mediaY, mediaW, mediaH, radius)
+    ctx.clip()
+  }
+  const img = scene._image
+  if (img) {
+    const box = coverFit(img.width, img.height, mediaW, mediaH, kenBurns(t, scene.motion || 'in'))
+    ctx.drawImage(img, mediaX + box.x, mediaY + box.y, box.w, box.h)
+  } else {
+    const g = ctx.createLinearGradient(mediaX, mediaY, mediaX + mediaW, mediaY + mediaH)
+    g.addColorStop(0, `${theme.accent}33`)
+    g.addColorStop(1, `${theme.accent2}33`)
+    ctx.fillStyle = g
+    ctx.fillRect(mediaX, mediaY, mediaW, mediaH)
+  }
+  ctx.restore()
+
+  // Text column
+  let y = H * 0.24
+  if (scene.heading) {
+    const { size, lines } = fitFont(ctx, scene.heading, {
+      max: S * 0.075, min: S * 0.042, weight: '700', family: theme.font, maxWidth: textW, maxLines: 2,
+    })
+    ctx.textAlign = 'left'
+    ctx.fillStyle = theme.fg
+    ctx.font = `700 ${px(size)} ${theme.font}`
+    for (const line of lines) { ctx.fillText(line, textX, y); y += size * 1.2 }
+    ctx.fillStyle = theme.accent
+    ctx.fillRect(textX, y - size * 0.45, Math.min(textW * 0.35, W * 0.1), Math.max(3, S * 0.005))
+    y += size * 0.5
+  }
+
+  const items = (Array.isArray(scene.bullets) ? scene.bullets : String(scene.text || '').split('\n'))
+    .map(s => String(s).trim()).filter(Boolean).slice(0, 5)
+  const bodySize = Math.min(S * 0.048, (H * 0.65 - (y - H * 0.24)) / Math.max(items.length, 1) * 0.58)
+  ctx.font = `400 ${px(bodySize)} ${theme.font}`
+  ctx.textAlign = 'left'
+
+  items.forEach((item, i) => {
+    const p = ease.out(stagger(t, i, items.length))
+    if (p <= 0) return
+    ctx.globalAlpha = p
+    const dx = (1 - p) * W * 0.018
+    const lines = wrapText(item, textW - bodySize * 1.4, (s) => ctx.measureText(s).width)
+
+    ctx.fillStyle = theme.accent
+    ctx.beginPath()
+    ctx.arc(textX + bodySize * 0.35 + dx, y - bodySize * 0.3, bodySize * 0.15, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = theme.fg
+    for (const line of lines) {
+      ctx.fillText(line, textX + bodySize * 1.2 + dx, y)
+      y += bodySize * 1.28
+    }
+    y += bodySize * 0.4
+    ctx.globalAlpha = 1
+  })
+}
+
+function drawSteps(ctx, scene, t, { W, H, theme }) {
+  const S = Math.min(W, H)
+  const pad = W * 0.09
+  let topY = H * 0.2
+
+  if (scene.heading) {
+    const { size, lines } = fitFont(ctx, scene.heading, {
+      max: S * 0.08, min: S * 0.045, weight: '700', family: theme.font, maxWidth: W - pad * 2, maxLines: 2,
+    })
+    ctx.textAlign = 'left'
+    ctx.fillStyle = theme.fg
+    ctx.font = `700 ${px(size)} ${theme.font}`
+    for (const line of lines) { ctx.fillText(line, pad, topY); topY += size * 1.2 }
+    topY += size * 0.3
+  }
+
+  const items = (Array.isArray(scene.steps) ? scene.steps : (Array.isArray(scene.bullets) ? scene.bullets : String(scene.text || '').split('\n')))
+    .map(s => String(s).trim()).filter(Boolean).slice(0, 5)
+  if (!items.length) return
+
+  const availH = H * 0.84 - topY
+  const rowH = availH / items.length
+  const badgeR = Math.min(S * 0.036, rowH * 0.32)
+  const lineX = pad + badgeR
+
+  // Animated vertical connector line
+  if (items.length > 1) {
+    const lineStart = topY + badgeR
+    const lineEnd = topY + rowH * (items.length - 1) + badgeR
+    const prog = ease.out(Math.min(1, t * 1.6))
+    ctx.strokeStyle = `${theme.accent}55`
+    ctx.lineWidth = Math.max(2, S * 0.004)
+    ctx.beginPath()
+    ctx.moveTo(lineX, lineStart)
+    ctx.lineTo(lineX, lineStart + (lineEnd - lineStart) * prog)
+    ctx.stroke()
+  }
+
+  const textSize = Math.min(S * 0.048, rowH * 0.45)
+  items.forEach((step, i) => {
+    const p = ease.out(stagger(t, i, items.length))
+    if (p <= 0) return
+    ctx.globalAlpha = p
+    const cy = topY + rowH * i + badgeR
+    const dx = (1 - p) * W * 0.02
+
+    // Numbered circle badge
+    ctx.fillStyle = theme.accent
+    ctx.beginPath()
+    ctx.arc(lineX + dx, cy, badgeR, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ffffff'
+    ctx.font = `700 ${px(badgeR * 1.05)} ${theme.font}`
+    ctx.fillText(String(i + 1), lineX + dx, cy + badgeR * 0.36)
+
+    // Step label
+    ctx.textAlign = 'left'
+    ctx.fillStyle = theme.fg
+    ctx.font = `500 ${px(textSize)} ${theme.font}`
+    const lines = wrapText(step, W - pad * 2 - badgeR * 2.8, (s) => ctx.measureText(s).width).slice(0, 2)
+    let ty = cy + textSize * 0.35 - ((lines.length - 1) * textSize * 0.6)
+    for (const line of lines) {
+      ctx.fillText(line, lineX + badgeR * 1.8 + dx, ty)
+      ty += textSize * 1.25
+    }
+    ctx.globalAlpha = 1
+  })
+}
+
 const PAINTERS = {
   title: drawTitle,
   outro: drawTitle,
   text: drawText,
   image: drawImage,
+  split: drawSplit,
+  steps: drawSteps,
   bars: drawBars,
   quote: drawQuote,
   metric: drawMetric,
 }
 
+function paintSceneLayer(ctx, spec, scene, t) {
+  const { width: W, height: H, theme } = spec
+  if (scene.type !== 'image') background(ctx, W, H, theme, t)
+  ;(PAINTERS[scene.type] || drawText)(ctx, scene, t, { W, H, theme })
+  if (scene._cues?.length) drawSubtitle(ctx, scene, t, { W, H, theme })
+}
+
+function getTransitionCtx(spec, W, H) {
+  if (spec._transitionCtx && spec._transitionCanvas?.width === W && spec._transitionCanvas?.height === H) {
+    return spec._transitionCtx
+  }
+  let canvas = null
+  if (typeof OffscreenCanvas !== 'undefined') canvas = new OffscreenCanvas(W, H)
+  else if (typeof document !== 'undefined') {
+    canvas = document.createElement('canvas')
+    canvas.width = W
+    canvas.height = H
+  }
+  if (!canvas) return null
+  spec._transitionCanvas = canvas
+  spec._transitionCtx = canvas.getContext('2d', { alpha: false })
+  return spec._transitionCtx
+}
+
 /** Paint one frame of the whole video. */
-export function paintFrame(ctx, spec, { scene, t, alpha }) {
+export function paintFrame(ctx, spec, { scene, t, alpha, prev }) {
   const { width: W, height: H, theme } = spec
   ctx.save()
   ctx.clearRect(0, 0, W, H)
   ctx.textBaseline = 'alphabetic'
 
-  if (scene.type !== 'image') background(ctx, W, H, theme, t)
-  ;(PAINTERS[scene.type] || drawText)(ctx, scene, t, { W, H, theme })
-
-  if (scene._cues?.length) drawSubtitle(ctx, scene, t, { W, H, theme })
+  if (prev && alpha < 1) {
+    const tCtx = getTransitionCtx(spec, W, H)
+    if (tCtx) {
+      // Real cross-dissolve: paint outgoing scene onto main canvas, incoming onto offscreen, then blend.
+      paintSceneLayer(ctx, spec, prev.scene, prev.t)
+      tCtx.save()
+      tCtx.clearRect(0, 0, W, H)
+      tCtx.textBaseline = 'alphabetic'
+      paintSceneLayer(tCtx, spec, scene, t)
+      tCtx.restore()
+      ctx.globalAlpha = alpha
+      ctx.drawImage(spec._transitionCanvas, 0, 0)
+      ctx.globalAlpha = 1
+    } else {
+      paintSceneLayer(ctx, spec, scene, t)
+      ctx.globalAlpha = 1 - alpha
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, W, H)
+    }
+  } else {
+    paintSceneLayer(ctx, spec, scene, t)
+    // Fade from/to black at very start/end of video.
+    if (alpha < 1) {
+      ctx.globalAlpha = 1 - alpha
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, W, H)
+    }
+  }
 
   if (spec.progressBar) {
     const done = (scene.startFrame + t * (scene.frames - 1)) / Math.max(1, spec.totalFrames - 1)
@@ -328,14 +545,17 @@ export function paintFrame(ctx, spec, { scene, t, alpha }) {
     ctx.fillRect(0, H - h, W, h)
     ctx.fillStyle = theme.accent
     ctx.fillRect(0, H - h, W * done, h)
+
+    // Subtle scene boundary ticks
+    if (spec.scenes.length > 1 && spec.totalFrames > 0) {
+      ctx.fillStyle = `${theme.bg}aa`
+      for (let i = 1; i < spec.scenes.length; i++) {
+        const tx = (spec.scenes[i].startFrame / spec.totalFrames) * W
+        ctx.fillRect(tx - 1, H - h, 2, h)
+      }
+    }
   }
 
-  // Cross-fade seams: dim the whole composited frame rather than each element.
-  if (alpha < 1) {
-    ctx.globalAlpha = 1 - alpha
-    ctx.fillStyle = '#000'
-    ctx.fillRect(0, 0, W, H)
-  }
   ctx.restore()
 }
 

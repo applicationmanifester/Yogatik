@@ -107,12 +107,57 @@ export function createSpeaker({
     ])
   }
 
+  let outputBus = null
+  let outputAnalyser = null
+  let outputTimeData = null
+
   const ctx = () => {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext
       audioCtx = new AC()
     }
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
+    if (!outputBus && typeof audioCtx.createGain === 'function') {
+      try {
+        const gain = audioCtx.createGain()
+        gain.gain.value = 1
+        const comp = typeof audioCtx.createDynamicsCompressor === 'function'
+          ? audioCtx.createDynamicsCompressor()
+          : null
+        if (comp) {
+          comp.threshold.value = -18
+          comp.knee.value = 12
+          comp.ratio.value = 4
+          comp.attack.value = 0.003
+          comp.release.value = 0.15
+        }
+        const analyser = typeof audioCtx.createAnalyser === 'function'
+          ? audioCtx.createAnalyser()
+          : null
+        if (analyser) {
+          analyser.fftSize = 256
+          outputAnalyser = analyser
+          outputTimeData = new Float32Array(analyser.fftSize)
+        }
+        if (comp && analyser) {
+          gain.connect(comp)
+          comp.connect(analyser)
+          analyser.connect(audioCtx.destination)
+        } else if (comp) {
+          gain.connect(comp)
+          comp.connect(audioCtx.destination)
+        } else if (analyser) {
+          gain.connect(analyser)
+          analyser.connect(audioCtx.destination)
+        } else {
+          gain.connect(audioCtx.destination)
+        }
+        outputBus = gain
+      } catch {
+        outputBus = null
+        outputAnalyser = null
+      }
+    }
     return audioCtx
   }
 
@@ -126,8 +171,18 @@ export function createSpeaker({
       if (!pulseTimer) {
         pulseTimer = setInterval(() => {
           if (!speaking) { clearInterval(pulseTimer); pulseTimer = null; return }
+          if (current && outputAnalyser && outputTimeData && typeof outputAnalyser.getFloatTimeDomainData === 'function') {
+            outputAnalyser.getFloatTimeDomainData(outputTimeData)
+            let sum = 0
+            for (let i = 0; i < outputTimeData.length; i++) {
+              sum += outputTimeData[i] * outputTimeData[i]
+            }
+            const rms = Math.sqrt(sum / outputTimeData.length)
+            onLevel(Math.min(1, Math.max(0.08, rms * 3.8)))
+            return
+          }
           onLevel(0.35 + Math.random() * 0.35)
-        }, 80)
+        }, 65)
       }
     }
   }
@@ -210,7 +265,16 @@ export function createSpeaker({
     await new Promise((resolve) => {
       const src = ac.createBufferSource()
       src.buffer = buffer
-      src.connect(ac.destination)
+      if (outputBus && typeof ac.createGain === 'function') {
+        const clauseGain = ac.createGain()
+        const now = ac.currentTime || 0
+        clauseGain.gain.setValueAtTime(0.01, now)
+        clauseGain.gain.linearRampToValueAtTime(1, now + 0.012)
+        src.connect(clauseGain)
+        clauseGain.connect(outputBus)
+      } else {
+        src.connect(ac.destination)
+      }
       src.onended = () => { current = null; resolve() }
       current = src
       began()
@@ -281,6 +345,9 @@ export function createSpeaker({
       try { current?.stop() } catch { /* already finished */ }
       audioCtx?.close().catch(() => {})
       audioCtx = null
+      outputBus = null
+      outputAnalyser = null
+      outputTimeData = null
     },
 
     /** Update voice/lang/rate (and engine) on the shared speaker without

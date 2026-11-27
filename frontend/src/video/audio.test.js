@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { mixPcm, applyEdgeFades, planNarration, captionCues, cueAt, synthesizeBed, synthesizeTransitionSfx, duckPcm } from './audio'
-import { cleanForSpeech, estimateSpeechSeconds } from './speech'
+import { mixPcm, applyEdgeFades, normalizeSpeechPcm, planNarration, captionCues, cueAt, synthesizeBed, synthesizeTransitionSfx, duckPcm } from './audio'
+import { cleanForSpeech, estimateSpeechSeconds, splitSpeechChunks, synthesizeScene } from './speech'
 
 const tone = (n, v = 0.5) => Float32Array.from({ length: n }, () => v)
 
@@ -121,5 +121,45 @@ describe('procedural soundtrack & ducking', () => {
     expect(ducked[500]).toBeCloseTo(0.4, 5)
     expect(ducked[1500]).toBeCloseTo(0.1, 5)
     expect(ducked[2500]).toBeCloseTo(0.4, 5)
+  })
+
+  it('synthesizes upbeat bed of exact duration', () => {
+    const up = synthesizeBed(2, 1000, { style: 'upbeat' })
+    expect(up.length).toBe(2000)
+    expect(up.every(Number.isFinite)).toBe(true)
+    expect(up.some(v => Math.abs(v) > 0.01)).toBe(true)
+  })
+})
+
+describe('speech chunking, scene synthesis & loudness normalization', () => {
+  it('splits long narration at sentence and clause boundaries', () => {
+    const longText = 'First sentence is short. ' + 'A very long clause that keeps going, '.repeat(8) + 'end.'
+    const chunks = splitSpeechChunks(longText, 120)
+    expect(chunks.length).toBeGreaterThan(2)
+    expect(chunks.every(c => c.text.length <= 120)).toBe(true)
+    expect(chunks[chunks.length - 1].pauseAfterSec).toBe(0)
+  })
+
+  it('stitches scene narration with exact measured subtitle cues', async () => {
+    const mockSynth = async (text) => ({
+      pcm: new Float32Array(2400).fill(0.2), // 0.1s at 24kHz
+      sampleRate: 24000,
+    })
+    const res = await synthesizeScene('Hello world. Second sentence!', { _synthFn: mockSynth })
+    expect(res.cues).toHaveLength(2)
+    expect(res.cues[0]).toMatchObject({ text: 'Hello world.', start: 0 })
+    expect(res.cues[0].end).toBeCloseTo(0.1, 3)
+    expect(res.cues[1].start).toBeGreaterThan(res.cues[0].end) // includes pause
+    expect(res.seconds).toBeGreaterThan(0.3)
+  })
+
+  it('normalizes quiet speech up and soft-limits peaks below 1.0', () => {
+    const quiet = Float32Array.from({ length: 1000 }, (_, i) => (i % 2 === 0 ? 0.04 : -0.04))
+    const norm = normalizeSpeechPcm(quiet, { targetRms: 0.18 })
+    expect(Math.abs(norm[0])).toBeGreaterThan(0.1)
+
+    const hot = Float32Array.from({ length: 1000 }, () => 0.9)
+    const limited = normalizeSpeechPcm(hot, { targetRms: 0.5, maxGain: 3, ceiling: 0.9 })
+    expect(Math.max(...limited)).toBeLessThan(1.0)
   })
 })

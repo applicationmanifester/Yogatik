@@ -59,10 +59,12 @@ import {
   decodeServerMessage, rateFromMime, LIVE_MODELS,
 } from './protocol'
 import { createMicCapture, createPlayer, base64ToPcm16, setupDeviceChangeRecovery, teardownDeviceChangeRecovery } from './audio'
-import { createCamera, createScreenCapture, switchCamera as switchCameraTrack } from './video'
+import { createCamera, createScreenCapture, formatScreenShareError, switchCamera as switchCameraTrack } from './video'
 import { enumerate, nextCamera, loadPreferredDevices, savePreferredDevices } from './devices'
 import { setSharedVisualSource, clearSharedVisualSource } from '../vision/source'
 import { executeTool, getToolSchemas } from '../tools/index'
+import { resolveCameraAction } from './guard'
+import { END_REASON } from './metrics'
 
 // 1000, not 750: the Live API ceiling is 1fps. 750ms is 1.33fps, which does not
 // buy responsiveness — the extra frames are dropped or throttled server-side,
@@ -74,8 +76,11 @@ const RECONNECT_MAX = 3
 
 export function createLiveSession({
   apiKey, model = LIVE_MODELS[0], voice = 'Puck', persona = null,
-  disabledTools = [], camera = true, noiseSuppression = true, speakerMuted = false, onEvent = () => {},
+  disabledTools = [], camera = true, noiseSuppression = true, speakerMuted = false,
+  visionMode = 'auto', liveMode: initialLiveMode = 'answer', modelCanSee = null, onEvent = () => {},
 }) {
+  let currentVisionMode = ['auto', 'always', 'off'].includes(visionMode) ? visionMode : 'auto'
+  let currentLiveMode = ['answer', 'thinking', 'discussion'].includes(initialLiveMode) ? initialLiveMode : 'answer'
   let ws = null
   let mic = null
   let micLevelTimer = null
@@ -106,6 +111,7 @@ You can see them through their camera and hear them through their microphone. Be
 - Limit spoken answers strictly to 1 to 2 short, crisp sentences (under 30 words) unless the user asks you to explain in detail.
 - Speak in short, natural spoken sentences. No markdown, no bullet points, no lists, no headings, no asterisks.
 - React directly to what you actually see and hear. If they hold something up, look at it.
+- Only describe or comment on what is visible on the camera or screen when the user explicitly asks about it or it is directly relevant to what they said. Never narrate or repeat camera descriptions unprompted.
 - Describe people only by what is visible — clothing, expression, actions. Do not guess names, age, ethnicity, or identity.
 - Never narrate what you are doing ("I am now looking at the image"). Just answer directly.
 - Let them interrupt you. If they start talking, stop immediately.
@@ -275,6 +281,21 @@ You can see them through their camera and hear them through their microphone. Be
 
   async function enableCamera(on) {
     if (on && !cam) {
+      // Blind-model guard: a text-only model + camera = confident OCR noise.
+      // Refuse outright, or auto-switch to a vision-capable model on the same
+      // provider when one is reachable from cache. metrics.js records both.
+      const verdict = resolveCameraAction({ canSee: modelCanSee, allowSwitch: true })
+      if (verdict.action === 'block') {
+        emit({ type: 'error', message: verdict.reason, endReason: END_REASON.MODEL_BLIND })
+        return
+      }
+      if (verdict.action === 'switch' && verdict.model && verdict.model !== model) {
+        // Swap the model under an open session is not possible on Gemini Live
+        // (voice fixed in setup), so end and tell the UI to restart cold.
+        emit({ type: 'provider', provider: 'gemini', model: verdict.model })
+        emit({ type: 'error', message: verdict.reason || `Switched to vision model ${verdict.model}. Restarting the call…`, endReason: END_REASON.MODEL_BLIND })
+        return
+      }
       // Open the camera the user last chose. `exact:false` inside
       // createCamera means a remembered device that is now gone falls back to
       // any camera instead of failing the call with OverconstrainedError.
@@ -287,8 +308,8 @@ You can see them through their camera and hear them through their microphone. Be
       // getUserMedia fails on most phones.
       setSharedVisualSource(cam)
       emit({ type: 'camera', stream: cam.stream, video: cam.video })
-      let sinceForced = 0
       cam.onFrame((force) => {
+        if (currentVisionMode === 'off') return
         const b64 = cam?.grab(force)
         if (b64) send(videoFrame(b64))
       })
@@ -307,16 +328,16 @@ You can see them through their camera and hear them through their microphone. Be
         setSharedVisualSource(screen)
         emit({ type: 'screen', stream: screen.stream, active: true })
         // Send screen frames using adaptive frame rate
-        let sinceForced = 0
         screen.onFrame((force) => {
           if (screen?.stopped) { enableScreenShare(false); return }
+          if (currentVisionMode === 'off') return
           const b64 = screen?.grab(force)
           if (b64) send(videoFrame(b64))
         })
         // Auto-stop when browser's "Stop sharing" is clicked
         screen.stream.getVideoTracks()[0].addEventListener('ended', () => enableScreenShare(false))
-      } catch {
-        emit({ type: 'warning', message: 'Screen sharing was cancelled or not supported.' })
+      } catch (err) {
+        emit({ type: 'warning', message: formatScreenShareError(err) })
       }
     } else if (!on && screen) {
       screen.offFrame()
@@ -326,6 +347,10 @@ You can see them through their camera and hear them through their microphone. Be
       emit({ type: 'screen', stream: null, active: false })
     }
   }
+
+  /** End reason for this session — recorded by metrics so we know whether
+   * sessions die of user intent vs socket failure vs blind-model refusal. */
+  let endReason = null
 
   function stop() {
     if (closed) return
@@ -342,8 +367,11 @@ You can see them through their camera and hear them through their microphone. Be
     player?.close()
     teardownDeviceChangeRecovery()
     ws = null; cam = null; screen = null; mic = null; player = null
-    onEvent({ type: 'ended' })
+    onEvent({ type: 'ended', endReason: endReason || END_REASON.USER })
   }
+
+  /** Record why the session is ending; surfaced in the 'ended' event. */
+  function setEndReason(reason) { endReason = reason }
 
   return {
     start,
@@ -353,9 +381,30 @@ You can see them through their camera and hear them through their microphone. Be
     sendText: (t) => send(textInput(t)),
     /** Auto-scan tick: Gemini already streams frames, so force one now. */
     watch: () => {
+      if (currentVisionMode === 'off') return
       const b64 = (screen || cam)?.grab(true)
       if (b64) send(videoFrame(b64))
     },
+    setVisionMode: (mode) => {
+      if (['auto', 'always', 'off'].includes(mode)) {
+        currentVisionMode = mode
+        emit({ type: 'status', text: `Vision: ${mode}` })
+      }
+    },
+    getVisionMode: () => currentVisionMode,
+    setLiveMode: (mode) => {
+      if (!['answer', 'thinking', 'discussion'].includes(mode)) return
+      currentLiveMode = mode
+      const hint = mode === 'thinking'
+        ? '[System: Switch to THINKING mode—reason carefully before answering.]'
+        : mode === 'discussion'
+          ? '[System: Switch to DISCUSSION mode—give concise 1-3 sentence answers and end with one natural follow-up question.]'
+          : '[System: Switch to ANSWER mode—be ultra-crisp and direct in 1-3 sentences.]'
+      send(textInput(hint))
+      emit({ type: 'liveMode', value: mode })
+      emit({ type: 'status', text: `Mode: ${mode}` })
+    },
+    getLiveMode: () => currentLiveMode,
     /** Current frame for the vision panel — never opens a second camera. */
     grabFrame: (profile) => (screen || cam)?.grab(true, profile) || null,
 
@@ -434,6 +483,7 @@ You can see them through their camera and hear them through their microphone. Be
     },
     setMuted: (v) => { mic?.setMuted(v); emit({ type: 'muted', value: v }) },
     isMuted: () => !!mic?.isMuted(),
+    setEndReason,
     async setNoiseSuppression(enabled) {
       currentNoiseSuppression = enabled !== false
       if (mic?.setNoiseSuppression) {

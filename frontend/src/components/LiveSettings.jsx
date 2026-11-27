@@ -29,6 +29,7 @@ export function LiveSettings({
   modelCanSee, provider, model, availableModels = [], onModelChange,
   allProviders = {}, onProviderChange, isProviderReady,
   visionMode, onVisionMode,
+  liveMode = 'answer', onLiveMode,
   voiceEngine, voice, onVoice, onVoiceEngine,
   rate = 1, onRate,
   captions = true, onCaptions,
@@ -149,6 +150,38 @@ export function LiveSettings({
               : visionMode === 'auto'
               ? 'Looks only when the question seems visual ("what is this?", "read this").'
               : 'Camera is off for the model. You can still see yourself.'}
+          </p>
+        </div>
+
+        {/* ── Live Interaction Mode ──────────────────────────────────────── */}
+        <div className="live-settings-group">
+          <div className="live-settings-group-title"><Sparkles size={13} /> Conversation mode</div>
+          <div className="live-settings-seg">
+            <button
+              className={`live-settings-seg-btn ${liveMode === 'answer' ? 'active' : ''}`}
+              onClick={() => onLiveMode?.('answer')}
+            >
+              ⚡ Answer
+            </button>
+            <button
+              className={`live-settings-seg-btn ${liveMode === 'discussion' ? 'active' : ''}`}
+              onClick={() => onLiveMode?.('discussion')}
+            >
+              💬 Discussion
+            </button>
+            <button
+              className={`live-settings-seg-btn ${liveMode === 'thinking' ? 'active' : ''}`}
+              onClick={() => onLiveMode?.('thinking')}
+            >
+              🧠 Thinking
+            </button>
+          </div>
+          <p className="live-settings-empty">
+            {liveMode === 'thinking'
+              ? 'Full reasoning & tools enabled before speaking.'
+              : liveMode === 'discussion'
+              ? 'Ask, answer, and follow-up loop for continuous back-and-forth dialogue.'
+              : 'Ultra-fast direct answers in 1–3 sentences.'}
           </p>
         </div>
 

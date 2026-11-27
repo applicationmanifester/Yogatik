@@ -32,6 +32,7 @@ import { VoiceDictationButton } from './components/VoiceDictationButton'
 // [tv-voice] 10-foot hands-free input overlay (self-gates on data-device="tv" + the tvVoice toggle)
 import { TvVoiceOverlay } from './components/TvVoiceOverlay'
 import { Modal } from './components/Modal'
+import { Button } from './design-system/components/Button'
 import { TERMS_VERSION, CONTACT_EMAIL } from './components/TermsModal'
 import { ModelPicker } from './components/ModelPicker'
 import { ProviderPicker } from './components/ProviderPicker'
@@ -288,6 +289,19 @@ export default function App() {
   // These will be moved to centralized modal state
   const [showTerms, setShowTerms] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
+
+  // Global Ctrl+K / Cmd+K shortcut
+  useEffect(() => {
+    const handlePaletteKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        setShowPalette(prev => !prev)
+      }
+    }
+    window.addEventListener("keydown", handlePaletteKeyDown)
+    return () => window.removeEventListener("keydown", handlePaletteKeyDown)
+  }, [])
+
   const [user, setUser] = useState(null)
   const [promptTemplates, setPromptTemplates] = useState([])
   const [activeTemplate, setActiveTemplate] = useState('yogatik')
@@ -322,6 +336,7 @@ export default function App() {
   const [comparing, setComparing] = useState(false)
   const [compareMode, setCompareMode] = useState(false)
   const [liveConfig, setLiveConfig] = useState(null)   // non-null = call in progress
+  const [liveDocked, setLiveDocked] = useState(false)  // true = minimised panel inside chat
   const liveConvRef = useRef(null)                     // transcript's own conversation
   const [compareModels, setCompareModels] = useState(['', ''])
   const [projects, setProjects] = useState([])
@@ -419,6 +434,10 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault()
         setShowDiagnosticsModal(prev => !prev)
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        setShowPalette(prev => !prev)
       }
     }
     window.addEventListener('keydown', handleGlobalKey)
@@ -5395,9 +5414,9 @@ export default function App() {
                       )
                     })}
                   </div>
-                  <button type="button" className="ws-ghost-btn sm" style={{ marginTop: 12 }} onClick={() => { setEditingProvider(null); setShowProviderModal(true) }}>
+                  <Button variant="ghost" size="sm" onClick={() => { setEditingProvider(null); setShowProviderModal(true) }} style={{ marginTop: 12 }}>
                     <Plus size={13} /> Add a custom provider
-                  </button>
+                  </Button>
                   <div className="account-card" style={{ marginTop: 24 }}>
                     <div className="account-card-head">
                       <h3>Local Ollama instance</h3>
@@ -5453,8 +5472,8 @@ export default function App() {
                       anywhere. API keys are deliberately excluded from every export.
                     </p>
                     <div className="account-plan-actions">
-                      <button type="button" className="ws-primary-btn sm" onClick={handleBackup}>Export backup</button>
-                      <button type="button" className="ws-ghost-btn sm" onClick={() => backupInput.current?.click()}>Import a backup</button>
+                      <Button variant="primary" size="sm" onClick={handleBackup}>Export backup</Button>
+                      <Button variant="ghost" size="sm" onClick={() => backupInput.current?.click()}>Import a backup</Button>
                     </div>
                   </div>
                   <div className="account-card">

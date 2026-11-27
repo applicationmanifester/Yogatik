@@ -39,6 +39,41 @@ export function applyEdgeFades(pcm, sampleRate, ms = 12) {
 }
 
 /**
+ * Normalize active speech loudness to a consistent target RMS with a smooth
+ * soft-knee peak limiter so different voices sit evenly above background music.
+ */
+export function normalizeSpeechPcm(pcm, { targetRms = 0.18, maxGain = 3.5, ceiling = 0.92 } = {}) {
+  if (!pcm?.length) return pcm
+  let sumSq = 0
+  let active = 0
+  for (let i = 0; i < pcm.length; i++) {
+    const v = pcm[i]
+    if (Math.abs(v) > 0.01) {
+      sumSq += v * v
+      active++
+    }
+  }
+  if (!active) return new Float32Array(pcm)
+
+  const rms = Math.sqrt(sumSq / active)
+  const gain = Math.min(maxGain, Math.max(0.25, targetRms / Math.max(rms, 1e-5)))
+  const out = new Float32Array(pcm.length)
+  for (let i = 0; i < pcm.length; i++) {
+    const x = pcm[i] * gain
+    const ax = Math.abs(x)
+    if (ax <= ceiling) {
+      out[i] = x
+    } else {
+      // Soft-knee saturation above ceiling up to 0.99
+      const excess = ax - ceiling
+      const head = 0.99 - ceiling
+      out[i] = Math.sign(x) * (ceiling + head * Math.tanh(excess / head))
+    }
+  }
+  return out
+}
+
+/**
  * Where each scene's narration starts, and how long the scenes must be to fit
  * it. Pure: the renderer calls this with measured clip lengths, the planner
  * calls it with estimates.
@@ -102,12 +137,15 @@ export function synthesizeBed(durationSec, sampleRate, { style = 'ambient', gain
   if (!total || !(sampleRate > 0)) return out
 
   const isMarch = style === 'march'
-  const bpm = isMarch ? 112 : 76
+  const isUpbeat = style === 'upbeat'
+  const bpm = isMarch ? 112 : isUpbeat ? 124 : 76
   const beatSec = 60 / bpm
   // C major / A minor warm triad progression (Hz)
   const chords = isMarch
     ? [[130.81, 196.0, 261.63], [146.83, 220.0, 293.66], [164.81, 246.94, 329.63], [130.81, 196.0, 261.63]]
-    : [[130.81, 164.81, 196.0], [110.0, 164.81, 220.0], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66]]
+    : isUpbeat
+      ? [[130.81, 164.81, 196.0, 261.63], [174.61, 220.0, 261.63, 349.23], [196.0, 246.94, 293.66, 392.0], [164.81, 196.0, 246.94, 329.63]]
+      : [[130.81, 164.81, 196.0], [110.0, 164.81, 220.0], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66]]
 
   for (let i = 0; i < total; i++) {
     const t = i / sampleRate
@@ -115,12 +153,23 @@ export function synthesizeBed(durationSec, sampleRate, { style = 'ambient', gain
     const chord = chords[barIdx]
     let pad = 0
     for (let k = 0; k < chord.length; k++) {
-      pad += Math.sin(2 * Math.PI * chord[k] * t) * (k === 0 ? 0.5 : 0.25)
+      pad += Math.sin(2 * Math.PI * chord[k] * t) * (k === 0 ? 0.45 : 0.22)
+      // Subtle 2nd harmonic warmth
+      pad += Math.sin(2 * Math.PI * chord[k] * 2 * t) * 0.06
     }
     const beatPhase = (t % beatSec) / beatSec
+    if (isUpbeat) {
+      // Gentle arpeggiated pluck on eighth notes
+      const eighthIdx = Math.floor((t % (beatSec * 2)) / (beatSec * 0.5)) % chord.length
+      const eighthPhase = (t % (beatSec * 0.5)) / (beatSec * 0.5)
+      const pluck = Math.sin(2 * Math.PI * chord[eighthIdx] * 2 * t) * Math.exp(-eighthPhase * 5) * 0.35
+      pad = pad * 0.65 + pluck
+    }
     const pulse = isMarch
       ? Math.exp(-beatPhase * 7) * 0.45 + 0.55
-      : 0.78 + 0.22 * Math.sin(2 * Math.PI * (t / (beatSec * 2)))
+      : isUpbeat
+        ? Math.exp(-beatPhase * 4) * 0.3 + 0.7
+        : 0.78 + 0.22 * Math.sin(2 * Math.PI * (t / (beatSec * 2)))
     out[i] = pad * pulse * gain
   }
   return applyEdgeFades(out, sampleRate, 250)

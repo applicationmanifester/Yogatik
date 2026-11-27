@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import {
   X, ChevronLeft, ChevronRight, Copy, Check, Layers,
   Minimize2, Maximize2, RotateCcw, GripVertical,
+  LayoutGrid, Rows3, ArrowUpDown, Trash2,
 } from 'lucide-react'
 import { ToolResultCard, TOOL_ICONS } from './ToolResultCard'
 
@@ -14,12 +15,39 @@ function getArtifactKey(art, index) {
   return `idx-${index}`
 }
 
+function extractHost(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return ''
+  try {
+    return new URL(rawUrl).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
+function getArtifactCategory(art) {
+  const name = String(art?.name || '').toLowerCase()
+  if (name.includes('browser') || name.includes('web_extract') || name.includes('link')) return 'Browser'
+  if (name.includes('deep_research')) return 'Research'
+  if (name.includes('search') || name.includes('wiki') || name.includes('scholar') || name.includes('news')) return 'Search'
+  if (name.includes('code') || name.includes('terminal') || name.includes('js_') || name.includes('diff')) return 'Code'
+  if (name.includes('image') || name.includes('video') || name.includes('audio') || name.includes('chart') || name.includes('diagram')) return 'Media'
+  return 'Other'
+}
+
 function getArtifactLabel(art, index) {
   const base = art?.title || art?.name || `Item ${index + 1}`
+  const host = extractHost(art?.result?.url || art?.args?.url)
+  const action = art?.result?.action || art?.args?.action
   const query = art?.args?.query || art?.result?.query || art?.result?.title
-  if (query && typeof query === 'string' && !base.includes(query)) {
+
+  if (host) {
+    const short = action ? `${host} · ${action}` : host
+    return { short, detail: `${base}: ${art?.result?.url || art?.args?.url}` }
+  }
+  if (query && typeof query === 'string' && query.trim()) {
     const cleanQuery = query.trim()
-    if (cleanQuery) return { short: base, detail: `${base}: ${cleanQuery}` }
+    const short = cleanQuery.length > 22 ? `${cleanQuery.slice(0, 20)}…` : cleanQuery
+    return { short, detail: `${base}: ${cleanQuery}` }
   }
   return { short: base, detail: base }
 }
@@ -53,6 +81,8 @@ export const LiveArtifactStage = memo(function LiveArtifactStage({
   onSelectIndex,
   onReorderArtifact,
   onRemoveArtifact,
+  onOrganizeArtifacts,
+  onClearArtifacts,
   onClose,
   draggable = true,
 }) {
@@ -68,10 +98,33 @@ export const LiveArtifactStage = memo(function LiveArtifactStage({
   const [copied, setCopied] = useState(false)
   const [draggingTabIdx, setDraggingTabIdx] = useState(null)
   const [dropTarget, setDropTarget] = useState(null) // { index, position: 'before' | 'after' }
+  const [activeCategory, setActiveCategory] = useState('All')
+  const [wrapTabs, setWrapTabs] = useState(false)
 
   const count = artifacts?.length || 0
   const safeIndex = count > 0 ? Math.min(Math.max(0, activeIndex), count - 1) : 0
   const current = count > 0 ? artifacts[safeIndex] : null
+
+  const { categories, visibleEntries } = useMemo(() => {
+    const counts = new Map()
+    const entries = (artifacts || []).map((art, idx) => {
+      const cat = getArtifactCategory(art)
+      counts.set(cat, (counts.get(cat) || 0) + 1)
+      return { art, idx, cat }
+    })
+    const cats = ['All', ...Array.from(counts.keys())]
+    const filtered = activeCategory === 'All' || !counts.has(activeCategory)
+      ? entries
+      : entries.filter((e) => e.cat === activeCategory)
+    return { categories: cats.map((c) => ({ name: c, count: c === 'All' ? entries.length : counts.get(c) })), visibleEntries: filtered }
+  }, [artifacts, activeCategory])
+
+  // Reset filter if active category disappears
+  useEffect(() => {
+    if (activeCategory !== 'All' && !categories.some((c) => c.name === activeCategory)) {
+      setActiveCategory('All')
+    }
+  }, [activeCategory, categories])
 
   // Keep active tab scrolled into view without triggering layout thrashing
   useEffect(() => {
@@ -365,10 +418,67 @@ export const LiveArtifactStage = memo(function LiveArtifactStage({
         </div>
       </div>
 
+      {/* Tab organization bar (filters, wrap-grid toggle, group, clear) */}
+      {count > 1 && (categories.length > 2 || count >= 4) && (
+        <div className="live-artifact-organizer" aria-label="Organize tabs">
+          <div className="live-artifact-filters" role="group" aria-label="Filter tabs by type">
+            {categories.map((cat) => (
+              <button
+                key={cat.name}
+                type="button"
+                className={`live-artifact-filter-chip${activeCategory === cat.name ? ' active' : ''}`}
+                onClick={() => setActiveCategory(cat.name)}
+              >
+                <span>{cat.name}</span>
+                <span className="live-artifact-filter-count">{cat.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="live-artifact-org-actions">
+            <button
+              type="button"
+              className={`live-artifact-org-btn${wrapTabs ? ' active' : ''}`}
+              onClick={() => setWrapTabs((w) => !w)}
+              title={wrapTabs ? 'Single-row scrollable tabs' : 'Wrap tabs into grid'}
+              aria-label={wrapTabs ? 'Single-row scrollable tabs' : 'Wrap tabs into grid'}
+              aria-pressed={wrapTabs}
+            >
+              {wrapTabs ? <Rows3 size={12} /> : <LayoutGrid size={12} />}
+            </button>
+            {onOrganizeArtifacts && (
+              <button
+                type="button"
+                className="live-artifact-org-btn"
+                onClick={() => onOrganizeArtifacts('group')}
+                title="Group tabs by tool type"
+                aria-label="Group tabs by tool type"
+              >
+                <ArrowUpDown size={12} />
+              </button>
+            )}
+            {onClearArtifacts && (
+              <button
+                type="button"
+                className="live-artifact-org-btn danger"
+                onClick={onClearArtifacts}
+                title="Clear all tabs"
+                aria-label="Clear all tabs"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Quick-jump, reorderable artifact tabs */}
       {count > 1 && (
-        <div className="live-artifact-tabs" role="tablist" aria-label="Artifacts (drag or Alt+Arrow to reorder)">
-          {artifacts.map((art, i) => {
+        <div
+          className={`live-artifact-tabs${wrapTabs ? ' is-wrapped' : ''}`}
+          role="tablist"
+          aria-label="Artifacts (drag or Alt+Arrow to reorder)"
+        >
+          {visibleEntries.map(({ art, idx: i }) => {
             const { short, detail } = getArtifactLabel(art, i)
             const isActive = i === safeIndex
             const isTabDragging = draggingTabIdx === i

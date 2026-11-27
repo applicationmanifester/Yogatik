@@ -36,4 +36,20 @@ function applyCSP(win) {
   });
 }
 
-module.exports = { applyCSP, CSP };
+function registerDisplayMediaHandler() {
+  const { session, desktopCapturer } = require('electron');
+  session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        thumbnailSize: { width: 0, height: 0 },
+      });
+      const primary = sources.find((s) => s.id.startsWith('screen:')) || sources[0];
+      callback(primary ? { video: primary } : {});
+    } catch {
+      callback({});
+    }
+  }, { useSystemPicker: true });
+}
+
+module.exports = { applyCSP, CSP, registerDisplayMediaHandler };

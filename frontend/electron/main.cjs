@@ -22,7 +22,7 @@ const entitlement = require('./entitlement.cjs')
 const { registerRootsIpc, rootPathsFor, resolvePath, getTrustState } = require('./roots.cjs')
 const { enableProviderCors } = require('./cors.cjs')
 const { enableAdBlocker } = require('./adBlocker.cjs')
-const { applyCSP } = require('./security.cjs')
+const { applyCSP, registerDisplayMediaHandler } = require('./security.cjs')
 const { buildMenu } = require('./menu.cjs')
 const { registerDeepLink, handleSecondInstance } = require('./deepLink.cjs')
 const { createTray } = require('./tray.cjs')
@@ -437,6 +437,7 @@ if (!gotLock) {
 
     enableProviderCors()
     enableAdBlocker()
+    registerDisplayMediaHandler()
 
     // ── The gate goes FIRST, before any handler exists ──────────────────────
     // installGate wraps ipcMain.handle itself, so every channel registered

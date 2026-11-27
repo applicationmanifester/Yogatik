@@ -1,5 +1,14 @@
 # Changelog
 
+## [26.0.0] — 2026-11-27: On-Device Video Generation & Voice-Over Studio Upgrades
+
+Major on-device media creation release upgrading Yogatik's zero-backend video renderer (`video_render`) and Kokoro-82M neural voice-over pipeline with chunked narration, exact subtitle sync, loudness normalization, visual themes, true cross-dissolves, and new scene layouts.
+
+### 🚀 Highlights
+- **On-Device Voice-Over Upgrades (`video/speech.js`, `video/audio.js`, `tools/videoRender.js`)**: Added sentence/clause chunking (`splitSpeechChunks`, `synthesizeScene`) with natural pauses and exact measured subtitle cues, per-scene `voice`/`speed` overrides for multi-speaker videos, RMS speech loudness normalization (`normalizeSpeechPcm`) with soft-knee peak limiting, and an `'upbeat'` procedural soundtrack bed.
+- **On-Device Video Renderer Upgrades (`video/timeline.js`, `video/draw.js`, `tools/videoRender.js`)**: Added 6 visual theme presets (`dark`, `light`, `ocean`, `emerald`, `sunset`, `midnight`), new `split` (side-by-side Ken Burns image + bullets) and `steps` (animated numbered process flow) scenes, true inter-scene cross-dissolve transitions, richer animated backgrounds, and scene boundary progress ticks.
+- **Multi-Platform Deployment & CI/CD**: Unified version 26.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [25.0.0] — 2026-11-27: Native Rust Accelerator (`yogatik-accel`), Live Object Detection & Speech/Token Polish
 
 Major performance, multimodal reliability, and quality release introducing native Rust acceleration (`yogatik-accel`) for Electron Desktop, smoother WebGPU-to-WASM Live Object Detection, cleaner speech recognition, and accurate input/output token tracking.

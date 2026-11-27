@@ -35,6 +35,8 @@ export class AgentSwarm {
     this.blackboard = options.blackboard || getSessionBlackboard(this.sessionId)
     this.concurrencyLimit = Math.max(1, Math.min(8, options.concurrencyLimit || 2))
     this.maxRetries = Math.max(0, options.maxRetries ?? 2)
+    this.retryDelayMs = Math.max(0, options.retryDelayMs ?? 0)
+    this.signal = options.signal || null
     this.tasks = new Map() // id -> task definition
     this.results = new Map() // id -> task result
     this.listeners = new Set()
@@ -149,6 +151,17 @@ export class AgentSwarm {
 
     try {
       while (this.hasUnfinishedTasks()) {
+        if (this.signal?.aborted) {
+          const remaining = Array.from(this.tasks.values()).filter(
+            t => t.status === TASK_STATUS.PENDING
+          )
+          for (const t of remaining) {
+            t.status = TASK_STATUS.SKIPPED
+            t.error = 'Aborted'
+            this.emit('task_skipped', { taskId: t.id, reason: t.error })
+          }
+          break
+        }
         const readyTasks = this.getReadyTasks().filter(t => !inFlight.has(t.id))
 
         if (readyTasks.length === 0 && inFlight.size === 0) {
@@ -159,6 +172,7 @@ export class AgentSwarm {
           for (const t of uncompleted) {
             t.status = TASK_STATUS.SKIPPED
             t.error = 'Skipped due to dependency failure'
+            this.emit('task_skipped', { taskId: t.id, reason: t.error })
           }
           break
         }
@@ -286,6 +300,10 @@ export class AgentSwarm {
         attempt++
         if (attempt > this.maxRetries) {
           throw lastError
+        }
+        if (this.retryDelayMs > 0) {
+          const delay = this.retryDelayMs * 2 ** (attempt - 1)
+          await new Promise(r => setTimeout(r, delay))
         }
       }
     }
