@@ -1,5 +1,15 @@
 # Changelog
 
+## [27.0.0] — 2026-11-27: Multi-Format 2D Animation Studio (Formats, Styles, Environments & Transitions)
+
+Major creative animation expansion adding aspect-ratio format presets, 6 rendering styles, 5 new animated environments, 6 additional color themes, and directional/zoom scene transitions to Yogatik's on-device `video_render` engine.
+
+### 🚀 Highlights
+- **Aspect-Ratio Format Presets (`video/timeline.js`, `tools/videoRender.js`)**: Added `aspect_ratio` presets for `16:9` (landscape), `9:16` / `shorts` (vertical Reels/TikTok/Shorts), `1:1` / `square`, `4:3`, and `21:9` / `cinema`.
+- **6 Visual Rendering Styles & 5 New Environments (`video/animate.js`)**: Added `flat`, `neon`, `cartoon`, `blueprint`, `retro` (CRT scanlines), and `sketch` styles, plus `underwater`, `city`, `sunset`, `forest`, and `chalkboard` animated environments.
+- **6 New Color Themes & Rich Transitions (`video/timeline.js`, `video/draw.js`)**: Added `cyberpunk`, `pastel`, `retro`, `forest`, `crimson`, and `gold` themes along with `slide-left`, `slide-up`, `wipe`, `zoom`, `fade`, and `cut` transitions.
+- **Multi-Platform Deployment & CI/CD**: Unified version 27.0.0 rollout across Web (`yogatik.web.app`), Windows (.exe), macOS (.dmg/.zip), Linux (.AppImage/.deb), Android (.apk), and iOS (.ipa).
+
 ## [26.0.0] — 2026-11-27: On-Device Video Generation & Voice-Over Studio Upgrades
 
 Major on-device media creation release upgrading Yogatik's zero-backend video renderer (`video_render`) and Kokoro-82M neural voice-over pipeline with chunked narration, exact subtitle sync, loudness normalization, visual themes, true cross-dissolves, and new scene layouts.

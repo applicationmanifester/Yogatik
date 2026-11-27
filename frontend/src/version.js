@@ -3,9 +3,9 @@
  * Tracks current version, build metadata, and itemized release updates/changelog.
  */
 
-export const APP_VERSION = '26.0.0'
+export const APP_VERSION = '27.0.0'
 export const BUILD_DATE = 'November 2026'
-export const APP_CODENAME = 'Yogatik 26.0.0 — On-Device Video Generation & Voice-Over Upgrades'
+export const APP_CODENAME = 'Yogatik 27.0.0 — Multi-Format 2D Animation Studio'
 
 const SEEN_VERSION_KEY = 'yogatik:seen_version'
 
@@ -23,10 +23,32 @@ export function markCurrentVersionAsSeen() {
 
 export const APP_RELEASES = [
   {
+    "version": "27.0.0",
+    "title": "Yogatik 27.0.0: Multi-Format 2D Animation Studio",
+    "date": "November 27, 2026",
+    "isLatest": true,
+    "highlights": [
+      "Aspect-Ratio Format Presets: Render 16:9 widescreen, 9:16 vertical Shorts/Reels/TikTok, 1:1 square, 4:3, and 21:9 cinema animations",
+      "6 Rendering Styles & 5 New Environments: Neon, Cartoon, Blueprint, Retro CRT, Sketch, and Flat styles across Underwater, City, Sunset, Forest, and Chalkboard backdrops",
+      "Expanded Themes & Transitions: Added Cyberpunk, Pastel, Retro, Forest, Crimson, and Gold themes plus Slide, Wipe, and Zoom scene transitions"
+    ],
+    "sections": [
+      {
+        "category": "🎬 Multi-Format 2D Animation",
+        "items": [
+          {
+            "title": "Formats, Styles & Environments",
+            "description": "Generate vertical 9:16, square 1:1, or widescreen 16:9/21:9 animations in Neon, Cartoon, Blueprint, or Retro styles across 10 animated environments."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "version": "26.0.0",
     "title": "Yogatik 26.0.0: On-Device Video Generation & Voice-Over Upgrades",
     "date": "November 27, 2026",
-    "isLatest": true,
+    "isLatest": false,
     "highlights": [
       "Chunked Voice-Over & Exact Subtitles: Sentence/clause splitting for Kokoro-82M, natural pauses, exact measured subtitle cues, and per-scene voice/speed overrides",
       "Speech Loudness Normalization & Upbeat Bed: Active-RMS speech normalization with soft-knee peak limiting plus a new upbeat procedural soundtrack",

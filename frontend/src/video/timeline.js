@@ -71,7 +71,77 @@ export const THEMES = {
     accent2: '#ec4899',
     font: THEME.font,
   },
+  cyberpunk: {
+    bg: '#090014',
+    bgAlt: '#1a0333',
+    fg: '#f8fafc',
+    dim: '#e879f9',
+    accent: '#00f5d4',
+    accent2: '#f72585',
+    font: THEME.font,
+  },
+  pastel: {
+    bg: '#fef6e4',
+    bgAlt: '#f3d2c1',
+    fg: '#172c66',
+    dim: '#5c6b9c',
+    accent: '#f582ae',
+    accent2: '#8bd3dd',
+    font: THEME.font,
+  },
+  retro: {
+    bg: '#1c1917',
+    bgAlt: '#292524',
+    fg: '#fef3c7',
+    dim: '#d6d3d1',
+    accent: '#f59e0b',
+    accent2: '#ef4444',
+    font: THEME.font,
+  },
+  forest: {
+    bg: '#071a0e',
+    bgAlt: '#11331e',
+    fg: '#f0fdf4',
+    dim: '#86efac',
+    accent: '#4ade80',
+    accent2: '#facc15',
+    font: THEME.font,
+  },
+  crimson: {
+    bg: '#16070a',
+    bgAlt: '#2b0b12',
+    fg: '#fff1f2',
+    dim: '#fda4af',
+    accent: '#f43f5e',
+    accent2: '#fb923c',
+    font: THEME.font,
+  },
+  gold: {
+    bg: '#0c0a09',
+    bgAlt: '#1c1917',
+    fg: '#fefce8',
+    dim: '#d6d3d1',
+    accent: '#eab308',
+    accent2: '#f59e0b',
+    font: THEME.font,
+  },
 }
+
+export const ASPECT_FORMATS = {
+  '16:9': { width: 1280, height: 720 },
+  landscape: { width: 1280, height: 720 },
+  '9:16': { width: 720, height: 1280 },
+  shorts: { width: 720, height: 1280 },
+  vertical: { width: 720, height: 1280 },
+  '1:1': { width: 1080, height: 1080 },
+  square: { width: 1080, height: 1080 },
+  '4:3': { width: 1024, height: 768 },
+  '21:9': { width: 1344, height: 576 },
+  cinema: { width: 1344, height: 576 },
+}
+
+export const ANIMATION_STYLES = ['flat', 'neon', 'cartoon', 'blueprint', 'retro', 'sketch']
+export const TRANSITION_TYPES = ['fade', 'cut', 'slide-left', 'slide-up', 'wipe', 'zoom']
 
 const DEFAULT_SECONDS = {
   title: 3,
@@ -98,7 +168,7 @@ const KNOWN_SCENE_FIELDS = new Set([
   'type', 'duration', 'narration', 'voice', 'speed', 'text', 'subtitle', 'heading',
   'bullets', 'steps', 'image_url', 'url', 'caption', 'motion', 'align', 'data',
   'quote', 'author', 'metric', 'label',
-  'environment', 'actors', 'particles', 'gravity',
+  'environment', 'actors', 'particles', 'gravity', 'style',
 ])
 const CONTENT_FIELDS = [
   'text', 'subtitle', 'heading', 'bullets', 'steps', 'image_url', 'url', 'caption', 'data',
@@ -111,8 +181,10 @@ export function normalizeSpec(spec = {}) {
   if (scenes.length > LIMITS.maxScenes) throw new Error(`Too many scenes (max ${LIMITS.maxScenes}).`)
 
   const fps = clamp(Math.round(spec.fps || 30), LIMITS.minFps, LIMITS.maxFps)
-  const width = even(clamp(Math.round(spec.width || 1280), LIMITS.minEdge, LIMITS.maxEdge))
-  const height = even(clamp(Math.round(spec.height || 720), LIMITS.minEdge, LIMITS.maxEdge))
+  const ratioPreset = ASPECT_FORMATS[String(spec.aspect_ratio || spec.ratio || spec.preset || '').toLowerCase()]
+    || (spec.format && spec.format !== 'mp4' && spec.format !== 'webm' ? ASPECT_FORMATS[String(spec.format).toLowerCase()] : null)
+  const width = even(clamp(Math.round(spec.width || ratioPreset?.width || 1280), LIMITS.minEdge, LIMITS.maxEdge))
+  const height = even(clamp(Math.round(spec.height || ratioPreset?.height || 720), LIMITS.minEdge, LIMITS.maxEdge))
 
   let cursor = 0
   const out = []
@@ -173,11 +245,16 @@ export function normalizeSpec(spec = {}) {
     ? (THEMES[spec.theme] || THEME)
     : { ...THEME, ...(spec.theme || {}) }
 
+  const transition = TRANSITION_TYPES.includes(spec.transition) ? spec.transition : 'fade'
+  const style = ANIMATION_STYLES.includes(spec.style) ? spec.style : 'flat'
+
   return {
     width, height, fps,
     format: spec.format === 'webm' ? 'webm' : 'mp4',
     theme: resolvedTheme,
-    fade: spec.transition === 'cut' ? 0 : clamp(Number(spec.fade ?? 0.35), 0, 1),
+    style,
+    transition,
+    fade: transition === 'cut' ? 0 : clamp(Number(spec.fade ?? 0.35), 0, 1),
     progressBar: spec.progress !== false,
     scenes: out,
     totalFrames: cursor,

@@ -7,7 +7,7 @@
  * captions and animated charts.
  */
 
-import { normalizeSpec, frameAt, LIMITS, SCENE_TYPES, THEMES } from '../video/timeline'
+import { normalizeSpec, frameAt, LIMITS, SCENE_TYPES, THEMES, ASPECT_FORMATS, ANIMATION_STYLES, TRANSITION_TYPES } from '../video/timeline'
 // NOTE: everything heavy (draw, encode, audio, speech/Kokoro-90MB, image
 // fetching, db) is dynamically imported INSIDE execute() so none of it rides
 // the initial bundle — first paint pays nothing for a video never rendered.
@@ -206,7 +206,8 @@ export const videoRenderTool = {
               author: { type: 'string' },
               metric: { type: 'string' },
               label: { type: 'string' },
-              environment: { type: 'string', enum: ['space', 'sky', 'ground', 'grid', 'stage'] },
+              environment: { type: 'string', enum: ['space', 'sky', 'ground', 'grid', 'stage', 'underwater', 'city', 'sunset', 'forest', 'chalkboard'] },
+              style: { type: 'string', enum: ANIMATION_STYLES, description: 'Visual rendering style (flat, neon, cartoon, blueprint, retro, sketch)' },
               gravity: { type: 'number', description: 'Gravity in px/s^2 for physics actors (default 980)' },
               particles: {
                 type: 'object',
@@ -333,8 +334,13 @@ export const videoRenderTool = {
             required: ['type'],
           },
         },
-        width: { type: 'number', description: 'Default 1280' },
-        height: { type: 'number', description: 'Default 720' },
+        aspect_ratio: {
+          type: 'string',
+          enum: Object.keys(ASPECT_FORMATS),
+          description: "Output format preset: '16:9' (landscape, default), '9:16'/'shorts' (vertical Reels/TikTok/Shorts), '1:1'/'square', '4:3', or '21:9'/'cinema'.",
+        },
+        width: { type: 'number', description: 'Optional explicit width (overrides aspect_ratio)' },
+        height: { type: 'number', description: 'Optional explicit height (overrides aspect_ratio)' },
         fps: { type: 'number', description: 'Default 30' },
         quality: {
           type: 'string',
@@ -345,7 +351,12 @@ export const videoRenderTool = {
           enum: Object.keys(THEMES),
           description: `Visual color theme preset (${Object.keys(THEMES).join(', ')}). Default dark.`,
         },
-        transition: { type: 'string', enum: ['fade', 'cut'], description: 'Default fade (cross-dissolve between scenes)' },
+        style: {
+          type: 'string',
+          enum: ANIMATION_STYLES,
+          description: `Default visual rendering style for animation scenes (${ANIMATION_STYLES.join(', ')}).`,
+        },
+        transition: { type: 'string', enum: TRANSITION_TYPES, description: 'Scene transition: fade (cross-dissolve, default), cut, slide-left, slide-up, wipe, zoom' },
         voice: {
           type: 'string', enum: Object.keys(VOICES),
           description: `Narrator voice. ${Object.entries(VOICES).map(([k, v]) => `${k}: ${v}`).join('; ')}`,

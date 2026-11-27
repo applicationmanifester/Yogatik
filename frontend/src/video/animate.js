@@ -123,6 +123,115 @@ export function drawEnvironment(ctx, env, t, { W, H, theme }) {
     return
   }
 
+  if (kind === 'underwater') {
+    const g = ctx.createLinearGradient(0, 0, 0, H)
+    g.addColorStop(0, '#0284c7')
+    g.addColorStop(0.55, '#0369a1')
+    g.addColorStop(1, '#082f49')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, W, H)
+
+    // Animated caustic light rays from surface
+    for (let i = 0; i < 5; i++) {
+      const rx = W * (0.15 + i * 0.18) + Math.sin(t * 2 + i) * W * 0.03
+      ctx.fillStyle = 'rgba(186, 230, 253, 0.08)'
+      ctx.beginPath()
+      ctx.moveTo(rx - S * 0.05, 0)
+      ctx.lineTo(rx + S * 0.05, 0)
+      ctx.lineTo(rx + S * 0.22, H)
+      ctx.lineTo(rx - S * 0.12, H)
+      ctx.closePath()
+      ctx.fill()
+    }
+    // Sandy seabed
+    ctx.fillStyle = '#0c4a6e'
+    ctx.fillRect(0, H * 0.86, W, H * 0.14)
+    return
+  }
+
+  if (kind === 'city') {
+    const g = ctx.createLinearGradient(0, 0, 0, H)
+    g.addColorStop(0, '#090d16')
+    g.addColorStop(0.7, '#1e1b4b')
+    g.addColorStop(1, '#312e81')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, W, H)
+
+    // Skyline buildings
+    const count = 14
+    const bw = W / count
+    for (let i = 0; i < count; i++) {
+      const bh = H * (0.2 + hash01(i + 50) * 0.38)
+      const bx = i * bw
+      const by = H - bh
+      ctx.fillStyle = i % 2 === 0 ? '#0f172a' : '#1e293b'
+      ctx.fillRect(bx, by, bw + 1, bh)
+      // Lit windows
+      ctx.fillStyle = '#fde04788'
+      for (let wy = by + 14; wy < H - 20; wy += 22) {
+        for (let wx = bx + 8; wx < bx + bw - 10; wx += 16) {
+          if (hash01(wx * 7 + wy * 13) > 0.45) {
+            ctx.fillRect(wx, wy, 7, 10)
+          }
+        }
+      }
+    }
+    return
+  }
+
+  if (kind === 'sunset') {
+    const g = ctx.createLinearGradient(0, 0, 0, H)
+    g.addColorStop(0, '#311042')
+    g.addColorStop(0.45, '#be185d')
+    g.addColorStop(0.78, '#f97316')
+    g.addColorStop(1, '#fde047')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, W, H)
+
+    const sunY = H * (0.62 + t * 0.06)
+    ctx.fillStyle = '#fef08a'
+    ctx.beginPath()
+    ctx.arc(W * 0.5, sunY, S * 0.14, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.fillStyle = '#1e1b4b'
+    ctx.fillRect(0, H * 0.78, W, H * 0.22)
+    return
+  }
+
+  if (kind === 'forest') {
+    const g = ctx.createLinearGradient(0, 0, 0, H)
+    g.addColorStop(0, '#0f172a')
+    g.addColorStop(0.6, '#064e3b')
+    g.addColorStop(1, '#022c22')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, W, H)
+
+    // Layered pine trees
+    for (let i = 0; i < 12; i++) {
+      const tx = (i / 11) * W
+      const th = H * (0.24 + hash01(i + 90) * 0.18)
+      const tw = S * 0.11
+      ctx.fillStyle = i % 2 === 0 ? '#065f46' : '#047857'
+      ctx.beginPath()
+      ctx.moveTo(tx, H - th)
+      ctx.lineTo(tx + tw, H)
+      ctx.lineTo(tx - tw, H)
+      ctx.closePath()
+      ctx.fill()
+    }
+    return
+  }
+
+  if (kind === 'chalkboard') {
+    ctx.fillStyle = '#143326'
+    ctx.fillRect(0, 0, W, H)
+    ctx.strokeStyle = '#78350f'
+    ctx.lineWidth = Math.max(8, S * 0.02)
+    ctx.strokeRect(0, 0, W, H)
+    return
+  }
+
   // Default 'stage' / 'dark'
   const g = ctx.createLinearGradient(0, 0, W, H)
   g.addColorStop(0, theme.bg)
@@ -324,7 +433,7 @@ function getPhysicsWorld(scene, W, H) {
   return scene._physWorld
 }
 
-function drawActorShape(ctx, actor, state, t, { W, H, theme }) {
+function drawActorShape(ctx, actor, state, t, { W, H, theme, style = 'flat' }) {
   const S = Math.min(W, H)
   const shape = String(actor.shape || 'circle').toLowerCase()
   const size = actor.size ? resolveCoord(actor.size, S) : S * 0.09
@@ -337,8 +446,18 @@ function drawActorShape(ctx, actor, state, t, { W, H, theme }) {
   if (state.rotation) ctx.rotate((state.rotation * Math.PI) / 180)
   if (state.scale !== 1) ctx.scale(state.scale, state.scale)
 
-  ctx.fillStyle = state.color
-  ctx.strokeStyle = actor.stroke || state.color
+  if (style === 'neon') {
+    ctx.shadowColor = state.color
+    ctx.shadowBlur = Math.max(12, S * 0.03)
+  } else if (style === 'blueprint') {
+    ctx.strokeStyle = '#38bdf8'
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.18)'
+  }
+
+  if (style !== 'blueprint') {
+    ctx.fillStyle = state.color
+    ctx.strokeStyle = actor.stroke || (style === 'cartoon' ? '#0f172a' : state.color)
+  }
 
   if (shape === 'circle' || shape === 'ball') {
     const r = size * 0.5
@@ -569,8 +688,10 @@ function drawActorShape(ctx, actor, state, t, { W, H, theme }) {
 }
 
 /** Paint an `animation` scene at progress `t` (0..1). */
-export function drawAnimation(ctx, scene, t, { W, H, theme }) {
-  drawEnvironment(ctx, scene.environment, t, { W, H, theme })
+export function drawAnimation(ctx, scene, t, { W, H, theme, style: specStyle }) {
+  const style = String(scene.style || specStyle || 'flat').toLowerCase()
+  const env = scene.environment || (style === 'blueprint' ? 'grid' : 'stage')
+  drawEnvironment(ctx, env, t, { W, H, theme })
   if (scene.particles) drawParticles(ctx, scene.particles, t, { W, H, theme })
 
   const sceneSec = scene.seconds || 6
@@ -623,8 +744,16 @@ export function drawAnimation(ctx, scene, t, { W, H, theme }) {
       }
     }
 
-    drawActorShape(ctx, actor, state, t, { W, H, theme })
+    drawActorShape(ctx, actor, state, t, { W, H, theme, style })
   })
+
+  // Optional retro CRT scanline overlay
+  if (style === 'retro') {
+    ctx.save()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.16)'
+    for (let y = 0; y < H; y += 4) ctx.fillRect(0, y, W, 1.5)
+    ctx.restore()
+  }
 
   // Optional subtle title/heading pill at top-left
   const title = scene.heading || scene.title

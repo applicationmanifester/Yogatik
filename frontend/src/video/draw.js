@@ -480,9 +480,9 @@ const PAINTERS = {
 }
 
 function paintSceneLayer(ctx, spec, scene, t) {
-  const { width: W, height: H, theme } = spec
+  const { width: W, height: H, theme, style } = spec
   if (scene.type !== 'image' && scene.type !== 'animation') background(ctx, W, H, theme, t)
-  ;(PAINTERS[scene.type] || drawText)(ctx, scene, t, { W, H, theme })
+  ;(PAINTERS[scene.type] || drawText)(ctx, scene, t, { W, H, theme, style })
   if (scene._cues?.length) drawSubtitle(ctx, scene, t, { W, H, theme })
 }
 
@@ -513,16 +513,39 @@ export function paintFrame(ctx, spec, { scene, t, alpha, prev }) {
   if (prev && alpha < 1) {
     const tCtx = getTransitionCtx(spec, W, H)
     if (tCtx) {
-      // Real cross-dissolve: paint outgoing scene onto main canvas, incoming onto offscreen, then blend.
       paintSceneLayer(ctx, spec, prev.scene, prev.t)
       tCtx.save()
       tCtx.clearRect(0, 0, W, H)
       tCtx.textBaseline = 'alphabetic'
       paintSceneLayer(tCtx, spec, scene, t)
       tCtx.restore()
-      ctx.globalAlpha = alpha
-      ctx.drawImage(spec._transitionCanvas, 0, 0)
-      ctx.globalAlpha = 1
+
+      const tr = spec.transition || 'fade'
+      const p = ease.out(alpha)
+      if (tr === 'slide-left') {
+        ctx.drawImage(spec._transitionCanvas, W * (1 - p), 0)
+      } else if (tr === 'slide-up') {
+        ctx.drawImage(spec._transitionCanvas, 0, H * (1 - p))
+      } else if (tr === 'wipe') {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, 0, W * p, H)
+        ctx.clip()
+        ctx.drawImage(spec._transitionCanvas, 0, 0)
+        ctx.restore()
+      } else if (tr === 'zoom') {
+        const s = 0.85 + 0.15 * p
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.translate(W / 2, H / 2)
+        ctx.scale(s, s)
+        ctx.drawImage(spec._transitionCanvas, -W / 2, -H / 2)
+        ctx.restore()
+      } else {
+        ctx.globalAlpha = alpha
+        ctx.drawImage(spec._transitionCanvas, 0, 0)
+        ctx.globalAlpha = 1
+      }
     } else {
       paintSceneLayer(ctx, spec, scene, t)
       ctx.globalAlpha = 1 - alpha

@@ -37,7 +37,13 @@ const fs = require('fs')
 const path = require('path')
 const { safeSend } = require('./safeWindow.cjs')
 const {
-  buildTxt2ImgGraph, buildImg2VidGraph, parseObjectInfo,
+  buildTxt2ImgGraph,
+  buildImg2VidGraph,
+  buildTextToVideoGraph,
+  buildMp4MuxGraph,
+  buildAnimeTxt2ImgGraph,
+  ANIME_PRESETS,
+  parseObjectInfo,
 } = require('./comfyWorkflows.cjs')
 
 const DEFAULT_PORT = 8188
@@ -341,6 +347,72 @@ function registerComfyIpc(getWindow) {
   ipcMain.handle('comfy:cancel', async () => {
     try { await httpJson('POST', '/interrupt'); return { ok: true } }
     catch (e) { return { ok: false, error: e?.message || String(e) } }
+  })
+
+  /* ── text-to-video (true text→video, not image→video) ────────────────── */
+
+  ipcMain.handle('comfy:generate-video-from-text', async (_e, args = {}) => {
+    const win = getWindow?.()
+    try {
+      if (!await probeHttp()) throw new Error('ComfyUI is not running. Call comfy:start first, or start it yourself.')
+      const { graph, outputNodeId, seed, width, height, fps, videoFrames } = buildTextToVideoGraph(args)
+      safeSend(win, 'comfy:progress', { phase: 'queued', kind: 'video' })
+      const file = await submitAndWait(graph, outputNodeId, VIDEO_TIMEOUT_MS)
+      safeSend(win, 'comfy:progress', { phase: 'fetching', kind: 'video' })
+      const { buffer, contentType } = await fetchOutputBytes(file)
+      return {
+        success: true, bytes: buffer.toString('base64'), mime: contentType || 'image/webp',
+        filename: file.filename, seed, width, height, fps, frames: videoFrames,
+      }
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) }
+    }
+  })
+
+  /* ── anime text-to-image ─────────────────────────────────────────────── */
+
+  ipcMain.handle('comfy:generate-image-anime', async (_e, args = {}) => {
+    const win = getWindow?.()
+    try {
+      if (!await probeHttp()) throw new Error('ComfyUI is not running. Call comfy:start first, or start it yourself.')
+      const { graph, outputNodeId, seed, width, height } = buildAnimeTxt2ImgGraph(args)
+      safeSend(win, 'comfy:progress', { phase: 'queued', kind: 'image' })
+      const file = await submitAndWait(graph, outputNodeId, IMAGE_TIMEOUT_MS)
+      safeSend(win, 'comfy:progress', { phase: 'fetching', kind: 'image' })
+      const { buffer, contentType } = await fetchOutputBytes(file)
+      return {
+        success: true, bytes: buffer.toString('base64'), mime: contentType || 'image/png',
+        filename: file.filename, seed, width, height,
+      }
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) }
+    }
+  })
+
+  /* ── MP4 mux from decoded frames ─────────────────────────────────────── */
+
+  ipcMain.handle('comfy:mux-mp4', async (_e, args = {}) => {
+    const win = getWindow?.()
+    try {
+      if (!await probeHttp()) throw new Error('ComfyUI is not running. Call comfy:start first, or start it yourself.')
+      const { graph, outputNodeId, width, height, fps } = buildMp4MuxGraph(args)
+      safeSend(win, 'comfy:progress', { phase: 'queued', kind: 'video' })
+      const file = await submitAndWait(graph, outputNodeId, VIDEO_TIMEOUT_MS)
+      safeSend(win, 'comfy:progress', { phase: 'fetching', kind: 'video' })
+      const { buffer, contentType } = await fetchOutputBytes(file)
+      return {
+        success: true, bytes: buffer.toString('base64'), mime: contentType || 'video/mp4',
+        filename: file.filename, width, height, fps,
+      }
+    } catch (e) {
+      return { success: false, error: e?.message || String(e) }
+    }
+  })
+
+  /* ── anime presets (reference for frontend UI dropdowns) ─────────────── */
+
+  ipcMain.handle('comfy:anime-presets', async () => {
+    return { presets: ANIME_PRESETS }
   })
 
   log('IPC registered')

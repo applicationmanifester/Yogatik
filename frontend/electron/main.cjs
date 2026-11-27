@@ -52,6 +52,8 @@ const { registerFsWatcherIpc, stopAllFsWatchers } = require('./fsWatcher.cjs')
 const { registerMcpStdioClientIpc, stopAllMcpStdioClients } = require('./mcpStdioClient.cjs')
 const { registerOllamaIpc, destroyOllamaDaemon } = require('./ollamaDaemon.cjs')
 const { loadConfig: loadComfyConfig, registerComfyIpc, destroyComfyDaemon } = require('./comfyDaemon.cjs')
+const { loadConfig: loadMusicConfig, registerMusicIpc, destroyMusicDaemon } = require('./musicDaemon.cjs')
+const { loadConfig: loadTtsConfig, registerTtsIpc, destroyTtsDaemon } = require('./ttsDaemon.cjs')
 const { registerCastIpc, destroyCastControl } = require('./castControl.cjs')
 const { registerTorrentIpc, destroyTorrentManager } = require('./torrentManager.cjs')
 const { registerVideoStudioIpc } = require('./videoStudioWindow.cjs')
@@ -511,6 +513,12 @@ if (!gotLock) {
       // submit/poll/fetch generation jobs — no terminal needed.
       loadComfyConfig(app.getPath('userData'))
       registerComfyIpc(getWindow)
+      // Zero-touch Music generation manager: probe / auto-start, generate & extend tracks.
+      loadMusicConfig(app.getPath('userData'))
+      registerMusicIpc(getWindow)
+      // Zero-touch TTS / voice-over manager: probe / auto-start, speak & clone voices.
+      loadTtsConfig(app.getPath('userData'))
+      registerTtsIpc(getWindow)
       // Cast Yogatik's own generated media to a UPnP/DLNA TV on the LAN —
       // SSDP discovery + a tiny local file server + SOAP, no external app,
       // no ffmpeg (see castCore.cjs for why neither is needed here).
@@ -1101,6 +1109,8 @@ if (!gotLock) {
     destroyCompanion()     // and the floating companion
     destroyOllamaDaemon()  // kill any managed Ollama daemon + in-progress pulls
     destroyComfyDaemon()   // kill any managed ComfyUI process
+    destroyMusicDaemon()   // kill any managed music service
+    destroyTtsDaemon()     // kill any managed TTS service
     destroyCastControl()   // stop the cast file server and clear discovered devices
     destroyTorrentManager() // cleanly disconnect P2P swarms and destroy WebTorrent client
     if (searchSidecar) {

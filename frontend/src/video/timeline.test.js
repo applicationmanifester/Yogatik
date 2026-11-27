@@ -174,4 +174,28 @@ describe('themes, new scene types, and cross-dissolve prev state', () => {
     expect(startState.x).toBeCloseTo(200, 1)
     expect(endState.x).toBeCloseTo(800, 1)
   })
+
+  it('resolves aspect_ratio presets, expanded themes, styles, and transitions', () => {
+    const shorts = normalizeSpec({
+      aspect_ratio: '9:16',
+      theme: 'cyberpunk',
+      style: 'neon',
+      transition: 'slide-left',
+      scenes: [{ type: 'animation', environment: 'city', actors: [{ shape: 'car' }] }],
+    })
+    expect(shorts.width).toBe(720)
+    expect(shorts.height).toBe(1280)
+    expect(shorts.theme).toEqual(THEMES.cyberpunk)
+    expect(shorts.style).toBe('neon')
+    expect(shorts.transition).toBe('slide-left')
+
+    const square = normalizeSpec({
+      aspect_ratio: '1:1',
+      theme: 'pastel',
+      scenes: [{ type: 'title', text: 'Square' }],
+    })
+    expect(square.width).toBe(1080)
+    expect(square.height).toBe(1080)
+    expect(square.theme).toEqual(THEMES.pastel)
+  })
 })

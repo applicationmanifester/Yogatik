@@ -644,3 +644,45 @@ contextBridge.exposeInMainWorld('__YOGATIK_RUST__', {
   topk: (queryVec, docVecs, k) => ipcRenderer.invoke('rust:topk', queryVec, docVecs, k),
 })
 
+
+// Media generation bridge — ComfyUI video / music / TTS
+contextBridge.exposeInMainWorld('__YOGATIK_MEDIA__', {
+  // ── ComfyUI video ──────────────────────────────────────────────────────
+  comfyStatus: () => ipcRenderer.invoke('comfy:status'),
+  comfySetRoot: (root) => ipcRenderer.invoke('comfy:set-root', { root }),
+  comfyStart: () => ipcRenderer.invoke('comfy:start'),
+  comfyGenerateImage: (args) => ipcRenderer.invoke('comfy:generate-image', args),
+  comfyGenerateImageAnime: (args) => ipcRenderer.invoke('comfy:generate-image-anime', args),
+  comfyGenerateVideo: (args) => ipcRenderer.invoke('comfy:generate-video', args),
+  comfyGenerateVideoFromText: (args) => ipcRenderer.invoke('comfy:generate-video-from-text', args),
+  comfyMuxMp4: (args) => ipcRenderer.invoke('comfy:mux-mp4', args),
+  comfyAnimePresets: () => ipcRenderer.invoke('comfy:anime-presets'),
+  comfyCancel: () => ipcRenderer.invoke('comfy:cancel'),
+  onComfyProgress: (cb) => {
+    const handler = (_e, data) => { try { cb(data) } catch {} }
+    ipcRenderer.on('comfy:progress', handler)
+    return () => ipcRenderer.removeListener('comfy:progress', handler)
+  },
+  // ── Music ──────────────────────────────────────────────────────────────
+  musicStatus: () => ipcRenderer.invoke('music:status'),
+  musicSetRoot: (root) => ipcRenderer.invoke('music:set-root', { root }),
+  musicStart: () => ipcRenderer.invoke('music:start'),
+  musicGenerate: (args) => ipcRenderer.invoke('music:generate', args),
+  musicExtend: (args) => ipcRenderer.invoke('music:extend', args),
+  onMusicProgress: (cb) => {
+    const handler = (_e, data) => { try { cb(data) } catch {} }
+    ipcRenderer.on('music:progress', handler)
+    return () => ipcRenderer.removeListener('music:progress', handler)
+  },
+  // ── TTS / voice-over ───────────────────────────────────────────────────
+  ttsStatus: () => ipcRenderer.invoke('tts:status'),
+  ttsSetRoot: (root) => ipcRenderer.invoke('tts:set-root', { root }),
+  ttsStart: () => ipcRenderer.invoke('tts:start'),
+  ttsSpeak: (args) => ipcRenderer.invoke('tts:speak', args),
+  ttsCloneVoice: (args) => ipcRenderer.invoke('tts:clone-voice', args),
+  onTtsProgress: (cb) => {
+    const handler = (_e, data) => { try { cb(data) } catch {} }
+    ipcRenderer.on('tts:progress', handler)
+    return () => ipcRenderer.removeListener('tts:progress', handler)
+  },
+})
